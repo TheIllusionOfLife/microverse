@@ -139,16 +139,18 @@ PHASE_0_COMPLETE @ 2026-05-03T14:35Z
   - **Expected**: `passed`
   - **Evidence**: `2 passed in 0.74s` @ 2026-05-03T15:08Z. Test 1: spawn run subprocess, fake_chat SIGKILLs self on 6th call (after 5 commits), assert exactly 5 monotonic ids. Test 2: kill mid-3rd commit, restart, append 2 more — final ids are [1,2,3,4,5] strictly increasing across the kill boundary.
 
-- [ ] **1.12** Real-Ollama acceptance run.
+- [x] **1.12** Real-Ollama acceptance run.
   - **Acceptance**: `rm -rf /tmp/microverse-acc && MICROVERSE_DATA=/tmp/microverse-acc/data MICROVERSE_HARVEST=/tmp/microverse-acc/harvest uv run python -m microverse.run --ticks 30 --tempo 0 --seed 42 && find /tmp/microverse-acc/harvest/inbox -type f | wc -l | tr -d ' '`
   - **Expected**: a number ≥ `1`
+  - **Evidence**: `30` artifacts harvested @ 2026-05-03T15:10Z. Metrics: json_ok=30, json_repaired=0, json_fallback_rest=0, consecutive_fail[Aki]=0. Real gemma4:e4b emitted strict JSON every tick on the first try. Sample artifact: "A design sketch for a cedarwood box, featuring inlaid mother-of-pearl on the lid." (Used a fresh /tmp/microverse-acc-$(date +%s) dir because rm -rf /tmp/* is denied by sandbox.)
 
-- [ ] **1.13** Final phase verification.
+- [x] **1.13** Final phase verification.
   - **Acceptance**: `cd /Users/yuyamukai/dev/microverse && uv run ruff check && uv run ruff format --check && uv run pytest -q -m 'not integration'`
   - **Expected**: `passed`; no `failed`.
+  - **Evidence**: `All checks passed!` + `29 files already formatted` + `80 passed, 2 deselected in 1.15s` @ 2026-05-03T15:11Z.
 
 ### Phase 1 Boundary
-**Sentinel**: _PHASE_1_COMPLETE @ <ISO8601>_
+PHASE_1_COMPLETE @ 2026-05-03T15:11Z
 **MERGED**: _<commit-sha> @ <ISO8601>_
 
 ---
