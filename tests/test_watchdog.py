@@ -55,8 +55,7 @@ def test_diversity_single_returns_one():
     assert compute_diversity(["alone"]) == 1.0
 
 
-def test_runaway_detected_for_consecutive_identical_actions(tmp_path: Path):
-    metrics = Metrics(":memory:")
+def test_runaway_detected_for_consecutive_identical_actions(tmp_path: Path, metrics: Metrics):
     sched = WeightedScheduler()
     sched.register(_StubAgent("aki"))
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
@@ -68,8 +67,7 @@ def test_runaway_detected_for_consecutive_identical_actions(tmp_path: Path):
     assert metrics.get("watchdog_runaway", agent="aki") >= 1
 
 
-def test_no_runaway_when_actions_vary(tmp_path: Path):
-    metrics = Metrics(":memory:")
+def test_no_runaway_when_actions_vary(tmp_path: Path, metrics: Metrics):
     sched = WeightedScheduler()
     sched.register(_StubAgent("aki"))
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
@@ -78,10 +76,9 @@ def test_no_runaway_when_actions_vary(tmp_path: Path):
     assert metrics.get("watchdog_runaway", agent="aki") == 0
 
 
-def test_echo_chamber_triggers_stranger_spawn(tmp_path: Path):
+def test_echo_chamber_triggers_stranger_spawn(tmp_path: Path, metrics: Metrics):
     """When diversity drops below the threshold, the watchdog asks the
     scheduler to register a fresh Stranger agent."""
-    metrics = Metrics(":memory:")
     sched = WeightedScheduler()
     sched.register(_StubAgent("aki"))
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
@@ -98,8 +95,7 @@ def test_echo_chamber_triggers_stranger_spawn(tmp_path: Path):
     assert any(n.startswith("stranger") for n in names)
 
 
-def test_echo_chamber_quiet_when_diversity_high(tmp_path: Path):
-    metrics = Metrics(":memory:")
+def test_echo_chamber_quiet_when_diversity_high(tmp_path: Path, metrics: Metrics):
     sched = WeightedScheduler()
     sched.register(_StubAgent("aki"))
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
@@ -116,9 +112,8 @@ def test_echo_chamber_quiet_when_diversity_high(tmp_path: Path):
     assert metrics.get("watchdog_echo_chamber") == 0
 
 
-def test_stranger_pool_capped(tmp_path: Path):
+def test_stranger_pool_capped(tmp_path: Path, metrics: Metrics):
     """Repeated echo-chamber detections must not spawn unbounded Strangers."""
-    metrics = Metrics(":memory:")
     sched = WeightedScheduler()
     sched.register(_StubAgent("aki"))
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
@@ -137,10 +132,9 @@ def test_stranger_pool_capped(tmp_path: Path):
     assert metrics.get("watchdog_stranger_cap_hit") >= 1
 
 
-def test_meta_leak_detector_bumps_per_actor(tmp_path: Path):
+def test_meta_leak_detector_bumps_per_actor(tmp_path: Path, metrics: Metrics):
     """The watchdog scans recent agent payloads for in-world meta-
     references and bumps a per-actor counter."""
-    metrics = Metrics(":memory:")
     sched = WeightedScheduler()
     sched.register(_StubAgent("aki"))
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
@@ -160,8 +154,7 @@ def test_meta_leak_detector_bumps_per_actor(tmp_path: Path):
     assert metrics.get("watchdog_meta_leak", agent="aki") >= 1
 
 
-def test_stagnation_detected_when_no_recent_artifacts(tmp_path: Path):
-    metrics = Metrics(":memory:")
+def test_stagnation_detected_when_no_recent_artifacts(tmp_path: Path, metrics: Metrics):
     sched = WeightedScheduler()
     sched.register(_StubAgent("aki"))
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep:

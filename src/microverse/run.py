@@ -77,21 +77,6 @@ def _derive_topic(episodic: EpisodicMemory, agent: Agent) -> str:
     return f"{agent.role} {agent.name}"
 
 
-def _build_world(
-    episodic: EpisodicMemory,
-    semantic: SemanticMemory,
-    *,
-    topic: str,
-) -> WorldContext:
-    """Assemble the per-tick context: weather + recent events + lore."""
-    return build_context(
-        world_base=WorldContext(),
-        episodic=episodic,
-        semantic=semantic,
-        topic=topic,
-    )
-
-
 def _commit_action(episodic: EpisodicMemory, agent: Agent, action: Action) -> int:
     return episodic.append(
         actor=agent.name,
@@ -170,6 +155,13 @@ def run(
     max_ticks = ticks if ticks is not None else MAX_TICKS_DEFAULT
     executed = 0
     consecutive_skips = 0
+
+    def _safe(label: str, fn):
+        try:
+            fn()
+        except Exception:
+            _logger.exception("%s failed", label)
+
     try:
         while executed < max_ticks and not stop["requested"]:
             agent = sched.next()
@@ -182,8 +174,16 @@ def run(
                     consecutive_skips = 0
                 continue
             consecutive_skips = 0
+            # Topic depends on agent.role, so derive per-tick: Watchdog
+            # may spawn Strangers mid-run and a cached topic from the
+            # initial agent would mis-tag their lore retrieval.
             topic = _derive_topic(episodic, agent)
-            world = _build_world(episodic, semantic, topic=topic)
+            world = build_context(
+                world_base=WorldContext(),
+                episodic=episodic,
+                semantic=semantic,
+                topic=topic,
+            )
             try:
                 action = agent.think(world)
             except Exception:
@@ -198,15 +198,9 @@ def run(
             executed += 1
 
             # World clock + watchdog: cheap, run every tick / every Nth.
-            try:
-                clock.advance(episodic, ticks_elapsed=1)
-            except Exception:
-                _logger.exception("WorldClock.advance failed")
+            _safe("WorldClock.advance", lambda: clock.advance(episodic, ticks_elapsed=1))
             if executed % WATCHDOG_EVERY == 0:
-                try:
-                    watchdog.check()
-                except Exception:
-                    _logger.exception("watchdog.check failed")
+                _safe("watchdog.check", watchdog.check)
 
             if executed % HARVEST_FLUSH_EVERY == 0:
                 try:
@@ -229,27 +223,16 @@ def run(
         # batch still go through Trader on shutdown. If it fails (the
         # most common cause: a hung Ollama call interrupted by SIGTERM),
         # bump a counter BEFORE closing metrics so the failure is
-        # visible in the metrics db.
+        # visible in the metrics db. The bump itself is wrapped because
+        # metrics may already be in a bad state.
         try:
             harvester.flush()
         except Exception:
             _logger.exception("final harvester.flush failed")
-            try:
-                metrics.bump("harvest_flush_fail")
-            except Exception:
-                _logger.exception("metrics.bump after flush failure failed")
-        try:
-            metrics.close()
-        except Exception:
-            _logger.exception("metrics.close failed")
-        try:
-            episodic.close()
-        except Exception:
-            _logger.exception("episodic.close failed")
-        try:
-            semantic.close()
-        except Exception:
-            _logger.exception("semantic.close failed")
+            _safe("metrics.bump after flush failure", lambda: metrics.bump("harvest_flush_fail"))
+        _safe("metrics.close", metrics.close)
+        _safe("episodic.close", episodic.close)
+        _safe("semantic.close", semantic.close)
 
     return executed
 

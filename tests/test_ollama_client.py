@@ -11,6 +11,10 @@ from microverse.llm.ollama_client import chat
 @pytest.fixture(autouse=True)
 def reset_counter():
     ollama_client.thinking_leak = 0
+    # The chat() helper caches an ollama.Client per timeout. Clear the
+    # cache so each test's fresh ``patch("...ollama.Client")`` is what
+    # actually gets constructed.
+    ollama_client._get_client.cache_clear()
     return None
 
 

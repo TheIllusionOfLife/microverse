@@ -22,9 +22,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
 
-from json_repair import repair_json
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from microverse._text import safe_json_loads
 from microverse.config import MAX_PARSE_BYTES
 
 if TYPE_CHECKING:
@@ -92,20 +92,18 @@ def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
         metrics.bump("consecutive_fail", agent=agent)
         return _rest_action()
 
-    # 1. Strict
+    # Strict pass first; bumps json_ok on success.
     try:
-        data = json.loads(raw)
+        strict = json.loads(raw)
     except json.JSONDecodeError:
-        data = None
-
-    if isinstance(data, dict):
+        strict = None
+    if isinstance(strict, dict):
         try:
-            action = Action.model_validate(data)
-            # Meta-reference guard: if the agent's own words break the
-            # in-world fiction, fall back to rest. Different counter
-            # from json_fallback_rest so the watchdog can distinguish
-            # parse failures from immersion breaks.
+            action = Action.model_validate(strict)
             if has_meta_leak(action.thought) or has_meta_leak(action.artifact or ""):
+                # Different counter from json_fallback_rest so the
+                # watchdog can distinguish parse failures from
+                # immersion breaks.
                 metrics.bump("meta_leak_block", agent=agent)
                 return _rest_action()
             metrics.bump("json_ok")
@@ -114,25 +112,23 @@ def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
         except ValidationError:
             pass
 
-    # 2. Repair
-    try:
-        repaired = repair_json(raw, return_objects=False)
-        if not repaired or repaired in ("{}", "[]", '""'):
-            raise ValueError("repair produced empty / non-action shape")
-        repaired_data = json.loads(repaired)
-        if not isinstance(repaired_data, dict):
-            raise ValueError("repair did not produce an object")
-        action = Action.model_validate(repaired_data)
-        if has_meta_leak(action.thought) or has_meta_leak(action.artifact or ""):
-            metrics.bump("meta_leak_block", agent=agent)
-            return _rest_action()
-        metrics.bump("json_repaired")
-        metrics.reset("consecutive_fail", agent=agent)
-        return action
-    except (json.JSONDecodeError, ValidationError, ValueError):
-        pass
+    # Repair pass: shared helper handles the strict-or-repair retry; we
+    # validate the repaired object here and bump json_repaired only on
+    # success so the metric stays tied to "needed repair".
+    repaired = safe_json_loads(raw)
+    if isinstance(repaired, dict):
+        try:
+            action = Action.model_validate(repaired)
+        except ValidationError:
+            action = None
+        if action is not None:
+            if has_meta_leak(action.thought) or has_meta_leak(action.artifact or ""):
+                metrics.bump("meta_leak_block", agent=agent)
+                return _rest_action()
+            metrics.bump("json_repaired")
+            metrics.reset("consecutive_fail", agent=agent)
+            return action
 
-    # 3. Fallback
     metrics.bump("json_fallback_rest")
     metrics.bump("consecutive_fail", agent=agent)
     return _rest_action()

@@ -38,8 +38,7 @@ def test_artisan_persona_renders_with_world_context():
     assert "simulation" in lower
 
 
-def test_artisan_think_returns_action():
-    metrics = Metrics(":memory:")
+def test_artisan_think_returns_action(metrics: Metrics):
     canned = {
         "content": (
             '{"thought": "I will craft a wooden bowl.", "action": "craft", '
@@ -61,8 +60,7 @@ def test_artisan_think_returns_action():
     assert kwargs.get("options", {}).get("temperature", 0) == 1.0
 
 
-def test_artisan_think_falls_back_on_garbage_response():
-    metrics = Metrics(":memory:")
+def test_artisan_think_falls_back_on_garbage_response(metrics: Metrics):
     canned = {"content": "not json", "thinking": "", "raw": {}}
     with patch("microverse.agents.artisan.chat", return_value=canned):
         a = Artisan(name="Aki", metrics=metrics)
