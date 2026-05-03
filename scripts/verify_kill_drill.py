@@ -6,23 +6,26 @@ Reads ``data/episodic.sqlite`` and checks:
   - All event ids are unique and contiguous (no gaps in the surviving
     id sequence — a committed event silently dropping out of the
     middle would be visible as a hole).
-  - When ``--min-events N`` is supplied: the surviving event count is
-    at least ``N`` (or ``N - 1``, allowing for the single in-flight
-    tick the kill discarded). This is the only check that proves
-    "zero tail loss"; without it, contiguity alone cannot rule out
-    silent drops at the end of the WAL.
+  - When ``--watermark W`` is supplied: every id in ``1..W`` still
+    exists after the restart (one in-flight discard at id ``W``
+    itself is allowed, so the surviving prefix may be ``1..W`` or
+    ``1..W-1``). This is the only check that proves "zero tail
+    loss". A count-based check is NOT sufficient: if SIGKILL drops
+    the tail and the restarted process then appends fresh events,
+    the count recovers but the original tail is gone — a hole the
+    raw count never sees.
 
 Recommended SIGKILL drill flow:
 
-    # Before the kill:
-    PRE=$(sqlite3 data/episodic.sqlite 'SELECT COUNT(*) FROM events')
+    # Before the kill — capture the pre-kill high-watermark.
+    W=$(sqlite3 data/episodic.sqlite 'SELECT COALESCE(MAX(id), 0) FROM events')
 
     # Send SIGKILL, restart the run, then:
     uv run python scripts/verify_kill_drill.py \\
-        --db data/episodic.sqlite --min-events "$PRE"
+        --db data/episodic.sqlite --watermark "$W"
 
-Without ``--min-events`` the script only proves event-log internal
-integrity (no gaps, no duplicates), not zero loss.
+Without ``--watermark`` the script only proves event-log internal
+integrity (no gaps, no duplicates), not zero tail loss.
 """
 
 from __future__ import annotations
@@ -33,7 +36,7 @@ import sys
 from pathlib import Path
 
 
-def verify(db: Path, min_events: int | None = None) -> int:
+def verify(db: Path, watermark: int | None = None) -> int:
     if not db.exists():
         print(f"db not found: {db}", file=sys.stderr)  # noqa: T201
         return 1
@@ -48,7 +51,7 @@ def verify(db: Path, min_events: int | None = None) -> int:
         return 1
     # Contiguity: any gap means a committed event was lost from the
     # *middle* of the sequence. (Tail loss is invisible here; that's
-    # what --min-events is for.)
+    # what --watermark is for.)
     expected = list(range(ids[0], ids[-1] + 1))
     if ids != expected:
         missing = sorted(set(expected) - set(ids))[:10]
@@ -61,18 +64,40 @@ def verify(db: Path, min_events: int | None = None) -> int:
         print("kill_drill_FAIL: duplicate ids", file=sys.stderr)  # noqa: T201
         return 1
     # Tail-loss check: only meaningful when the operator captured a
-    # pre-kill count. Allow 1 in-flight discard.
-    if min_events is not None:
-        if len(ids) < min_events - 1:
+    # pre-kill high-watermark MAX(id). We restrict the check to ids
+    # <= watermark so newly appended post-restart events cannot
+    # mask a missing pre-kill tail. Allow the single in-flight tick
+    # at the watermark itself to have been discarded.
+    if watermark is not None:
+        if watermark < 0:
             print(  # noqa: T201
-                f"kill_drill_FAIL: tail loss — got {len(ids)} events, "
-                f"expected at least {min_events - 1} (pre-kill={min_events})",
+                f"kill_drill_FAIL: invalid watermark {watermark} (must be >= 0)",
                 file=sys.stderr,
             )
             return 1
-        tail_note = f", >= {min_events - 1} (pre-kill {min_events})"
+        pre = [i for i in ids if i <= watermark]
+        # Allow exactly one missing id, and only if it is the
+        # watermark itself (the in-flight tick the kill discarded).
+        # Anything else missing in 1..watermark is silent tail loss.
+        expected_full = list(range(1, watermark + 1))
+        expected_minus_tip = list(range(1, watermark))  # 1..W-1
+        if pre == expected_full:
+            tail_note = f", all 1..{watermark} survived (pre-kill watermark {watermark})"
+        elif pre == expected_minus_tip:
+            tail_note = (
+                f", 1..{watermark - 1} survived; in-flight id "
+                f"{watermark} discarded (pre-kill watermark {watermark})"
+            )
+        else:
+            missing = sorted(set(expected_full) - set(pre))[:10]
+            print(  # noqa: T201
+                f"kill_drill_FAIL: tail loss — pre-watermark ids missing "
+                f"(first 10): {missing} (pre-kill watermark={watermark})",
+                file=sys.stderr,
+            )
+            return 1
     else:
-        tail_note = ", tail-loss check SKIPPED (no --min-events)"
+        tail_note = ", tail-loss check SKIPPED (no --watermark)"
     print(  # noqa: T201
         f"kill_drill_ok ({len(ids)} events, ids {ids[0]}..{ids[-1]}, contiguous{tail_note})"
     )
@@ -83,14 +108,14 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--db", required=True, type=Path)
     p.add_argument(
-        "--min-events",
+        "--watermark",
         type=int,
         default=None,
-        help="Pre-kill event count. Surviving count must be >= N - 1 "
-        "(allowing one in-flight discard).",
+        help="Pre-kill high-watermark MAX(id). Every id in 1..W must survive "
+        "(or 1..W-1 if the in-flight tick at the watermark was discarded).",
     )
     args = p.parse_args(argv)
-    return verify(args.db, min_events=args.min_events)
+    return verify(args.db, watermark=args.watermark)
 
 
 if __name__ == "__main__":

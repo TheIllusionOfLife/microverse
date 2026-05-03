@@ -56,16 +56,20 @@ open harvest/dashboard.html
 ### Verify kill-safety after a SIGKILL drill
 
 ```bash
-# 1) Capture the pre-kill count.
-PRE=$(sqlite3 data/episodic.sqlite 'SELECT COUNT(*) FROM events')
+# 1) Capture the pre-kill high-watermark MAX(id). A bare COUNT(*) is
+#    NOT enough — after restart the process appends new events, so
+#    raw counts can mask a missing pre-kill tail.
+W=$(sqlite3 data/episodic.sqlite 'SELECT COALESCE(MAX(id), 0) FROM events')
 
-# 2) SIGKILL the run, restart it, then verify zero tail loss:
+# 2) SIGKILL the run, restart it, then verify every pre-watermark
+#    id survived (1..W, or 1..W-1 if the in-flight tick at the
+#    watermark itself was discarded):
 uv run python scripts/verify_kill_drill.py \
-    --db data/episodic.sqlite --min-events "$PRE"
-# → kill_drill_ok (N events, ids 1..N, contiguous, >= PRE-1 (pre-kill PRE))
+    --db data/episodic.sqlite --watermark "$W"
+# → kill_drill_ok (... all 1..W survived (pre-kill watermark W))
 ```
 
-Without `--min-events`, the script only proves event-log internal integrity (no gaps, no duplicates). The pre-kill watermark is what catches silent tail loss.
+Without `--watermark`, the script only proves event-log internal integrity (no gaps, no duplicates). The pre-kill watermark is what catches silent tail loss — it filters the post-restart event set down to ids ≤ W so freshly appended events cannot hide a missing tail.
 
 ### Snapshot / restore
 
