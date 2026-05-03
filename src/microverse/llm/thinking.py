@@ -51,9 +51,13 @@ def strip_thinking(text: str) -> str:
     elif "<|channel|>" in text or "<|message|>" in text:
         # Other channels (analysis, commentary, etc.) — drop everything
         # up through the last channel header to be safe.
-        idx = max(text.rfind("<|channel|>"), text.rfind("<|message|>"))
-        # If we can find a final <|message|> after the last header, keep
-        # what comes after it; otherwise drop the channel scaffolding.
         last_msg = text.rfind("<|message|>")
-        text = text[last_msg + len("<|message|>") :] if last_msg >= 0 else text[idx:]
+        if last_msg >= 0:
+            # Keep only the text after the final <|message|> header.
+            text = text[last_msg + len("<|message|>") :]
+        else:
+            # Only <|channel|> was found; skip past the last one and
+            # drop the marker itself.
+            last_chan = text.rfind("<|channel|>")
+            text = text[last_chan + len("<|channel|>") :]
     return text.strip()

@@ -68,3 +68,18 @@ def test_unclosed_opener_with_later_paired_block_strips_everything_before_close(
 def test_think_tag_with_attributes_or_whitespace():
     """Some models emit `<think >` or `< think>` — be liberal."""
     assert strip_thinking("<think >x</think >hello") == "hello"
+
+
+def test_channel_marker_without_message_drops_marker():
+    """If `<|channel|>` appears but no `<|message|>` follows (truncated
+    or malformed response), drop the marker itself but keep everything
+    after it — we cannot reliably separate the channel name from the
+    content without the `<|message|>` boundary."""
+    out = strip_thinking("preamble<|channel|>analysis the rest")
+    # Marker is gone; preamble (which preceded the channel) is gone too.
+    assert "<|channel|>" not in out
+    assert out == "analysis the rest"
+
+
+def test_message_marker_alone_keeps_text_after():
+    assert strip_thinking("<|message|>only the answer") == "only the answer"
