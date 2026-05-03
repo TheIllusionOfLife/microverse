@@ -14,6 +14,7 @@ template that emphasizes new perspectives.
 from __future__ import annotations
 
 import time
+import uuid
 
 from microverse.agents.artisan import Artisan
 from microverse.config import SAMPLING_CREATIVE
@@ -32,10 +33,9 @@ class Stranger(Artisan):
         soul_tokens: int = 60,
         metrics: Metrics | None = None,
     ) -> None:
-        # Auto-name with the system clock so two Strangers spawned in
-        # quick succession get distinct names.
-        super().__init__(
-            name or f"stranger-{int(time.time() * 1000) % 1_000_000}",
-            soul_tokens=soul_tokens,
-            metrics=metrics,
-        )
+        # Auto-name with system-clock millis + uuid hex so two Strangers
+        # spawned in the same millisecond still get distinct names.
+        if name is None:
+            ms = int(time.time() * 1000) % 1_000_000
+            name = f"stranger-{ms}-{uuid.uuid4().hex[:6]}"
+        super().__init__(name, soul_tokens=soul_tokens, metrics=metrics)
