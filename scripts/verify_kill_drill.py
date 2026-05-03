@@ -85,6 +85,13 @@ def verify(db: Path, watermark: int | None = None) -> int:
         # in-flight tick is at id=W+1 and is filtered out by the
         # `i <= watermark` predicate above). Therefore the only
         # passing state is the full prefix 1..W.
+        #
+        # Assumption: the events table uses INTEGER PRIMARY KEY
+        # autoincrementing from 1 (see microverse.memory.episodic),
+        # so the canonical pre-watermark prefix starts at id=1. A
+        # database whose ids start higher would have its pre-prefix
+        # marked missing, which is the correct outcome — the
+        # kill-drill contract is specifically about 1..W.
         expected_full = list(range(1, watermark + 1))
         if pre == expected_full:
             tail_note = f", all 1..{watermark} survived (pre-kill watermark {watermark})"
