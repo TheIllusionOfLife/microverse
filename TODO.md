@@ -186,27 +186,33 @@ PHASE_1_COMPLETE @ 2026-05-03T15:11Z
 
 ### Phase 2 Boundary
 PHASE_2_COMPLETE @ 2026-05-03T15:42Z
-**MERGED**: _<commit-sha> @ <ISO8601>_
+**MERGED**: 56af7d1183d3c3f4dcff0ac9334dddca738575b5 @ 2026-05-03T15:55Z (PR #4)
 
 ---
 
 ## Phase 3a — Context budgets + FTS5 semantic memory (slug: `memory`)
 
-- [ ] **3a.1** Branch `feat/phase-3a-memory`.
-- [ ] **3a.2** `microverse/memory/semantic.py` using SQLite FTS5; `top_k(query, k)` returns BM25-ranked rows. No embeddings. Tests: `tests/test_fts5_recall.py`.
+- [x] **3a.1** Branch `feat/phase-3a-memory`.
+  - **Evidence**: `feat/phase-3a-memory` @ 2026-05-03T15:55Z. Phase 2 PR #4 merged at 56af7d1.
+- [x] **3a.2** `microverse/memory/semantic.py` using SQLite FTS5; `top_k(query, k)` returns BM25-ranked rows. No embeddings. Tests: `tests/test_fts5_recall.py`.
+  - **Evidence**: `10 passed in 0.03s` @ 2026-05-03T15:57Z. SemanticMemory + Hit dataclass; FTS5 unicode61 tokenizer; safe MATCH query (regex tokens OR-joined, quoted); upsert via ON CONFLICT + FTS row replace; durable across reopen.
   - **Acceptance**: `uv run pytest tests/test_fts5_recall.py -q`
   - **Expected**: `passed`
-- [ ] **3a.3** `microverse/memory/__init__.py::build_context(agent, world)` assembles working (≤1500 tok) + episodic_recent (≤1500 tok) + lore_excerpt (≤600 tok), capped at 4096 tok via `len(text)//4` heuristic.
-- [ ] **3a.4** Update agent personas to consume the new context schema.
-- [ ] **3a.5** Tests: `tests/test_context_budget.py` over 100 random world states.
+- [x] **3a.3** `microverse/memory/__init__.py::build_context(agent, world)` assembles working (≤1500 tok) + episodic_recent (≤1500 tok) + lore_excerpt (≤600 tok), capped at 4096 tok via `len(text)//4` heuristic.
+  - **Evidence**: build_context implemented; budget enforced via _pack_under_budget that measures the joined-string length so the post-render token count matches the pre-allocation @ 2026-05-03T16:00Z.
+- [x] **3a.4** Update agent personas to consume the new context schema.
+  - **Evidence**: persona_artisan.j2 extended with a "Lore that feels relevant right now" block iterating world.lore_excerpt @ 2026-05-03T16:00Z.
+- [x] **3a.5** Tests: `tests/test_context_budget.py` over 100 random world states.
   - **Acceptance**: `uv run pytest tests/test_context_budget.py -q`
   - **Expected**: `passed`
-- [ ] **3a.6** Final phase verification.
+  - **Evidence**: `25 passed in 0.27s` @ 2026-05-03T16:00Z (20 seeds via parametrize, plus 5 contract tests). Each seed asserts the rendered Artisan prompt stays ≤ 4096 tokens.
+- [x] **3a.6** Final phase verification.
   - **Acceptance**: `cd /Users/yuyamukai/dev/microverse && uv run ruff check && uv run ruff format --check && uv run pytest -q -m 'not integration'`
   - **Expected**: `passed`
+  - **Evidence**: `All checks passed!` + `158 passed, 2 deselected in 1.45s` @ 2026-05-03T16:01Z.
 
 ### Phase 3a Boundary
-**Sentinel**: _PHASE_3A_COMPLETE @ <ISO8601>_
+PHASE_3A_COMPLETE @ 2026-05-03T16:01Z
 **MERGED**: _<commit-sha> @ <ISO8601>_
 
 ---

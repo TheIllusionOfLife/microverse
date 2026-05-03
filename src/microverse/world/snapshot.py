@@ -103,16 +103,46 @@ def restore_snapshot(archive: Path | str, data_dir: Path | str) -> None:
     Full overwrite: stale files left in ``data_dir`` (after the snapshot
     was taken) are removed so the restored tree matches snapshot time
     byte-for-byte.
-    """
-    archive = Path(archive)
-    data_dir = Path(data_dir)
-    if data_dir.exists():
-        shutil.rmtree(data_dir)
-    data_dir.mkdir(parents=True, exist_ok=True)
 
-    with tarfile.open(archive, "r:gz") as tar:
-        # Python 3.12+ adds a 'data' filter that rejects suspicious paths.
-        tar.extractall(path=str(data_dir), filter="data")
+    Atomic: extract to a sibling tmp dir first, then swap. If extract
+    fails midway, the original ``data_dir`` (or its absence) is
+    preserved — no half-extracted partial state.
+    """
+    archive = Path(archive).resolve()
+    data_dir = Path(data_dir).resolve()
+    parent = data_dir.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    staging = parent / (data_dir.name + ".restore.tmp")
+    if staging.exists():
+        shutil.rmtree(staging)
+    staging.mkdir(parents=True)
+
+    try:
+        with tarfile.open(archive, "r:gz") as tar:
+            # Python 3.12+ adds a 'data' filter that rejects suspicious paths.
+            tar.extractall(path=str(staging), filter="data")
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+
+    # Atomic swap: rename data_dir to a backup, replace with staging,
+    # then drop the backup. If staging.replace fails, restore the
+    # backup so the user is never left with no data_dir.
+    backup: Path | None = None
+    if data_dir.exists():
+        backup = parent / (data_dir.name + ".restore.bak")
+        if backup.exists():
+            shutil.rmtree(backup)
+        data_dir.replace(backup)
+    try:
+        staging.replace(data_dir)
+    except BaseException:
+        if backup is not None:
+            backup.replace(data_dir)
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    if backup is not None:
+        shutil.rmtree(backup, ignore_errors=True)
 
 
 def maybe_snapshot(

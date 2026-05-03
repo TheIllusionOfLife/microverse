@@ -110,13 +110,17 @@ def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
 class WorldContext:
     """Snapshot of world state passed into ``Agent.think``.
 
-    Phase 1 is intentionally minimal — Phase 3a fills this out.
+    Phase 3a fills ``recent_episodic`` (last-7-days events the agent
+    witnessed) and ``lore_excerpt`` (top-k FTS5 hits keyed off the
+    current scene topic). ``microverse.memory.build_context`` is the
+    canonical assembler.
     """
 
     season: str = "spring"
     weather: str = "clear"
     peers_today: tuple[str, ...] = ()
     recent_episodic: tuple[str, ...] = ()
+    lore_excerpt: tuple[str, ...] = ()
 
 
 class Agent(abc.ABC):
