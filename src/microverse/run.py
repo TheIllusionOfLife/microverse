@@ -93,8 +93,6 @@ def run(
     harvest_dir: str | Path | None = None,
 ) -> int:
     """Run the tick loop. Returns the number of ticks executed."""
-    if seed is not None:
-        random.seed(seed)
     rng = random.Random(seed) if seed is not None else random.Random()
 
     data_dir = (
@@ -166,6 +164,7 @@ def run(
                     harvester.flush()
                 except Exception:
                     _logger.exception("harvester.flush failed")
+                    metrics.bump("harvest_flush_fail")
             maybe_snapshot(
                 executed,
                 interval=SNAPSHOT_EVERY,
@@ -178,11 +177,18 @@ def run(
                 time.sleep(sleep_s)
     finally:
         # Final flush so any buffered candidates from the last partial
-        # batch still go through Trader on shutdown.
+        # batch still go through Trader on shutdown. If it fails (the
+        # most common cause: a hung Ollama call interrupted by SIGTERM),
+        # bump a counter BEFORE closing metrics so the failure is
+        # visible in the metrics db.
         try:
             harvester.flush()
         except Exception:
             _logger.exception("final harvester.flush failed")
+            try:
+                metrics.bump("harvest_flush_fail")
+            except Exception:
+                _logger.exception("metrics.bump after flush failure failed")
         try:
             metrics.close()
         except Exception:

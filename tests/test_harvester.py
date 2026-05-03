@@ -239,6 +239,53 @@ def test_percentile_all_tied_nonzero_scores_accepts_nothing(tmp_path: Path):
     assert h.flush() == []
 
 
+def test_percentile_single_candidate_is_accepted(tmp_path: Path):
+    """A lone candidate is its own top quantile — refusing to harvest a
+    sparse early run would be perverse."""
+    trader = _StubTrader([0.4])
+    h = Harvester(tmp_path, trader=trader, percentile=70)
+    h.consider(ArtifactCandidate(actor="aki", action="craft", artifact="solo work", ts=0.0))
+    written = h.flush()
+    assert len(written) == 1
+
+
+def test_percentile_p0_accepts_everything(tmp_path: Path):
+    """p=0 means 'top 100%' — the cutoff is the minimum score, so
+    every non-tied candidate passes."""
+    trader = _StubTrader([0.1, 0.5, 0.9])
+    h = Harvester(tmp_path, trader=trader, percentile=0)
+    for i in range(3):
+        h.consider(ArtifactCandidate(actor="aki", action="craft", artifact=f"x #{i}", ts=0.0))
+    assert len(h.flush()) == 3
+
+
+def test_percentile_p100_accepts_only_top(tmp_path: Path):
+    """p=100 means 'top 0%' — only the maximum score qualifies."""
+    trader = _StubTrader([0.1, 0.5, 0.9])
+    h = Harvester(tmp_path, trader=trader, percentile=100)
+    for i in range(3):
+        h.consider(ArtifactCandidate(actor="aki", action="craft", artifact=f"x #{i}", ts=0.0))
+    written = h.flush()
+    assert len(written) == 1
+
+
+def test_flush_preserves_buffer_when_trader_raises(tmp_path: Path):
+    """If trader.rank() raises, the buffer must NOT be cleared so the
+    caller can retry. The exception propagates."""
+    import pytest
+
+    class _AngryTrader:
+        def rank(self, _candidates):
+            raise RuntimeError("boom")
+
+    h = Harvester(tmp_path, trader=_AngryTrader(), percentile=70)
+    h.consider(ArtifactCandidate(actor="aki", action="craft", artifact="long enough", ts=0.0))
+    with pytest.raises(RuntimeError, match="boom"):
+        h.flush()
+    # Buffer is still populated for a retry.
+    assert len(h._buffer) == 1
+
+
 def test_percentile_no_trader_keeps_phase1_behavior(tmp_path: Path):
     """When constructed without a trader, consider() writes immediately
     using the Phase 1 length heuristic — preserves backwards compat."""

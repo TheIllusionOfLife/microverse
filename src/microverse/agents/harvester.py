@@ -156,22 +156,31 @@ class Harvester:
     def flush(self) -> list[Path]:
         """Apply Trader scoring + percentile threshold; write accepted.
 
-        No-op when no trader is configured. The buffer is always cleared,
-        even if the trader returned malformed output (defense in depth —
-        a stuck buffer would otherwise grow unbounded).
+        No-op when no trader is configured. If ``trader.rank()`` raises,
+        the buffer is preserved (a transient ranker failure must not
+        silently discard pending artifacts) and the exception is
+        re-raised so the caller can decide whether to retry.
         """
         if self._trader is None or not self._buffer:
             self._buffer.clear()
             return []
 
         candidates = list(self._buffer)
+        try:
+            scores = self._trader.rank(candidates)
+        except Exception:
+            # Keep the buffer intact so a retry can rescue these
+            # candidates; let the caller log + bump metrics.
+            raise
+
+        # Only clear after a successful rank — partial failures don't
+        # silently drop the batch.
         self._buffer.clear()
-        scores = self._trader.rank(candidates)
         cutoff = self._percentile_cutoff([s.score for s in scores])
 
         written: list[Path] = []
         for cand, score in zip(candidates, scores, strict=True):
-            # cutoff is None ⇒ no signal (e.g. all scores tied / all zero).
+            # cutoff is None ⇒ no signal (multi-item all-tied population).
             # Accept nothing — better to lose a batch than to spam the
             # inbox with unranked output.
             if cutoff is not None and score.score >= cutoff:
@@ -186,12 +195,20 @@ class Harvester:
         """Compute a score floor such that values >= floor land in the
         top (100 - percentile)% of the population.
 
-        Returns None when the input is empty OR all scores are tied
-        (in which case there is no ranking signal and the caller should
-        accept nothing).
+        Edge cases:
+          - empty input → None (nothing to compare).
+          - single element → that element's score (one item is its own
+            top quantile; refusing to harvest a sparse early run would
+            be perverse).
+          - 2+ elements all tied → None (no ranking signal across
+            multiple items; accept nothing rather than spam the inbox).
+          - p=0 → minimum score (accept everything).
+          - p=100 → maximum score (accept only the top).
         """
         if not scores:
             return None
+        if len(scores) == 1:
+            return scores[0]
         ordered = sorted(scores)
         if ordered[0] == ordered[-1]:
             return None

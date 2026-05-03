@@ -149,3 +149,46 @@ def test_rank_unwraps_object_wrapped_list():
     with patch("microverse.agents.trader.chat", return_value=canned):
         scores = Trader(name="Bo").rank(_candidates())
     assert [round(s.score, 1) for s in scores] == [0.4, 0.7, 0.9]
+
+
+def test_rank_prefers_known_key_over_first_list():
+    """When a wrapped response has multiple lists (e.g. metadata +
+    scores), the parser must pick the one keyed `scores`, not just
+    whichever happens to come first."""
+    canned = {
+        "content": (
+            "{"
+            '"metadata": ["explanation line 1", "line 2"],'
+            '"scores": ['
+            '{"artifact_id": 0, "score": 0.2, "rationale": "x"},'
+            '{"artifact_id": 1, "score": 0.5, "rationale": "y"},'
+            '{"artifact_id": 2, "score": 0.8, "rationale": "z"}]'
+            "}"
+        ),
+        "thinking": "",
+        "raw": {},
+    }
+    with patch("microverse.agents.trader.chat", return_value=canned):
+        scores = Trader(name="Bo").rank(_candidates())
+    assert [round(s.score, 1) for s in scores] == [0.2, 0.5, 0.8]
+
+
+def test_rank_falls_back_to_unique_score_shaped_list():
+    """If no known wrapping key is present but exactly one value is a
+    list of dicts with `artifact_id`, that list is taken."""
+    canned = {
+        "content": (
+            "{"
+            '"explanation": ["I judged each artifact carefully"],'
+            '"verdict": ['
+            '{"artifact_id": 0, "score": 0.6, "rationale": "x"},'
+            '{"artifact_id": 1, "score": 0.7, "rationale": "y"},'
+            '{"artifact_id": 2, "score": 0.8, "rationale": "z"}]'
+            "}"
+        ),
+        "thinking": "",
+        "raw": {},
+    }
+    with patch("microverse.agents.trader.chat", return_value=canned):
+        scores = Trader(name="Bo").rank(_candidates())
+    assert [round(s.score, 1) for s in scores] == [0.6, 0.7, 0.8]

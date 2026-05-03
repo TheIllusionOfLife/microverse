@@ -46,9 +46,13 @@ def take_snapshot(data_dir: Path | str, snapshots_dir: Path | str) -> Path | Non
 
     Returns the archive path, or None when ``data_dir`` doesn't exist
     (a cold start has nothing to snapshot — that's not an error).
+
+    If ``snapshots_dir`` lives inside ``data_dir`` (the conventional
+    layout puts it at ``data_dir/snapshots/``), it is excluded from the
+    archive so a snapshot can't recursively contain its older siblings.
     """
-    data_dir = Path(data_dir)
-    snapshots_dir = Path(snapshots_dir)
+    data_dir = Path(data_dir).resolve()
+    snapshots_dir = Path(snapshots_dir).resolve()
     if not data_dir.exists():
         return None
 
@@ -56,14 +60,37 @@ def take_snapshot(data_dir: Path | str, snapshots_dir: Path | str) -> Path | Non
     name = _archive_name(datetime.now(UTC), _next_seq())
     archive = snapshots_dir / name
 
+    # Determine whether snapshots_dir is inside data_dir; if so, set up
+    # a tarfile filter that drops it from the archive. ``filter=`` on
+    # ``tar.add`` receives each TarInfo and returns it (keep) or None
+    # (skip).
+    excluded_relpath: str | None = None
+    try:
+        rel = snapshots_dir.relative_to(data_dir)
+        excluded_relpath = "./" + str(rel)
+    except ValueError:
+        excluded_relpath = None
+
+    def _exclude_self(tarinfo: tarfile.TarInfo) -> tarfile.TarInfo | None:
+        if excluded_relpath and (
+            tarinfo.name == excluded_relpath or tarinfo.name.startswith(excluded_relpath + "/")
+        ):
+            return None
+        return tarinfo
+
     # Build to a temp file then atomic-replace so a partial archive is
-    # never visible to a future restore.
+    # never visible to a future restore. Clean up the .tmp on any
+    # failure so a half-built archive doesn't linger.
     tmp = archive.with_suffix(archive.suffix + ".tmp")
-    with tarfile.open(tmp, "w:gz") as tar:
-        # arcname='.' so the archive's contents are *the data dir* (no
-        # nested top-level dir) — restore extracts straight into target.
-        tar.add(str(data_dir), arcname=".")
-    tmp.replace(archive)
+    try:
+        with tarfile.open(tmp, "w:gz") as tar:
+            # arcname='.' so the archive's contents are *the data dir*
+            # (no nested top-level dir) — restore extracts straight in.
+            tar.add(str(data_dir), arcname=".", filter=_exclude_self)
+        tmp.replace(archive)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
     return archive
 
 

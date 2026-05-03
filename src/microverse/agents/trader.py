@@ -39,21 +39,41 @@ class Score(BaseModel):
     rationale: str = Field(default="", max_length=300)
 
 
+_PREFERRED_LIST_KEYS = ("scores", "rankings", "items", "artifacts", "results")
+
+
+def _list_looks_like_scores(value: object) -> bool:
+    """Quick shape check: list of dicts each having an ``artifact_id``."""
+    if not isinstance(value, list) or not value:
+        return False
+    return all(isinstance(d, dict) and "artifact_id" in d for d in value)
+
+
 def _extract_list(data: Any) -> list[dict[str, Any]]:
     """Pull the score list out of common JSON shapes:
 
-      - direct list:                ``[{...}, {...}]``
-      - object with single list:    ``{"scores": [...]}``
-      - object with any list value: best-effort, takes the first list
+      - direct list:                              ``[{...}, {...}]``
+      - object with a known wrapping key:         ``{"scores": [...]}``
+                                                   ``{"rankings": [...]}``
+      - object whose values include exactly one
+        list-of-dicts-with-artifact_id:           ``{"x": [...], "y": "z"}``
 
-    Anything else yields an empty list (caller treats as "no scores").
+    Anything else yields an empty list. The fallback specifically rejects
+    "first list value" because a model might emit a metadata list or a
+    rationale list that happens to come before the real one.
     """
     if isinstance(data, list):
         return [d for d in data if isinstance(d, dict)]
     if isinstance(data, dict):
-        for value in data.values():
-            if isinstance(value, list):
+        # 1. Try known wrapping keys.
+        for key in _PREFERRED_LIST_KEYS:
+            value = data.get(key)
+            if _list_looks_like_scores(value):
                 return [d for d in value if isinstance(d, dict)]
+        # 2. Find the *unique* list-of-score-dicts among all values.
+        candidates = [v for v in data.values() if _list_looks_like_scores(v)]
+        if len(candidates) == 1:
+            return [d for d in candidates[0] if isinstance(d, dict)]
     return []
 
 

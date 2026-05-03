@@ -92,3 +92,25 @@ def test_take_snapshot_skips_when_data_dir_missing(tmp_path: Path):
 
     result = take_snapshot(data_dir, snapshots_dir)
     assert result is None
+
+
+def test_snapshots_dir_inside_data_is_excluded(tmp_path: Path):
+    """When snapshots/ is a subdirectory of data/, an existing snapshot
+    must NOT be included in the next snapshot. Otherwise archives nest
+    recursively and storage explodes."""
+    import tarfile
+
+    data_dir = tmp_path / "data"
+    snapshots_dir = data_dir / "snapshots"  # nested
+    _write(data_dir / "episodic.sqlite", "first")
+
+    a = take_snapshot(data_dir, snapshots_dir)
+    assert a is not None
+    # Now there's already an archive sitting inside data/snapshots/.
+    b = take_snapshot(data_dir, snapshots_dir)
+    assert b is not None
+
+    # The second archive must not contain the first.
+    with tarfile.open(b, "r:gz") as tar:
+        names = tar.getnames()
+    assert all("snapshots" not in n for n in names), names
