@@ -123,6 +123,37 @@ def test_file_backed_durability_across_reopen(tmp_path: Path):
     reopened.close()
 
 
+def test_since_returns_only_events_at_or_after_floor(tmp_path: Path):
+    mem = EpisodicMemory(tmp_path / "since.sqlite")
+    base = 1_700_000_000.0
+    for i in range(10):
+        mem.append(actor="aki", action="craft", target=None, payload={"n": i}, ts=base + i * 100)
+    # Floor at base + 500 keeps events 5..9 (ts 500, 600, ..., 900).
+    rows = mem.since(base + 500)
+    assert [r.payload["n"] for r in rows] == [9, 8, 7, 6, 5]
+    mem.close()
+
+
+def test_since_with_limit_caps_results(tmp_path: Path):
+    mem = EpisodicMemory(tmp_path / "since-limit.sqlite")
+    for i in range(20):
+        mem.append(actor="aki", action="craft", target=None, payload={"n": i}, ts=1.0)
+    rows = mem.since(0.0, limit=3)
+    assert len(rows) == 3
+    mem.close()
+
+
+def test_since_unlimited_can_exceed_last_n(tmp_path: Path):
+    """`since` must not silently drop events past position N like
+    `last(N)` would — that's the whole reason it exists."""
+    mem = EpisodicMemory(tmp_path / "since-many.sqlite")
+    for i in range(500):
+        mem.append(actor="aki", action="craft", target=None, payload={"n": i}, ts=1.0)
+    rows = mem.since(0.0)
+    assert len(rows) == 500
+    mem.close()
+
+
 @_REQUIRES_SIGKILL
 def test_kill9_recovery_via_subprocess(tmp_path: Path):
     """Spawn a child that opens the DB, writes 5 committed events, then

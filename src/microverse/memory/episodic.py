@@ -134,6 +134,39 @@ class EpisodicMemory:
             for r in rows
         ]
 
+    def since(self, ts_floor: float, *, limit: int | None = None) -> list[Event]:
+        """Return events with ``ts >= ts_floor`` ordered newest-first.
+
+        Phase 3a's ``build_context`` uses this so the 7-day window
+        actually covers all events in that window — ``last(N)`` would
+        silently drop events past position N when the system runs hot.
+        ``limit`` caps result size for very long windows; default None
+        means no cap.
+        """
+        if limit is None:
+            rows = self._conn.execute(
+                "SELECT id, ts, actor, action, target, payload_json "
+                "FROM events WHERE ts >= ? ORDER BY id DESC",
+                (ts_floor,),
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                "SELECT id, ts, actor, action, target, payload_json "
+                "FROM events WHERE ts >= ? ORDER BY id DESC LIMIT ?",
+                (ts_floor, limit),
+            ).fetchall()
+        return [
+            Event(
+                id=r[0],
+                ts=r[1],
+                actor=r[2],
+                action=r[3],
+                target=r[4],
+                payload=json.loads(r[5]) if r[5] else {},
+            )
+            for r in rows
+        ]
+
     def count(self) -> int:
         row = self._conn.execute("SELECT COUNT(*) FROM events").fetchone()
         return int(row[0])

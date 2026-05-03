@@ -102,3 +102,26 @@ def test_non_positive_k_returns_empty(tmp_path: Path, k: int):
     with SemanticMemory(tmp_path / "fts.sqlite") as mem:
         _seed(mem)
         assert mem.top_k("wooden", k=k) == []
+
+
+def test_delete_removes_row_from_index_and_search(tmp_path: Path):
+    with SemanticMemory(tmp_path / "fts.sqlite") as mem:
+        _seed(mem)
+        assert mem.delete("a") is True
+        assert mem.delete("a") is False  # already gone
+        assert mem.count() == 3
+        results = mem.top_k("wooden", k=10)
+        assert "a" not in {r.doc_id for r in results}
+
+
+def test_list_ids_with_prefix(tmp_path: Path):
+    """Phase 3b's Elder enumerates lore chunks by prefix to replace
+    them transactionally."""
+    with SemanticMemory(tmp_path / "fts.sqlite") as mem:
+        mem.index(doc_id="lore-001", text="forest", payload={})
+        mem.index(doc_id="lore-002", text="river", payload={})
+        mem.index(doc_id="event-001", text="harvest", payload={})
+
+        assert sorted(mem.list_ids()) == ["event-001", "lore-001", "lore-002"]
+        assert sorted(mem.list_ids(prefix="lore-")) == ["lore-001", "lore-002"]
+        assert mem.list_ids(prefix="missing-") == []

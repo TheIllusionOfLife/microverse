@@ -103,16 +103,32 @@ def restore_snapshot(archive: Path | str, data_dir: Path | str) -> None:
     Full overwrite: stale files left in ``data_dir`` (after the snapshot
     was taken) are removed so the restored tree matches snapshot time
     byte-for-byte.
+
+    Atomic: extract to a sibling tmp dir first, then swap. If extract
+    fails midway, the original ``data_dir`` (or its absence) is
+    preserved — no half-extracted partial state.
     """
-    archive = Path(archive)
-    data_dir = Path(data_dir)
+    archive = Path(archive).resolve()
+    data_dir = Path(data_dir).resolve()
+    parent = data_dir.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    staging = parent / (data_dir.name + ".restore.tmp")
+    if staging.exists():
+        shutil.rmtree(staging)
+    staging.mkdir(parents=True)
+
+    try:
+        with tarfile.open(archive, "r:gz") as tar:
+            # Python 3.12+ adds a 'data' filter that rejects suspicious paths.
+            tar.extractall(path=str(staging), filter="data")
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+
+    # Swap: remove the old data_dir (if any) then rename staging into place.
     if data_dir.exists():
         shutil.rmtree(data_dir)
-    data_dir.mkdir(parents=True, exist_ok=True)
-
-    with tarfile.open(archive, "r:gz") as tar:
-        # Python 3.12+ adds a 'data' filter that rejects suspicious paths.
-        tar.extractall(path=str(data_dir), filter="data")
+    staging.replace(data_dir)
 
 
 def maybe_snapshot(

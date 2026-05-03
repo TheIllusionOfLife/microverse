@@ -59,6 +59,24 @@ def _pack_under_budget(items: list[str], token_budget: int, joiner: str = "\n") 
     return tuple(kept)
 
 
+_LORE_DIGEST_CHARS = 200  # cap on the fallback "k=v, k=v" digest
+
+
+def _payload_digest(payload: dict[str, object]) -> str:
+    """Bounded digest of an arbitrary payload — guards against a single
+    large payload value blowing through the lore budget by itself."""
+    parts: list[str] = []
+    for k, v in payload.items():
+        text = str(v).replace("\n", " ").strip()
+        if len(text) > 80:
+            text = text[:80] + "…"
+        parts.append(f"{k}={text}")
+        if sum(len(p) for p in parts) > _LORE_DIGEST_CHARS:
+            break
+    digest = ", ".join(parts)
+    return digest[:_LORE_DIGEST_CHARS]
+
+
 def build_context(
     *,
     world_base: WorldContext,
@@ -68,16 +86,21 @@ def build_context(
     episodic_tok: int = 1500,
     lore_tok: int = 600,
     episodic_window_s: float = SEVEN_DAYS_S,
-    episodic_lookback: int = 200,
+    episodic_lookback: int = 2000,
     lore_k: int = 3,
 ) -> WorldContext:
-    """Assemble the per-tick context from episodic + semantic memory."""
+    """Assemble the per-tick context from episodic + semantic memory.
+
+    Episodic events are pulled via ``episodic.since(cutoff, limit=...)``
+    so the 7-day window covers every event in that window (capped at
+    ``episodic_lookback`` rows for memory ceiling). The packer then
+    drops trailing items until the joined string fits under
+    ``episodic_tok``.
+    """
     cutoff = time.time() - episodic_window_s
-    events = episodic.last(episodic_lookback)
+    events = episodic.since(cutoff, limit=episodic_lookback)
     recent_lines = [
-        _format_episodic(e.actor, e.action, str(e.payload.get("thought", "")))
-        for e in events
-        if e.ts >= cutoff
+        _format_episodic(e.actor, e.action, str(e.payload.get("thought") or "")) for e in events
     ]
     recent = _pack_under_budget(recent_lines, episodic_tok)
 
@@ -86,8 +109,7 @@ def build_context(
         for hit in semantic.top_k(topic, k=lore_k):
             text = str(hit.payload.get("text") or hit.payload.get("summary") or "")
             if not text:
-                # Fall back to a payload digest so the hit isn't silently empty.
-                text = ", ".join(f"{k}={v}" for k, v in hit.payload.items())
+                text = _payload_digest(hit.payload)
             lore_lines.append(f"- ({hit.doc_id}) {text}")
     lore = _pack_under_budget(lore_lines, lore_tok)
 

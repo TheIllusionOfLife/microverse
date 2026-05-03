@@ -12,13 +12,17 @@ Schema:
     -- payload metadata + insertion bookkeeping
     docs(doc_id TEXT PRIMARY KEY, payload_json TEXT)
 
-    -- FTS5 virtual table; tokenizer 'unicode61' is the SQLite default
-    docs_fts USING fts5(text, content='', tokenize='unicode61')
+    -- standard FTS5 virtual table (NOT contentless — the text column
+    -- holds the indexed string). Tokenizer 'unicode61' is the default.
+    docs_fts USING fts5(doc_id UNINDEXED, text, tokenize='unicode61')
 
-The FTS table is contentless (we keep the canonical row in ``docs``)
-so re-index is a clean delete+insert in one transaction. ``top_k``
-escapes user input through FTS5's MATCH-with-quoted-phrase form so
-operators like AND/OR and special chars are safe.
+Re-index is a delete+insert in one transaction. ``top_k`` escapes
+user input through FTS5's MATCH-with-quoted-phrase form so operators
+like AND/OR and special chars are safe.
+
+Concurrency: ``check_same_thread=False`` lets the watchdog read
+concurrently with index writes; ``_lock`` serializes all DB access so
+SQLite cursors don't interleave.
 """
 
 from __future__ import annotations
@@ -26,6 +30,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -75,6 +80,7 @@ class SemanticMemory:
         for stmt in _SCHEMA:
             self._conn.execute(stmt)
         self._conn.commit()
+        self._lock = threading.Lock()
 
     def index(
         self,
@@ -84,7 +90,7 @@ class SemanticMemory:
         payload: dict[str, Any] | None = None,
     ) -> None:
         payload_json = json.dumps(payload or {}, separators=(",", ":"))
-        with self._conn:
+        with self._lock, self._conn:
             # Upsert payload row.
             self._conn.execute(
                 "INSERT INTO docs (doc_id, payload_json) VALUES (?, ?) "
@@ -98,31 +104,57 @@ class SemanticMemory:
                 (doc_id, text),
             )
 
+    def delete(self, doc_id: str) -> bool:
+        """Remove a doc by id. Returns True if a row was removed."""
+        with self._lock, self._conn:
+            cur = self._conn.execute("DELETE FROM docs WHERE doc_id = ?", (doc_id,))
+            self._conn.execute("DELETE FROM docs_fts WHERE doc_id = ?", (doc_id,))
+            return (cur.rowcount or 0) > 0
+
+    def list_ids(self, *, prefix: str | None = None) -> list[str]:
+        """Return all doc_ids, optionally filtered by ``prefix``.
+
+        Phase 3b's Elder uses this to enumerate stale lore chunks for
+        replacement.
+        """
+        with self._lock:
+            if prefix is None:
+                rows = self._conn.execute("SELECT doc_id FROM docs").fetchall()
+            else:
+                rows = self._conn.execute(
+                    "SELECT doc_id FROM docs WHERE doc_id LIKE ?",
+                    (prefix + "%",),
+                ).fetchall()
+        return [r[0] for r in rows]
+
     def top_k(self, query: str, k: int = 5) -> list[Hit]:
         if k <= 0:
             return []
         match = _safe_match_query(query)
         if not match:
             return []
-        rows = self._conn.execute(
-            "SELECT docs_fts.doc_id, bm25(docs_fts), docs.payload_json "
-            "FROM docs_fts JOIN docs USING (doc_id) "
-            "WHERE docs_fts MATCH ? "
-            "ORDER BY bm25(docs_fts) ASC "  # bm25() is negative; smaller = better
-            "LIMIT ?",
-            (match, k),
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT docs_fts.doc_id, bm25(docs_fts), docs.payload_json "
+                "FROM docs_fts JOIN docs USING (doc_id) "
+                "WHERE docs_fts MATCH ? "
+                "ORDER BY bm25(docs_fts) ASC "  # bm25() is negative; smaller = better
+                "LIMIT ?",
+                (match, k),
+            ).fetchall()
         return [
             Hit(doc_id=r[0], score=float(r[1]), payload=json.loads(r[2]) if r[2] else {})
             for r in rows
         ]
 
     def count(self) -> int:
-        row = self._conn.execute("SELECT COUNT(*) FROM docs").fetchone()
+        with self._lock:
+            row = self._conn.execute("SELECT COUNT(*) FROM docs").fetchone()
         return int(row[0])
 
     def close(self) -> None:
-        self._conn.close()
+        with self._lock:
+            self._conn.close()
 
     def __enter__(self) -> SemanticMemory:
         return self
