@@ -79,6 +79,7 @@ def _checkpoint_wal(data_dir: Path) -> None:
                 f"busy={busy} log_pages={log_pages} checkpointed={checkpointed}"
             )
 
+
 # Per-process counter so rapid snapshots get unique names even within
 # the same wall-clock second. Locked because the watchdog (Phase 4) may
 # trigger snapshots concurrently with the tick loop.
