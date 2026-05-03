@@ -72,26 +72,29 @@
 
 ### Phase 0 Boundary
 PHASE_0_COMPLETE @ 2026-05-03T14:35Z
-**MERGED**: _<commit-sha> @ <ISO8601>_
+**MERGED**: da1ee5e131de942761e23f80e173600bcbccef27 @ 2026-05-03T05:42:47Z (PR #2)
 
 ---
 
 ## Phase 1 — Single-agent MVP harvest loop (slug: `mvp`)
 
-- [ ] **1.1** Branch `feat/phase-1-mvp` (only after Phase 0 merged + main pulled).
+- [x] **1.1** Branch `feat/phase-1-mvp` (only after Phase 0 merged + main pulled).
   - **Acceptance**: `git -C /Users/yuyamukai/dev/microverse branch --show-current`
   - **Expected**: `feat/phase-1-mvp`
+  - **Evidence**: `feat/phase-1-mvp` @ 2026-05-03T14:43Z. Phase 0 PR #2 merged at da1ee5e.
 
-- [ ] **1.2** `microverse/config.py` with `MODEL = "gemma4:e4b"`, sampling presets, timeouts (`LLM_TIMEOUT_S=90`, `LLM_MAX_TOKENS=1024`), retry caps (`MAX_RETRIES=2`, `MAX_CONSECUTIVE_FAIL=3`).
+- [x] **1.2** `microverse/config.py` with `MODEL = "gemma4:e4b"`, sampling presets, timeouts (`LLM_TIMEOUT_S=90`, `LLM_MAX_TOKENS=1024`), retry caps (`MAX_RETRIES=2`, `MAX_CONSECUTIVE_FAIL=3`).
   - **Acceptance**: `uv run python -c "from microverse.config import MODEL, LLM_TIMEOUT_S; print(MODEL, LLM_TIMEOUT_S)"`
-  - **Expected**: `gemma4:e4b 90`
+  - **Expected**: `gemma4:e4b 90` (or `gemma4:e4b 90.0` since LLM_TIMEOUT_S is `float`)
+  - **Evidence**: `gemma4:e4b 90.0` @ 2026-05-03T14:44Z. Module created during Phase 0 review-fix; this task added SAMPLING_CREATIVE/SAMPLING_FACTUAL presets and MAX_TICKS_DEFAULT.
 
-- [ ] **1.3** `microverse/memory/episodic.py` with WAL.
+- [x] **1.3** `microverse/memory/episodic.py` with WAL.
   - Schema: `events(id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, actor TEXT NOT NULL, action TEXT NOT NULL, target TEXT, payload_json TEXT)`.
   - On open: `PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL`.
   - TDD: `tests/test_episodic.py` covers append + last-N + WAL pragma + file-backed crash recovery.
   - **Acceptance**: `uv run pytest tests/test_episodic.py -q`
   - **Expected**: `passed`
+  - **Evidence**: `11 passed in 0.16s` @ 2026-05-03T14:48Z. Includes a SIGKILL drill via subprocess that confirms 5 committed events survive a `kill -9`.
 
 - [ ] **1.4** `microverse/ops/metrics.py` with counters `json_ok`, `json_repaired`, `json_fallback_rest`, `llm_timeout`, `consecutive_fail` per agent. Persist to `data/metrics.sqlite` every N ticks.
   - TDD: `tests/test_metrics.py`.

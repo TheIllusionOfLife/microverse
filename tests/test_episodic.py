@@ -30,8 +30,7 @@ def test_wal_journal_mode_set_on_file_backed_db(tmp_path: Path):
     mode = mem._conn.execute("PRAGMA journal_mode").fetchone()[0]
     sync = mem._conn.execute("PRAGMA synchronous").fetchone()[0]
     assert mode.lower() == "wal"
-    # synchronous=NORMAL == 1
-    assert int(sync) == 1
+    assert int(sync) == 1  # SQLite encodes synchronous=NORMAL as the integer 1
     mem.close()
 
 
@@ -39,7 +38,8 @@ def test_append_returns_increasing_ids():
     mem = EpisodicMemory(":memory:")
     a = mem.append(actor="aki", action="craft", target=None, payload={"item": "lamp"})
     b = mem.append(actor="aki", action="rest", target=None, payload={})
-    assert isinstance(a, int) and isinstance(b, int)
+    assert isinstance(a, int)
+    assert isinstance(b, int)
     assert b > a
     mem.close()
 
