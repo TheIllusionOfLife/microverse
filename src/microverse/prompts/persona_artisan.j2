@@ -15,6 +15,12 @@ Recent things you witnessed:
   - {{ line }}
 {% endfor -%}
 {%- endif %}
+{% if world.lore_excerpt -%}
+Lore that feels relevant right now:
+{% for line in world.lore_excerpt -%}
+  {{ line }}
+{% endfor -%}
+{%- endif %}
 
 # Your task this tick
 Decide ONE action. Output STRICT JSON with exactly these keys:

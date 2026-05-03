@@ -40,11 +40,16 @@ def _seed_episodic(mem: EpisodicMemory, rng: random.Random, n: int) -> None:
 
 
 def _seed_semantic(mem: SemanticMemory, rng: random.Random, n: int) -> None:
+    topics = ("forest", "river", "harvest", "stone", "wood")
     for i in range(n):
+        topic = rng.choice(topics)
+        # Ensure the topic word actually appears in the indexed text so
+        # FTS5 can match it; pad with random letters to vary length.
+        body = f"{topic} {_rand_text(rng, rng.randint(60, 300))}"
         mem.index(
             doc_id=f"doc-{i}",
-            text=_rand_text(rng, rng.randint(60, 300)),
-            payload={"topic": rng.choice(("forest", "river", "harvest"))},
+            text=body,
+            payload={"topic": topic, "text": body[:120]},
         )
 
 
@@ -76,9 +81,10 @@ def test_rendered_prompt_under_4096_tokens(tmp_path: Path, seed: int):
     stay under 4096 tokens (== ~16k chars at our 4-char/token heuristic).
     """
     rng = random.Random(seed)
-    with EpisodicMemory(tmp_path / f"ep-{seed}.sqlite") as ep, SemanticMemory(
-        tmp_path / f"se-{seed}.sqlite"
-    ) as se:
+    with (
+        EpisodicMemory(tmp_path / f"ep-{seed}.sqlite") as ep,
+        SemanticMemory(tmp_path / f"se-{seed}.sqlite") as se,
+    ):
         _seed_episodic(ep, rng, rng.randint(20, 80))
         _seed_semantic(se, rng, rng.randint(5, 25))
 
@@ -111,12 +117,18 @@ def test_build_context_drops_episodic_older_than_7_days(tmp_path: Path):
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
         now = time.time()
         ep.append(
-            actor="aki", action="craft", target=None,
-            payload={"thought": "yesterday I made a bowl"}, ts=now - 86400,
+            actor="aki",
+            action="craft",
+            target=None,
+            payload={"thought": "yesterday I made a bowl"},
+            ts=now - 86400,
         )
         ep.append(
-            actor="aki", action="craft", target=None,
-            payload={"thought": "ten days ago I forgot what I made"}, ts=now - 10 * 86400,
+            actor="aki",
+            action="craft",
+            target=None,
+            payload={"thought": "ten days ago I forgot what I made"},
+            ts=now - 10 * 86400,
         )
         out = build_context(
             world_base=WorldContext(),
@@ -141,8 +153,11 @@ def test_episodic_excerpts_capped_to_budget(tmp_path: Path):
         base = time.time()
         for i in range(200):
             ep.append(
-                actor="aki", action="craft", target=None,
-                payload={"thought": _rand_text(rng, 250), "n": i}, ts=base - i,
+                actor="aki",
+                action="craft",
+                target=None,
+                payload={"thought": _rand_text(rng, 250), "n": i},
+                ts=base - i,
             )
         out = build_context(
             world_base=WorldContext(),

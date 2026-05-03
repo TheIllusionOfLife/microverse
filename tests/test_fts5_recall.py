@@ -21,7 +21,11 @@ def _seed(mem: SemanticMemory) -> None:
     mem.index(doc_id="a", text="a wooden bowl carved from cedar", payload={"actor": "aki"})
     mem.index(doc_id="b", text="a stone hammer used for forging metal", payload={"actor": "aki"})
     mem.index(doc_id="c", text="a leather pouch sewn with linen thread", payload={"actor": "bo"})
-    mem.index(doc_id="d", text="another wooden carving, this time of a bird", payload={"actor": "aki"})
+    mem.index(
+        doc_id="d",
+        text="another wooden carving, this time of a bird",
+        payload={"actor": "aki"},
+    )
 
 
 def test_empty_corpus_returns_empty(tmp_path: Path):
