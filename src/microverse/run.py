@@ -42,7 +42,9 @@ from microverse.agents.base import Action, Agent, WorldContext
 from microverse.agents.harvester import ArtifactCandidate, Harvester
 from microverse.agents.trader import Trader
 from microverse.config import MAX_TICKS_DEFAULT
+from microverse.memory import build_context
 from microverse.memory.episodic import EpisodicMemory
+from microverse.memory.semantic import SemanticMemory
 from microverse.ops.metrics import Metrics
 from microverse.ops.watchdog import Watchdog
 from microverse.world.clock import WorldClock
@@ -60,9 +62,19 @@ WATCHDOG_EVERY = 25  # ticks between watchdog sweeps
 WORLD_CLOCK_MEAN_INTERVAL = 100  # mean ticks between weather events
 
 
-def _build_world(_episodic: EpisodicMemory) -> WorldContext:
-    # Phase 1 minimal — Phase 3a fills this with episodic_recent + lore.
-    return WorldContext()
+def _build_world(
+    episodic: EpisodicMemory,
+    semantic: SemanticMemory,
+    *,
+    topic: str = "",
+) -> WorldContext:
+    """Assemble the per-tick context: weather + recent events + lore."""
+    return build_context(
+        world_base=WorldContext(),
+        episodic=episodic,
+        semantic=semantic,
+        topic=topic,
+    )
 
 
 def _commit_action(episodic: EpisodicMemory, agent: Agent, action: Action) -> int:
@@ -114,6 +126,7 @@ def run(
     snapshots_dir = data_dir / "snapshots"
 
     episodic = EpisodicMemory(data_dir / "episodic.sqlite")
+    semantic = SemanticMemory(data_dir / "semantic.sqlite")
     metrics = Metrics(data_dir / "metrics.sqlite", auto_flush_every=10)
 
     trader = Trader(name="Bo", soul_tokens=30)
@@ -154,7 +167,7 @@ def run(
                     consecutive_skips = 0
                 continue
             consecutive_skips = 0
-            world = _build_world(episodic)
+            world = _build_world(episodic, semantic)
             try:
                 action = agent.think(world)
             except Exception:
@@ -217,6 +230,10 @@ def run(
             episodic.close()
         except Exception:
             _logger.exception("episodic.close failed")
+        try:
+            semantic.close()
+        except Exception:
+            _logger.exception("semantic.close failed")
 
     return executed
 

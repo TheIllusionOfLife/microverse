@@ -131,9 +131,7 @@ class Watchdog:
         # more would amplify LLM volume without improving diversity.
         # `getattr` defensive: tolerate agent classes that don't expose
         # a ``role`` attribute (counts them as non-strangers).
-        existing = sum(
-            1 for a in self._scheduler.agents if getattr(a, "role", None) == "stranger"
-        )
+        existing = sum(1 for a in self._scheduler.agents if getattr(a, "role", None) == "stranger")
         if existing >= self._max_strangers:
             self._metrics.bump("watchdog_stranger_cap_hit")
             return
