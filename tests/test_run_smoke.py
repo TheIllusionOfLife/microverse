@@ -85,3 +85,75 @@ def test_run_creates_data_and_harvest_dirs(tmp_path: Path):
     assert data_dir.exists()
     assert (data_dir / "episodic.sqlite").exists()
     assert harvest_dir.exists()
+
+
+def test_run_survives_chat_exception(tmp_path: Path):
+    """A raised exception from chat() must not crash the tick loop:
+    bump llm_timeout + consecutive_fail and continue."""
+    import sqlite3
+
+    raise_count = [0]
+
+    def boom(**_kwargs):
+        raise_count[0] += 1
+        if raise_count[0] <= 5:
+            raise TimeoutError("simulated Ollama timeout")
+        return {
+            "content": '{"thought": "x", "action": "rest", "target": null, "artifact": null}',
+            "thinking": "",
+            "raw": {},
+        }
+
+    data_dir = tmp_path / "data"
+    harvest_dir = tmp_path / "harvest"
+
+    # Stub time.sleep so the throttle in the except branch doesn't drag
+    # the test out for 5 seconds per failure.
+    with (
+        patch("microverse.run.time.sleep", side_effect=lambda *_a, **_k: None),
+        patch("microverse.agents.artisan.chat", side_effect=boom),
+    ):
+        executed = run(
+            ticks=2,  # 2 successful ticks needed
+            seed=0,
+            tempo=0,
+            data_dir=data_dir,
+            harvest_dir=harvest_dir,
+        )
+    # We absorbed 5 exceptions then completed 2 ticks.
+    assert executed == 2
+
+    # llm_timeout was bumped 5 times, then bumps_since_flush flushed
+    # at close. Confirm the metric persisted.
+    with sqlite3.connect(str(data_dir / "metrics.sqlite")) as conn:
+        rows = conn.execute(
+            "SELECT name, MAX(value) FROM metrics WHERE name='llm_timeout' GROUP BY name"
+        ).fetchall()
+    assert rows == [("llm_timeout", 5)]
+
+
+def test_run_recovers_from_all_paused_via_consecutive_fail_reset(tmp_path: Path):
+    """Three consecutive parse failures pause the only agent. The tick
+    loop must auto-rehab via reset(consecutive_fail) so the run can
+    still complete the requested ticks once the model recovers."""
+    seq = ["bad"] * 6 + ['{"thought": "x", "action": "rest", "target": null, "artifact": null}'] * 5
+
+    def respond(**_kwargs):
+        if seq:
+            content = seq.pop(0)
+        else:
+            content = '{"thought": "x", "action": "rest", "target": null, "artifact": null}'
+        return {"content": content, "thinking": "", "raw": {}}
+
+    with (
+        patch("microverse.run.time.sleep", side_effect=lambda *_a, **_k: None),
+        patch("microverse.agents.artisan.chat", side_effect=respond),
+    ):
+        executed = run(
+            ticks=3,
+            seed=0,
+            tempo=0,
+            data_dir=tmp_path / "data",
+            harvest_dir=tmp_path / "harvest",
+        )
+    assert executed == 3

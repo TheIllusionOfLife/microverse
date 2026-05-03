@@ -119,8 +119,11 @@ class Metrics:
         # Flush only if there are pending bumps. Calling flush() blindly
         # would write a redundant snapshot of values that haven't changed
         # since the last explicit flush, polluting the time-series.
+        # Read under the lock to avoid a TOCTOU race with bump().
+        with self._lock:
+            need_flush = self._bumps_since_flush > 0
         try:
-            if self._bumps_since_flush > 0:
+            if need_flush:
                 self.flush()
         finally:
             self._conn.close()

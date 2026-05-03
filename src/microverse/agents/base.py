@@ -61,10 +61,11 @@ def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
     On total failure: bump ``json_fallback_rest`` + ``consecutive_fail`` and
     return a safe ``rest`` action.
 
-    Inputs above ``MAX_PARSE_BYTES`` are short-circuited straight to the
-    fallback so the tick loop cannot stall on a pathological response.
+    Inputs above ``MAX_PARSE_BYTES`` (UTF-8 bytes) are short-circuited
+    straight to the fallback so the tick loop cannot stall on a
+    pathological response.
     """
-    if len(raw) > MAX_PARSE_BYTES:
+    if len(raw.encode("utf-8", errors="replace")) > MAX_PARSE_BYTES:
         metrics.bump("json_fallback_rest")
         metrics.bump("consecutive_fail", agent=agent)
         return _rest_action()

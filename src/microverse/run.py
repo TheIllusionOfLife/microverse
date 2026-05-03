@@ -111,18 +111,33 @@ def run(
     try:
         # Loop on `executed` rather than iteration count so paused
         # agents don't consume the budget. Bound consecutive skips so
-        # an all-paused world doesn't hot-spin (sleep then retry).
+        # an all-paused world doesn't hot-spin: after one full rotation
+        # of skips we sleep and *reset* consecutive_fail for every
+        # agent — the watchdog stub's auto-rehab — giving them another
+        # chance instead of looping forever.
         while executed < max_ticks and not stop["requested"]:
             agent = sched.next()
             if metrics.should_pause(agent.name):
                 consecutive_skips += 1
                 if consecutive_skips > max(len(sched.agents), 1) * 3:
                     time.sleep(max(tempo or 1.0, 1.0))
+                    for a in sched.agents:
+                        metrics.reset("consecutive_fail", agent=a.name)
                     consecutive_skips = 0
                 continue
             consecutive_skips = 0
             world = _build_world(episodic)
-            action = agent.think(world)
+            try:
+                action = agent.think(world)
+            except Exception:
+                # Hung/crashed Ollama call: count it, push the agent
+                # toward pause, do not crash the whole run.
+                _logger.exception("think() failed for agent %s", agent.name)
+                metrics.bump("llm_timeout")
+                metrics.bump("consecutive_fail", agent=agent.name)
+                # Throttle so a persistent failure doesn't spin.
+                time.sleep(min(max(tempo or 1.0, 1.0), 5.0))
+                continue
             _commit_action(episodic, agent, action)
             _maybe_harvest(harvester, agent, action)
             executed += 1

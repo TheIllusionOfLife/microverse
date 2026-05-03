@@ -118,11 +118,18 @@ def test_emoji_only_artifact_uses_hash_slug(tmp_path: Path):
     artifacts don't pile up under collision suffixes."""
     h = Harvester(tmp_path)
     cand = ArtifactCandidate(
-        actor="aki", action="craft", artifact="🌸🌸🌸 a flower flower flower 🌸🌸🌸", ts=0.0
+        actor="aki",
+        action="craft",
+        artifact="🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸🌸",
+        ts=0.0,
     )
     path = h.consider(cand)
     assert path is not None
-    assert path.stem.startswith("artifact-") or "flower" in path.stem
+    # Pure-emoji input must take the hash-prefixed fallback path.
+    assert path.stem.startswith("artifact-")
+    # Hash prefix is 8 hex chars, so the full stem is 9 chars after
+    # the dash — confirm we used the fallback, not a coincidence.
+    assert len(path.stem) == len("artifact-") + 8
 
 
 def test_yaml_frontmatter_safe_against_special_chars(tmp_path: Path):
