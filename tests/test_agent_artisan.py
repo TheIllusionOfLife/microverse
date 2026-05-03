@@ -23,15 +23,19 @@ def test_artisan_uses_creative_sampling():
 
 def test_artisan_persona_renders_with_world_context():
     a = Artisan(name="Aki")
-    rendered = a.render_prompt(
-        WorldContext(season="winter", weather="snow", peers_today=("Bo",))
-    )
+    rendered = a.render_prompt(WorldContext(season="winter", weather="snow", peers_today=("Bo",)))
     # Persona must mention name, role, and current world state.
     assert "Aki" in rendered
     assert "artisan" in rendered.lower()
-    assert "winter" in rendered or "Winter" in rendered
-    # Hard rule: persona forbids meta-references.
-    assert "simulation" not in rendered.lower() or "do not" in rendered.lower()
+    assert "winter" in rendered.lower()
+    assert "Bo" in rendered
+    # Hard rule: persona explicitly forbids meta-references. The
+    # forbidding word ("never") and the meta-token ("simulation") must
+    # both appear so the model is reminded *to refuse* meta-references,
+    # not just told they exist.
+    lower = rendered.lower()
+    assert "never" in lower
+    assert "simulation" in lower
 
 
 def test_artisan_think_returns_action():
@@ -44,9 +48,7 @@ def test_artisan_think_returns_action():
         "thinking": "",
         "raw": {},
     }
-    with patch(
-        "microverse.agents.artisan.chat", return_value=canned
-    ) as mock_chat:
+    with patch("microverse.agents.artisan.chat", return_value=canned) as mock_chat:
         a = Artisan(name="Aki", metrics=metrics)
         result = a.think(WorldContext())
 

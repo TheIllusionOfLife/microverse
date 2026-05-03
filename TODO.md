@@ -108,9 +108,10 @@ PHASE_0_COMPLETE @ 2026-05-03T14:35Z
   - **Expected**: `passed`
   - **Evidence**: `10 passed in 0.06s` @ 2026-05-03T14:54Z. Action enum (StrEnum), Pydantic v2 strict, parse_action 3-stage (strict/repair/fallback), bumps json_ok/json_repaired/json_fallback_rest and resets consecutive_fail on success.
 
-- [ ] **1.6** `microverse/agents/artisan.py` + `microverse/prompts/persona_artisan.j2` (strict JSON output, no meta-references).
+- [x] **1.6** `microverse/agents/artisan.py` + `microverse/prompts/persona_artisan.j2` (strict JSON output, no meta-references).
   - **Acceptance**: `uv run python -c "from microverse.agents.artisan import Artisan; a=Artisan(name='Aki'); print(a.role)"`
   - **Expected**: `artisan`
+  - **Evidence**: `artisan` @ 2026-05-03T14:58Z. 5 unit tests cover role, creative sampling, persona render with world context (incl. meta-reference guard), think() success path, think() fallback path. Persona template uses Jinja2 with StrictUndefined.
 
 - [ ] **1.7** `microverse/agents/harvester.py` + `microverse/prompts/persona_harvester.j2`.
   - Atomic writes: write to `*.tmp` then `os.replace`. `manifest.jsonl` append uses fsync + rename.
