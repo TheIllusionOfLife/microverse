@@ -67,7 +67,10 @@ def take_snapshot(data_dir: Path | str, snapshots_dir: Path | str) -> Path | Non
     excluded_relpath: str | None = None
     try:
         rel = snapshots_dir.relative_to(data_dir)
-        excluded_relpath = "./" + str(rel)
+        # tarinfo.name uses POSIX separators regardless of OS, so build
+        # the comparison string the same way (rel.as_posix() vs str(rel)
+        # only matters on Windows but the discipline is free).
+        excluded_relpath = "./" + rel.as_posix()
     except ValueError:
         excluded_relpath = None
 
