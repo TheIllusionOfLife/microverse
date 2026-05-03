@@ -115,15 +115,17 @@ class SemanticMemory:
         """Return all doc_ids, optionally filtered by ``prefix``.
 
         Phase 3b's Elder uses this to enumerate stale lore chunks for
-        replacement.
+        replacement. The prefix is escaped so ``%`` or ``_`` in user
+        input doesn't act as a SQL LIKE wildcard.
         """
         with self._lock:
             if prefix is None:
                 rows = self._conn.execute("SELECT doc_id FROM docs").fetchall()
             else:
+                escaped = prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
                 rows = self._conn.execute(
-                    "SELECT doc_id FROM docs WHERE doc_id LIKE ?",
-                    (prefix + "%",),
+                    "SELECT doc_id FROM docs WHERE doc_id LIKE ? ESCAPE '\\'",
+                    (escaped + "%",),
                 ).fetchall()
         return [r[0] for r in rows]
 

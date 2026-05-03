@@ -125,10 +125,24 @@ def restore_snapshot(archive: Path | str, data_dir: Path | str) -> None:
         shutil.rmtree(staging, ignore_errors=True)
         raise
 
-    # Swap: remove the old data_dir (if any) then rename staging into place.
+    # Atomic swap: rename data_dir to a backup, replace with staging,
+    # then drop the backup. If staging.replace fails, restore the
+    # backup so the user is never left with no data_dir.
+    backup: Path | None = None
     if data_dir.exists():
-        shutil.rmtree(data_dir)
-    staging.replace(data_dir)
+        backup = parent / (data_dir.name + ".restore.bak")
+        if backup.exists():
+            shutil.rmtree(backup)
+        data_dir.replace(backup)
+    try:
+        staging.replace(data_dir)
+    except BaseException:
+        if backup is not None:
+            backup.replace(data_dir)
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    if backup is not None:
+        shutil.rmtree(backup, ignore_errors=True)
 
 
 def maybe_snapshot(

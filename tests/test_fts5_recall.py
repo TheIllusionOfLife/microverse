@@ -125,3 +125,14 @@ def test_list_ids_with_prefix(tmp_path: Path):
         assert sorted(mem.list_ids()) == ["event-001", "lore-001", "lore-002"]
         assert sorted(mem.list_ids(prefix="lore-")) == ["lore-001", "lore-002"]
         assert mem.list_ids(prefix="missing-") == []
+
+
+def test_list_ids_prefix_treats_sql_wildcards_literally(tmp_path: Path):
+    """SQL LIKE '%' / '_' must not act as wildcards in the prefix;
+    they should match the literal characters only."""
+    with SemanticMemory(tmp_path / "fts.sqlite") as mem:
+        mem.index(doc_id="100%-cotton", text="x", payload={})
+        mem.index(doc_id="100Xcotton", text="x", payload={})
+        # '%' in prefix should match only the literal-percent doc.
+        result = mem.list_ids(prefix="100%")
+        assert result == ["100%-cotton"]
