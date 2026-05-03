@@ -9,7 +9,7 @@ becomes a safe ``rest`` action rather than a crash.
 from __future__ import annotations
 
 from microverse.agents.base import Action, Agent, WorldContext, parse_action
-from microverse.config import LLM_MAX_TOKENS, SAMPLING_CREATIVE
+from microverse.config import LLM_MAX_TOKENS, LLM_TIMEOUT_S, SAMPLING_CREATIVE
 from microverse.llm.ollama_client import chat
 from microverse.ops.metrics import Metrics
 from microverse.prompts import render
@@ -42,5 +42,6 @@ class Artisan(Agent):
             think=False,
             format="json",
             options={**self.sampling, "num_predict": LLM_MAX_TOKENS},
+            timeout_s=LLM_TIMEOUT_S,  # explicit so a hung model can't freeze the tick loop
         )
         return parse_action(result["content"], metrics=self._metrics, agent=self.name)

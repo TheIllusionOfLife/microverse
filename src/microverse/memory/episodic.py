@@ -3,8 +3,16 @@ happens inside the microverse.
 
 Durability contract:
   - WAL journal mode + ``synchronous=NORMAL`` are set at every connection
-    open. Mid-tick ``kill -9`` cannot lose committed events; the most a
-    crash can lose is an in-flight (uncommitted) tick.
+    open. The pragma return value is verified — if SQLite refuses to
+    enter WAL mode, ``__init__`` raises rather than silently degrading.
+    Mid-tick ``kill -9`` cannot lose *committed* events (the WAL holds
+    the row, and the next open replays it). The most a process crash
+    can lose is the in-flight, uncommitted tick.
+  - ``synchronous=NORMAL`` is the standard WAL pairing: it skips fsync
+    on each commit and fsyncs only at checkpoint. That means a sudden
+    *power* loss (not just process crash) can lose the last few commits.
+    For our soak rungs that risk is acceptable — flip to ``FULL`` if you
+    care about kernel-panic durability.
   - Cold-backup snapshots come later (Phase 2). Phase 1 trusts WAL.
 
 Schema:
@@ -76,7 +84,16 @@ class EpisodicMemory:
         self._conn = sqlite3.connect(str(path), check_same_thread=False)
         # WAL is the durability contract. NORMAL fsync is the standard
         # WAL pairing — fsync at checkpoint, not at every commit.
-        self._conn.execute("PRAGMA journal_mode=WAL")
+        # Verify the pragma actually took: a misconfigured filesystem
+        # (e.g. some network mounts) silently rejects WAL.
+        mode_row = self._conn.execute("PRAGMA journal_mode=WAL").fetchone()
+        actual_mode = str(mode_row[0]).lower() if mode_row else ""
+        # `:memory:` databases always report "memory" — no durability
+        # surface to defend, so don't fail. For file-backed databases,
+        # silent WAL rejection (e.g. some network mounts) breaks our
+        # kill-safety contract; raise loudly instead.
+        if str(path) != ":memory:" and actual_mode != "wal":
+            raise RuntimeError(f"failed to enable WAL on episodic db {path!r}; got mode={mode_row}")
         self._conn.execute("PRAGMA synchronous=NORMAL")
         self._conn.execute(_SCHEMA)
         self._conn.commit()

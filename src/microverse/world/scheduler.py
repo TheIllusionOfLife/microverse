@@ -2,13 +2,34 @@
 
 Phase 1 ships a simple ``RoundRobinScheduler`` — pick agents in
 registration order. Phase 2 swaps in a weighted scheduler keyed by
-``soul_tokens``; the public ``Scheduler.next()`` interface stays the
-same so the tick loop is unchanged.
+``soul_tokens``; the public ``Scheduler`` Protocol below makes the
+swap a typecheck rather than a runtime surprise.
 """
 
 from __future__ import annotations
 
+from typing import Protocol, runtime_checkable
+
 from microverse.agents.base import Agent
+
+
+@runtime_checkable
+class Scheduler(Protocol):
+    """The interface the tick loop expects from a scheduler.
+
+    Implementations must accept agents at any time, return the next
+    agent to act, and support deregistration so the watchdog can pull
+    a misbehaving agent out of rotation.
+    """
+
+    @property
+    def agents(self) -> tuple[Agent, ...]: ...
+
+    def register(self, agent: Agent) -> None: ...
+
+    def unregister(self, name: str) -> None: ...
+
+    def next(self) -> Agent: ...
 
 
 class RoundRobinScheduler:

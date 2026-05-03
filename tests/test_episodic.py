@@ -7,6 +7,7 @@ read back).
 
 from __future__ import annotations
 
+import signal
 import subprocess
 import sys
 import time
@@ -15,6 +16,10 @@ from pathlib import Path
 import pytest
 
 from microverse.memory.episodic import EpisodicMemory
+
+_REQUIRES_SIGKILL = pytest.mark.skipif(
+    not hasattr(signal, "SIGKILL"), reason="SIGKILL not available on this platform"
+)
 
 
 def test_in_memory_open_creates_events_table():
@@ -118,6 +123,7 @@ def test_file_backed_durability_across_reopen(tmp_path: Path):
     reopened.close()
 
 
+@_REQUIRES_SIGKILL
 def test_kill9_recovery_via_subprocess(tmp_path: Path):
     """Spawn a child that opens the DB, writes 5 committed events, then
     SIGKILLs itself mid-loop. Re-open in this process and confirm all

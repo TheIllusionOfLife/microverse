@@ -8,11 +8,20 @@ tick loop (Artisan → episodic.append → harvester) under SIGKILL.
 
 from __future__ import annotations
 
+import signal
 import sqlite3
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+import pytest
+
+# SIGKILL is POSIX-only; the WAL/durability contract still holds on
+# Windows but the drill itself can't be performed there.
+pytestmark = pytest.mark.skipif(
+    not hasattr(signal, "SIGKILL"), reason="SIGKILL not available on this platform"
+)
 
 
 def test_run_subprocess_survives_kill9_with_no_loss(tmp_path: Path):

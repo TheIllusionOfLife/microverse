@@ -17,6 +17,12 @@ LLM_MAX_TOKENS: int = 1024
 MAX_RETRIES: int = 2
 MAX_CONSECUTIVE_FAIL: int = 3
 
+# Hard cap on bytes fed into ``parse_action`` (json.loads + json_repair).
+# Above this, skip the parse attempts and fall back directly to a safe
+# rest action — protects the tick loop from O(N^2) repair time on
+# pathological inputs.
+MAX_PARSE_BYTES: int = 32 * 1024
+
 # Sampling presets per ~/.claude/skills/local-llm/SKILL.md:74-78. Picked
 # by role: creative roles (Artisan, Scholar, Stranger) want exploration;
 # judging roles (Trader, Harvester) want lower variance.

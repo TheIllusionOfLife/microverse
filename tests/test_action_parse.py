@@ -111,3 +111,17 @@ def test_action_repair_handles_common_llm_wrappers(raw: str):
     a = parse_action(raw, metrics=metrics, agent="aki")
     assert a.action == ActionKind.REST
     assert metrics.get("json_repaired") == 1
+
+
+def test_action_oversize_input_short_circuits_to_fallback():
+    """Inputs above MAX_PARSE_BYTES skip parse attempts entirely so a
+    pathological 100KB blob can't stall the tick loop in O(N^2) repair."""
+    from microverse.config import MAX_PARSE_BYTES
+
+    metrics = Metrics(":memory:")
+    huge = '{"thought": "' + ("x" * (MAX_PARSE_BYTES + 1024)) + '"}'
+    a = parse_action(huge, metrics=metrics, agent="aki")
+    assert a.action == ActionKind.REST
+    assert metrics.get("json_fallback_rest") == 1
+    assert metrics.get("json_ok") == 0
+    assert metrics.get("json_repaired") == 0

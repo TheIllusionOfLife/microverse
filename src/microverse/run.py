@@ -19,6 +19,7 @@ lost; the in-flight tick is simply discarded.
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import random
 import signal
@@ -33,6 +34,8 @@ from microverse.config import MAX_TICKS_DEFAULT
 from microverse.memory.episodic import EpisodicMemory
 from microverse.ops.metrics import Metrics
 from microverse.world.scheduler import RoundRobinScheduler
+
+_logger = logging.getLogger(__name__)
 
 
 def _build_world(_episodic: EpisodicMemory) -> WorldContext:
@@ -104,14 +107,20 @@ def run(
 
     max_ticks = ticks if ticks is not None else MAX_TICKS_DEFAULT
     executed = 0
+    consecutive_skips = 0
     try:
-        for _ in range(max_ticks):
-            if stop["requested"]:
-                break
+        # Loop on `executed` rather than iteration count so paused
+        # agents don't consume the budget. Bound consecutive skips so
+        # an all-paused world doesn't hot-spin (sleep then retry).
+        while executed < max_ticks and not stop["requested"]:
             agent = sched.next()
             if metrics.should_pause(agent.name):
-                # Skip this agent for one rotation; reset on next success.
+                consecutive_skips += 1
+                if consecutive_skips > max(len(sched.agents), 1) * 3:
+                    time.sleep(max(tempo or 1.0, 1.0))
+                    consecutive_skips = 0
                 continue
+            consecutive_skips = 0
             world = _build_world(episodic)
             action = agent.think(world)
             _commit_action(episodic, agent, action)
@@ -121,9 +130,16 @@ def run(
             if sleep_s > 0:
                 time.sleep(sleep_s)
     finally:
-        metrics.flush()
-        metrics.close()
-        episodic.close()
+        # Close each resource independently — a failure in one must
+        # not skip the rest.
+        try:
+            metrics.close()  # flushes pending bumps internally
+        except Exception:
+            _logger.exception("metrics.close failed")
+        try:
+            episodic.close()
+        except Exception:
+            _logger.exception("episodic.close failed")
 
     return executed
 

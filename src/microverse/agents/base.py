@@ -24,6 +24,8 @@ from typing import TYPE_CHECKING
 from json_repair import repair_json
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from microverse.config import MAX_PARSE_BYTES
+
 if TYPE_CHECKING:
     from microverse.ops.metrics import Metrics
 
@@ -58,7 +60,15 @@ def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
     On repaired success: bump ``json_repaired``, reset ``consecutive_fail``.
     On total failure: bump ``json_fallback_rest`` + ``consecutive_fail`` and
     return a safe ``rest`` action.
+
+    Inputs above ``MAX_PARSE_BYTES`` are short-circuited straight to the
+    fallback so the tick loop cannot stall on a pathological response.
     """
+    if len(raw) > MAX_PARSE_BYTES:
+        metrics.bump("json_fallback_rest")
+        metrics.bump("consecutive_fail", agent=agent)
+        return _rest_action()
+
     # 1. Strict
     try:
         data = json.loads(raw)

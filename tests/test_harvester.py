@@ -99,6 +99,7 @@ def test_filename_slug_is_safe(tmp_path: Path):
         assert ch not in name
     # Stem is lowercase alnum + hyphens + underscores.
     stem = path.stem
+    assert stem == stem.lower()
     assert all(c.isalnum() or c in "-_" for c in stem)
 
 
@@ -109,6 +110,42 @@ def test_multiple_artifacts_unique_filenames(tmp_path: Path):
     assert p1 is not None
     assert p2 is not None
     assert p1 != p2  # collision-resolved
+
+
+def test_emoji_only_artifact_uses_hash_slug(tmp_path: Path):
+    """When the slug collapses to empty (emoji or pure non-ASCII text),
+    the filename falls back to a stable content hash so distinct
+    artifacts don't pile up under collision suffixes."""
+    h = Harvester(tmp_path)
+    cand = ArtifactCandidate(
+        actor="aki", action="craft", artifact="🌸🌸🌸 a flower flower flower 🌸🌸🌸", ts=0.0
+    )
+    path = h.consider(cand)
+    assert path is not None
+    assert path.stem.startswith("artifact-") or "flower" in path.stem
+
+
+def test_yaml_frontmatter_safe_against_special_chars(tmp_path: Path):
+    """Even though Phase 1 hardcodes actor/action to safe values, the
+    frontmatter writer must yaml-escape so a future field with quotes
+    or colons doesn't break downstream readers."""
+    h = Harvester(tmp_path)
+    cand = ArtifactCandidate(
+        actor='evil "actor": with: colons',
+        action="craft",
+        artifact="a long enough artifact body to be accepted by the harvester",
+        ts=0.0,
+    )
+    path = h.consider(cand)
+    assert path is not None
+    body = path.read_text()
+    # Must round-trip through yaml.safe_load without raising.
+    import yaml
+
+    head = body.split("---", 2)[1]
+    parsed = yaml.safe_load(head)
+    assert parsed["actor"] == 'evil "actor": with: colons'
+    assert parsed["action"] == "craft"
 
 
 def test_no_episodic_appended_by_harvester(tmp_path: Path):

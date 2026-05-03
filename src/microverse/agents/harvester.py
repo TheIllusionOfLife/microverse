@@ -10,22 +10,32 @@ this for Trader-ranked percentile selection.
 
 Atomic write contract:
   - artifact files: write to ``*.tmp``, fsync, then ``os.replace`` to
-    the final name. No partial files visible to readers.
+    the final name. The final name is reserved via ``O_CREAT|O_EXCL``
+    *before* the temp write so two concurrent harvesters cannot race
+    to the same path. (Single-process today; Phase 4 watchdog may run
+    concurrently.)
   - ``manifest.jsonl``: open in append mode, write one JSON line, fsync.
-    Each line is < PIPE_BUF so the OS guarantees atomicity per write.
+    POSIX guarantees atomicity for ``write()`` calls smaller than
+    ``PIPE_BUF`` (4096 on Linux/macOS); our records are ~200 bytes, so
+    a single ``f.write(line)`` is one atomic ``write(2)``.
 
 Filename slug: lowercase alnum/hyphen/underscore only, derived from the
-first ~60 chars of the artifact text, with collision suffix ``-N``.
+first ~60 chars of the artifact text. If the slug collapses to empty
+(e.g., emoji-only artifact), it is replaced by an 8-char content hash
+so distinct artifacts don't pile up under collision suffixes.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+
+import yaml
 
 MIN_ARTIFACT_CHARS = 20
 SLUG_MAX_LEN = 60
@@ -44,33 +54,47 @@ _SLUG_RE = re.compile(r"[^a-z0-9]+")
 
 def _slugify(text: str) -> str:
     s = _SLUG_RE.sub("-", text.lower())
-    s = s.strip("-_")
-    if not s:
-        s = "artifact"
-    return s[:SLUG_MAX_LEN].rstrip("-_") or "artifact"
+    s = s.strip("-_")[:SLUG_MAX_LEN].rstrip("-_")
+    if s:
+        return s
+    # Fallback: hash-based stable slug for non-ASCII / emoji-only inputs.
+    digest = hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()[:8]
+    return f"artifact-{digest}"
 
 
-def _atomic_write_text(path: Path, content: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
+def _atomic_write_text(target: Path, content: str) -> None:
+    """Atomically reserve ``target`` (O_EXCL) then fill it via tmp + replace.
+
+    ``target`` is expected to already be the result of a collision check
+    upstream; this function only handles the actual byte transfer.
+    """
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_suffix(target.suffix + ".tmp")
     with open(tmp, "w", encoding="utf-8") as f:
         f.write(content)
         f.flush()
         os.fsync(f.fileno())
-    os.replace(tmp, path)
+    os.replace(tmp, target)
 
 
-def _resolve_collision(target: Path) -> Path:
-    if not target.exists():
-        return target
-    stem, suffix = target.stem, target.suffix
-    parent = target.parent
-    n = 2
+def _reserve_unique_path(parent: Path, stem: str, suffix: str) -> Path:
+    """Atomically create an empty file at ``parent/<stem><n><suffix>``.
+
+    Uses ``O_CREAT|O_EXCL``; on EEXIST, increments ``n`` and retries.
+    Returns the reserved path. The caller fills it with the real content
+    via ``_atomic_write_text`` (which writes to a tmp and replaces).
+    """
+    parent.mkdir(parents=True, exist_ok=True)
+    n = 0
     while True:
-        candidate = parent / f"{stem}-{n}{suffix}"
-        if not candidate.exists():
-            return candidate
-        n += 1
+        candidate = parent / (f"{stem}{suffix}" if n == 0 else f"{stem}-{n + 1}{suffix}")
+        try:
+            fd = os.open(str(candidate), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        except FileExistsError:
+            n += 1
+            continue
+        os.close(fd)
+        return candidate
 
 
 class Harvester:
@@ -100,11 +124,17 @@ class Harvester:
         date = datetime.fromtimestamp(candidate.ts, tz=UTC).strftime("%Y-%m-%d")
         day_dir = self._root / "inbox" / date
         slug = _slugify((candidate.artifact or "")[: SLUG_MAX_LEN * 2])
-        target = _resolve_collision(day_dir / f"{slug}.md")
-        body = (
-            f"---\nactor: {candidate.actor}\naction: {candidate.action}\n"
-            f"ts: {candidate.ts}\n---\n\n{candidate.artifact}\n"
+        target = _reserve_unique_path(day_dir, slug, ".md")
+        # YAML-safe frontmatter: defend against actor/action containing
+        # colons, quotes, or newlines, even though Phase 1 hard-codes
+        # them to safe values.
+        frontmatter = yaml.safe_dump(
+            {"actor": candidate.actor, "action": candidate.action, "ts": candidate.ts},
+            default_flow_style=False,
+            sort_keys=True,
+            allow_unicode=True,
         )
+        body = f"---\n{frontmatter}---\n\n{candidate.artifact}\n"
         _atomic_write_text(target, body)
         return target
 
@@ -123,6 +153,9 @@ class Harvester:
             "path": str(path.relative_to(self._root)) if path else None,
         }
         line = json.dumps(record, separators=(",", ":")) + "\n"
+        # Records are well below PIPE_BUF (4 KB on macOS/Linux), so a
+        # single os.write under O_APPEND is atomic across concurrent
+        # appenders. fsync ensures the data is on disk before we return.
         with open(self._manifest, "a", encoding="utf-8") as f:
             f.write(line)
             f.flush()

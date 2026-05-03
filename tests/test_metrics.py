@@ -120,3 +120,42 @@ def test_auto_flush_every(tmp_path: Path):
     ).fetchone()[0]
     assert rows_after_three == 1
     m.close()
+
+
+def test_close_flushes_pending_bumps(tmp_path: Path):
+    """close() must persist any unflushed bumps so the last tick's
+    counters are not silently lost on graceful shutdown."""
+    db = tmp_path / "close.sqlite"
+    m = Metrics(db, auto_flush_every=100)  # auto-flush won't trigger
+    m.bump("json_ok")
+    m.bump("json_fallback_rest")
+    m.close()
+
+    # Re-open and confirm the bumps were persisted.
+    import sqlite3
+
+    with sqlite3.connect(str(db)) as conn:
+        rows = conn.execute("SELECT name, value FROM metrics ORDER BY name").fetchall()
+    by_name = dict(rows)
+    assert by_name["json_ok"] == 1
+    assert by_name["json_fallback_rest"] == 1
+
+
+def test_concurrent_bumps_are_correct():
+    """Multiple threads bumping the same counter must yield the exact
+    sum (no lost updates from the GIL-evading defaultdict path)."""
+    import threading
+
+    m = Metrics(":memory:")
+
+    def worker():
+        for _ in range(500):
+            m.bump("json_ok")
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert m.get("json_ok") == 500 * 8

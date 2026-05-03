@@ -13,6 +13,11 @@ SQLite on ``flush()``. Each flush writes a row per (name, agent) tuple
 so the table is a time-series, not a current-value cache. ``auto_flush_every``
 makes the tick loop's bookkeeping a no-op for the caller.
 
+Concurrency: ``check_same_thread=False`` lets the watchdog (Phase 4a)
+read counters while the tick loop bumps them; ``_lock`` serializes the
+in-memory dict mutations so reads observe consistent values. ``close()``
+flushes pending bumps before closing the SQLite connection.
+
 Schema:
 
     metrics(
@@ -27,6 +32,7 @@ Schema:
 from __future__ import annotations
 
 import sqlite3
+import threading
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -57,26 +63,40 @@ class Metrics:
     ) -> None:
         self._counters: defaultdict[_CounterKey, int] = defaultdict(int)
         self._conn = sqlite3.connect(str(path), check_same_thread=False)
-        self._conn.execute("PRAGMA journal_mode=WAL")
+        mode_row = self._conn.execute("PRAGMA journal_mode=WAL").fetchone()
+        actual_mode = str(mode_row[0]).lower() if mode_row else ""
+        # `:memory:` always reports "memory" — no durability surface, so
+        # accept it. File-backed dbs: WAL rejection is a hard error.
+        if str(path) != ":memory:" and actual_mode != "wal":
+            raise RuntimeError(f"failed to enable WAL on metrics db {path!r}; got mode={mode_row}")
         self._conn.execute("PRAGMA synchronous=NORMAL")
         self._conn.execute(_SCHEMA)
         self._conn.commit()
         self._auto_flush_every = auto_flush_every
         self._bumps_since_flush = 0
+        self._lock = threading.Lock()
 
     def bump(self, name: str, *, agent: str | None = None, by: int = 1) -> int:
-        key: _CounterKey = (name, agent)
-        self._counters[key] += by
-        self._bumps_since_flush += 1
-        if self._auto_flush_every and self._bumps_since_flush >= self._auto_flush_every:
+        with self._lock:
+            key: _CounterKey = (name, agent)
+            self._counters[key] += by
+            self._bumps_since_flush += 1
+            should_flush = (
+                self._auto_flush_every is not None
+                and self._bumps_since_flush >= self._auto_flush_every
+            )
+            value = self._counters[key]
+        if should_flush:
             self.flush()
-        return self._counters[key]
+        return value
 
     def get(self, name: str, *, agent: str | None = None) -> int:
-        return self._counters.get((name, agent), 0)
+        with self._lock:
+            return self._counters.get((name, agent), 0)
 
     def reset(self, name: str, *, agent: str | None = None) -> None:
-        self._counters[(name, agent)] = 0
+        with self._lock:
+            self._counters[(name, agent)] = 0
 
     def should_pause(self, agent: str) -> bool:
         """Watchdog stub: pause an agent after MAX_CONSECUTIVE_FAIL fails."""
@@ -85,17 +105,25 @@ class Metrics:
     def flush(self) -> None:
         """Snapshot every counter to SQLite as a new row."""
         ts = time.time()
-        rows = [(ts, name, agent, value) for (name, agent), value in self._counters.items()]
+        with self._lock:
+            rows = [(ts, name, agent, value) for (name, agent), value in self._counters.items()]
+            self._bumps_since_flush = 0
         if rows:
             self._conn.executemany(
                 "INSERT INTO metrics (ts, name, agent, value) VALUES (?, ?, ?, ?)",
                 rows,
             )
             self._conn.commit()
-        self._bumps_since_flush = 0
 
     def close(self) -> None:
-        self._conn.close()
+        # Flush only if there are pending bumps. Calling flush() blindly
+        # would write a redundant snapshot of values that haven't changed
+        # since the last explicit flush, polluting the time-series.
+        try:
+            if self._bumps_since_flush > 0:
+                self.flush()
+        finally:
+            self._conn.close()
 
     def __enter__(self) -> Metrics:
         return self

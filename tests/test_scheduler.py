@@ -71,3 +71,13 @@ def test_agents_property_lists_all_registered():
     sched.register(a)
     sched.register(b)
     assert sched.agents == (a, b)
+
+
+def test_round_robin_satisfies_scheduler_protocol():
+    """RoundRobinScheduler must satisfy the runtime-checkable Scheduler
+    Protocol so future swaps (e.g. WeightedScheduler in Phase 2) are
+    typecheck-verified, not runtime-discovered."""
+    from microverse.world.scheduler import Scheduler
+
+    sched = RoundRobinScheduler()
+    assert isinstance(sched, Scheduler)
