@@ -69,9 +69,10 @@ def verify(db: Path, watermark: int | None = None) -> int:
     # mask a missing pre-kill tail. Allow the single in-flight tick
     # at the watermark itself to have been discarded.
     if watermark is not None:
-        if watermark < 0:
+        if watermark < 1:
             print(  # noqa: T201
-                f"kill_drill_FAIL: invalid watermark {watermark} (must be >= 0)",
+                f"kill_drill_FAIL: invalid watermark {watermark} (must be >= 1; "
+                "the drill requires at least one committed pre-kill event)",
                 file=sys.stderr,
             )
             return 1
@@ -79,11 +80,14 @@ def verify(db: Path, watermark: int | None = None) -> int:
         # Allow exactly one missing id, and only if it is the
         # watermark itself (the in-flight tick the kill discarded).
         # Anything else missing in 1..watermark is silent tail loss.
+        # The in-flight branch requires watermark >= 2 so the empty
+        # prefix can't masquerade as a valid "1..0 survived" state
+        # when every pre-kill event was actually lost.
         expected_full = list(range(1, watermark + 1))
         expected_minus_tip = list(range(1, watermark))  # 1..W-1
         if pre == expected_full:
             tail_note = f", all 1..{watermark} survived (pre-kill watermark {watermark})"
-        elif pre == expected_minus_tip:
+        elif watermark >= 2 and pre == expected_minus_tip:
             tail_note = (
                 f", 1..{watermark - 1} survived; in-flight id "
                 f"{watermark} discarded (pre-kill watermark {watermark})"
