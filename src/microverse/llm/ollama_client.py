@@ -21,8 +21,10 @@ from __future__ import annotations
 
 import functools
 import threading
+import time
 from typing import Any
 
+import httpx
 import ollama
 
 from microverse.config import LLM_TIMEOUT_S, MODEL
@@ -33,11 +35,34 @@ from microverse.llm.thinking import has_thinking_markers, strip_thinking
 thinking_leak: int = 0
 _thinking_leak_lock = threading.Lock()
 
+# Module-level counter: bumped each time chat() retries after a
+# transient connection error. Operators read this from metrics.sqlite
+# to spot a flaky Ollama instance before it triggers consecutive_fail
+# pauses on every agent.
+llm_retry: int = 0
+_llm_retry_lock = threading.Lock()
+
+# Connection-class errors we retry. Pydantic / value errors / 4xx
+# are NOT retried: those signal a caller bug, not infra noise.
+_RETRY_EXCEPTIONS: tuple[type[BaseException], ...] = (
+    httpx.ConnectError,
+    httpx.ReadError,
+    httpx.RemoteProtocolError,
+    ConnectionError,
+)
+_RETRY_BACKOFFS: tuple[float, ...] = (0.5, 1.5)  # 2 retries total
+
 
 def _bump_leak() -> None:
     global thinking_leak
     with _thinking_leak_lock:
         thinking_leak += 1
+
+
+def _bump_retry() -> None:
+    global llm_retry
+    with _llm_retry_lock:
+        llm_retry += 1
 
 
 @functools.lru_cache(maxsize=4)
@@ -50,6 +75,26 @@ def _get_client(timeout_s: float) -> ollama.Client:
     custom-timeout call sites without unbounded growth.
     """
     return ollama.Client(timeout=timeout_s)
+
+
+def _chat_with_retry(client: ollama.Client, **kwargs: Any) -> Any:
+    """Call client.chat with retries on transient connection errors.
+
+    Pydantic / value / HTTP 4xx errors are not in _RETRY_EXCEPTIONS so
+    they propagate unchanged. Idempotency is fine: nothing in the
+    world commits until _commit_action() runs after agent.think()
+    returns.
+    """
+    for attempt, backoff in enumerate((0.0, *_RETRY_BACKOFFS)):
+        if backoff > 0:
+            time.sleep(backoff)
+        try:
+            return client.chat(**kwargs)
+        except _RETRY_EXCEPTIONS:
+            if attempt >= len(_RETRY_BACKOFFS):
+                raise
+            _bump_retry()
+    raise RuntimeError("unreachable")  # pragma: no cover
 
 
 def chat(
@@ -66,7 +111,8 @@ def chat(
     """
     client = _get_client(timeout_s)
 
-    response = client.chat(
+    response = _chat_with_retry(
+        client,
         model=MODEL,
         messages=messages,
         think=think,
