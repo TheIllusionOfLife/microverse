@@ -113,10 +113,11 @@ PHASE_0_COMPLETE @ 2026-05-03T14:35Z
   - **Expected**: `artisan`
   - **Evidence**: `artisan` @ 2026-05-03T14:58Z. 5 unit tests cover role, creative sampling, persona render with world context (incl. meta-reference guard), think() success path, think() fallback path. Persona template uses Jinja2 with StrictUndefined.
 
-- [ ] **1.7** `microverse/agents/harvester.py` + `microverse/prompts/persona_harvester.j2`.
+- [x] **1.7** `microverse/agents/harvester.py` + `microverse/prompts/persona_harvester.j2`.
   - Atomic writes: write to `*.tmp` then `os.replace`. `manifest.jsonl` append uses fsync + rename.
   - **Acceptance**: `uv run pytest tests/test_harvester.py -q`
   - **Expected**: `passed`
+  - **Evidence**: `9 passed in 0.02s` @ 2026-05-03T15:00Z. Phase 1 uses a length-threshold heuristic (≥ 20 chars). persona_harvester.j2 deferred to Phase 2 (Trader-driven LLM selection). Atomic writes verified — no leftover .tmp files; safe filename slug; collision suffix -N.
 
 - [ ] **1.8** `microverse/world/scheduler.py` (round-robin; just Artisan in phase 1).
   - **Acceptance**: `uv run pytest tests/test_scheduler.py -q`
