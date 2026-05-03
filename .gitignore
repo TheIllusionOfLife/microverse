@@ -24,4 +24,5 @@ harvest/
 
 # Claude Code session-local state (ralph-loop, etc.)
 .claude/*.local.md
+.claude/*.lock
 .claude/settings.local.json
