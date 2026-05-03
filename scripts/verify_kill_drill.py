@@ -2,18 +2,27 @@
 """Verify the kill-safety contract on an existing data dir.
 
 Reads ``data/episodic.sqlite`` and checks:
-  - All event ids are strictly increasing.
-  - No duplicate ids.
   - Row count > 0.
+  - All event ids are unique and contiguous (no gaps in the surviving
+    id sequence — a committed event silently dropping out of the
+    middle would be visible as a hole).
+  - When ``--min-events N`` is supplied: the surviving event count is
+    at least ``N`` (or ``N - 1``, allowing for the single in-flight
+    tick the kill discarded). This is the only check that proves
+    "zero tail loss"; without it, contiguity alone cannot rule out
+    silent drops at the end of the WAL.
 
-This is the post-soak verification for the SIGKILL drill — after a
-``kill -9`` of the run subprocess and a clean restart, this script
-confirms the WAL recovery preserved the committed-event invariant.
-Prints ``kill_drill_ok`` and exits 0 on success.
+Recommended SIGKILL drill flow:
 
-Usage::
+    # Before the kill:
+    PRE=$(sqlite3 data/episodic.sqlite 'SELECT COUNT(*) FROM events')
 
-    uv run python scripts/verify_kill_drill.py --db data/episodic.sqlite
+    # Send SIGKILL, restart the run, then:
+    uv run python scripts/verify_kill_drill.py \\
+        --db data/episodic.sqlite --min-events "$PRE"
+
+Without ``--min-events`` the script only proves event-log internal
+integrity (no gaps, no duplicates), not zero loss.
 """
 
 from __future__ import annotations
@@ -24,7 +33,7 @@ import sys
 from pathlib import Path
 
 
-def verify(db: Path) -> int:
+def verify(db: Path, min_events: int | None = None) -> int:
     if not db.exists():
         print(f"db not found: {db}", file=sys.stderr)  # noqa: T201
         return 1
@@ -37,10 +46,9 @@ def verify(db: Path) -> int:
     if not ids:
         print("kill_drill_FAIL: zero events in db", file=sys.stderr)  # noqa: T201
         return 1
-    # Contiguity: SQLite AUTOINCREMENT only re-uses ids on rollback,
-    # so any gap means a committed event was lost. The first id need
-    # not be 1 (a snapshot restore can carry a higher floor) but the
-    # set must be every integer from min..max with no holes.
+    # Contiguity: any gap means a committed event was lost from the
+    # *middle* of the sequence. (Tail loss is invisible here; that's
+    # what --min-events is for.)
     expected = list(range(ids[0], ids[-1] + 1))
     if ids != expected:
         missing = sorted(set(expected) - set(ids))[:10]
@@ -52,8 +60,21 @@ def verify(db: Path) -> int:
     if len(set(ids)) != len(ids):
         print("kill_drill_FAIL: duplicate ids", file=sys.stderr)  # noqa: T201
         return 1
+    # Tail-loss check: only meaningful when the operator captured a
+    # pre-kill count. Allow 1 in-flight discard.
+    if min_events is not None:
+        if len(ids) < min_events - 1:
+            print(  # noqa: T201
+                f"kill_drill_FAIL: tail loss — got {len(ids)} events, "
+                f"expected at least {min_events - 1} (pre-kill={min_events})",
+                file=sys.stderr,
+            )
+            return 1
+        tail_note = f", >= {min_events - 1} (pre-kill {min_events})"
+    else:
+        tail_note = ", tail-loss check SKIPPED (no --min-events)"
     print(  # noqa: T201
-        f"kill_drill_ok ({len(ids)} events, ids {ids[0]}..{ids[-1]}, contiguous)"
+        f"kill_drill_ok ({len(ids)} events, ids {ids[0]}..{ids[-1]}, contiguous{tail_note})"
     )
     return 0
 
@@ -61,8 +82,15 @@ def verify(db: Path) -> int:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--db", required=True, type=Path)
+    p.add_argument(
+        "--min-events",
+        type=int,
+        default=None,
+        help="Pre-kill event count. Surviving count must be >= N - 1 "
+        "(allowing one in-flight discard).",
+    )
     args = p.parse_args(argv)
-    return verify(args.db)
+    return verify(args.db, min_events=args.min_events)
 
 
 if __name__ == "__main__":

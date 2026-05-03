@@ -56,9 +56,16 @@ open harvest/dashboard.html
 ### Verify kill-safety after a SIGKILL drill
 
 ```bash
-uv run python scripts/verify_kill_drill.py --db data/episodic.sqlite
-# → kill_drill_ok (N events, ids 1..N)
+# 1) Capture the pre-kill count.
+PRE=$(sqlite3 data/episodic.sqlite 'SELECT COUNT(*) FROM events')
+
+# 2) SIGKILL the run, restart it, then verify zero tail loss:
+uv run python scripts/verify_kill_drill.py \
+    --db data/episodic.sqlite --min-events "$PRE"
+# → kill_drill_ok (N events, ids 1..N, contiguous, >= PRE-1 (pre-kill PRE))
 ```
+
+Without `--min-events`, the script only proves event-log internal integrity (no gaps, no duplicates). The pre-kill watermark is what catches silent tail loss.
 
 ### Snapshot / restore
 
