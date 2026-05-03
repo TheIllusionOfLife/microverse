@@ -17,11 +17,67 @@ API:
 
 from __future__ import annotations
 
+import logging
 import shutil
+import sqlite3
 import tarfile
 import threading
 from datetime import UTC, datetime
 from pathlib import Path
+
+_logger = logging.getLogger(__name__)
+
+
+class SnapshotBusyError(RuntimeError):
+    """Raised when wal_checkpoint(TRUNCATE) cannot complete cleanly.
+
+    The caller should treat this as a transient failure (try again
+    next interval) rather than archive a possibly-torn DB. Carrying a
+    distinct exception type lets ``run.py``'s ``maybe_snapshot`` site
+    catch this specifically and bump a metric without swallowing
+    unrelated errors.
+    """
+
+
+def _checkpoint_wal(data_dir: Path) -> None:
+    """Truncate the WAL of every ``*.sqlite`` file under ``data_dir``.
+
+    Uses a short-lived ``sqlite3.connect`` per file with an explicit
+    busy_timeout so a competing writer does not hang the snapshot
+    indefinitely. SQLite's shared-memory protocol coordinates this
+    side connection with the long-lived connections held by
+    EpisodicMemory / Metrics / SemanticMemory, so the checkpoint
+    sees the latest committed pages.
+
+    Raises ``SnapshotBusyError`` if any DB reports busy or an
+    incomplete checkpoint — caller must abort the snapshot rather
+    than archive a possibly-torn file.
+    """
+    for db_path in sorted(data_dir.rglob("*.sqlite")):
+        conn = sqlite3.connect(str(db_path), timeout=5.0)
+        try:
+            conn.execute("PRAGMA busy_timeout = 5000")
+            try:
+                row = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+            except sqlite3.DatabaseError as e:
+                # Not a valid SQLite file (corrupt, or test fixture
+                # using a *.sqlite suffix on plain content). Skip with
+                # a warn — refusing to snapshot would punish operators
+                # for a single bad file unrelated to durability.
+                _logger.warning("wal_checkpoint skipped for %s: %s", db_path, e)
+                continue
+        finally:
+            conn.close()
+        # Row is (busy, log_pages, checkpointed_pages). Either a busy
+        # signal (1) or a mismatch between log/checkpointed pages
+        # means the WAL was not fully reclaimed — the archive would
+        # capture an inconsistent state.
+        busy, log_pages, checkpointed = row if row else (1, -1, -1)
+        if busy != 0 or log_pages != checkpointed:
+            raise SnapshotBusyError(
+                f"wal_checkpoint(TRUNCATE) incomplete for {db_path}: "
+                f"busy={busy} log_pages={log_pages} checkpointed={checkpointed}"
+            )
 
 # Per-process counter so rapid snapshots get unique names even within
 # the same wall-clock second. Locked because the watchdog (Phase 4) may
@@ -55,6 +111,15 @@ def take_snapshot(data_dir: Path | str, snapshots_dir: Path | str) -> Path | Non
     snapshots_dir = Path(snapshots_dir).resolve()
     if not data_dir.exists():
         return None
+
+    # Reclaim the WAL of every SQLite file in data_dir BEFORE building
+    # the archive. Otherwise tar may capture main + -wal + -shm in a
+    # state where the WAL holds frames that haven't migrated to the
+    # main file, and a restore can present a torn DB. If the
+    # checkpoint cannot complete (a competing writer is busy), abort
+    # rather than ship an unsafe archive — the caller bumps a metric
+    # and tries again next interval.
+    _checkpoint_wal(data_dir)
 
     snapshots_dir.mkdir(parents=True, exist_ok=True)
     name = _archive_name(datetime.now(UTC), _next_seq())

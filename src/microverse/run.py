@@ -49,7 +49,7 @@ from microverse.ops.metrics import Metrics
 from microverse.ops.watchdog import Watchdog
 from microverse.world.clock import WorldClock
 from microverse.world.scheduler import WeightedScheduler
-from microverse.world.snapshot import maybe_snapshot
+from microverse.world.snapshot import SnapshotBusyError, maybe_snapshot
 
 _logger = logging.getLogger(__name__)
 
@@ -208,12 +208,20 @@ def run(
                 except Exception:
                     _logger.exception("harvester.flush failed")
                     metrics.bump("harvest_flush_fail")
-            maybe_snapshot(
-                executed,
-                interval=SNAPSHOT_EVERY,
-                data_dir=data_dir,
-                snapshots_dir=snapshots_dir,
-            )
+            try:
+                maybe_snapshot(
+                    executed,
+                    interval=SNAPSHOT_EVERY,
+                    data_dir=data_dir,
+                    snapshots_dir=snapshots_dir,
+                )
+            except SnapshotBusyError:
+                # A competing writer prevented wal_checkpoint(TRUNCATE)
+                # from completing cleanly. Skip this interval rather
+                # than ship a possibly-torn archive; the next interval
+                # will try again.
+                _logger.warning("snapshot skipped: WAL checkpoint busy")
+                metrics.bump("snapshot_skip_busy")
 
             sleep_s = tempo if tempo is not None else agent.tempo()
             if sleep_s > 0:
