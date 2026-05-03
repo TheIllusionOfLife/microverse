@@ -113,6 +113,43 @@ def test_action_repair_handles_common_llm_wrappers(raw: str):
     assert metrics.get("json_repaired") == 1
 
 
+def test_meta_reference_in_thought_blocks_action():
+    """If the parsed action's thought contains a meta-token (AI, model,
+    simulation, prompt, outside), fall back to rest and bump
+    meta_leak_block instead of accepting the immersion break."""
+    payload = (
+        '{"thought": "I realize I am inside an AI simulation", '
+        '"action": "speak", "target": null, "artifact": null}'
+    )
+    metrics = Metrics(":memory:")
+    a = parse_action(payload, metrics=metrics, agent="aki")
+    assert a.action == ActionKind.REST
+    assert metrics.get("meta_leak_block", agent="aki") == 1
+    assert metrics.get("json_ok") == 0
+
+
+def test_meta_reference_in_artifact_blocks_action():
+    payload = (
+        '{"thought": "ok", "action": "craft", "target": null, '
+        '"artifact": "a story about an LLM that wakes up"}'
+    )
+    metrics = Metrics(":memory:")
+    a = parse_action(payload, metrics=metrics, agent="aki")
+    assert a.action == ActionKind.REST
+    assert metrics.get("meta_leak_block", agent="aki") == 1
+
+
+def test_clean_action_with_no_meta_reference_passes():
+    payload = (
+        '{"thought": "I will craft a wooden bowl", "action": "craft", '
+        '"target": null, "artifact": "a wooden bowl"}'
+    )
+    metrics = Metrics(":memory:")
+    a = parse_action(payload, metrics=metrics, agent="aki")
+    assert a.action == ActionKind.CRAFT
+    assert metrics.get("meta_leak_block", agent="aki") == 0
+
+
 def test_action_oversize_input_short_circuits_to_fallback():
     """Inputs above MAX_PARSE_BYTES skip parse attempts entirely so a
     pathological 100KB blob can't stall the tick loop in O(N^2) repair."""
