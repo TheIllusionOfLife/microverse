@@ -33,12 +33,13 @@
   - **Expected**: `passed` substring; no `failed`.
   - **Evidence**: `6 passed in 0.00s` @ 2026-05-03T14:27Z. Module at src/microverse/llm/thinking.py.
 
-- [ ] **0.5** Implement `microverse/llm/ollama_client.py::chat(messages, *, think=False, format=None, options=None, timeout_s=90)`.
+- [x] **0.5** Implement `microverse/llm/ollama_client.py::chat(messages, *, think=False, format=None, options=None, timeout_s=90)`.
   - Wraps `ollama.chat(model="gemma4:e4b", messages=..., think=think, format=format, options=options)`.
   - Returns dict `{"content": str, "thinking": str, "raw": dict}`.
   - After response: `strip_thinking()` content as defense-in-depth; bump `thinking_leak` counter (in-process, simple module-level int for now) if it changed anything.
   - **Acceptance**: `uv run python -c "from microverse.llm.ollama_client import chat; print(callable(chat))"`
   - **Expected**: `True`
+  - **Evidence**: `True` @ 2026-05-03T14:30Z. 7 unit tests passing (think kwarg, leak counter, options/format forwarding, timeout).
 
 - [ ] **0.6** Integration test for `think=False` on real Ollama.
   - `tests/test_ollama_think_off.py`, marked `@pytest.mark.integration`.
