@@ -16,3 +16,25 @@ LLM_MAX_TOKENS: int = 1024
 # Retry / failure-mode caps used by agents and the watchdog.
 MAX_RETRIES: int = 2
 MAX_CONSECUTIVE_FAIL: int = 3
+
+# Hard cap on bytes fed into ``parse_action`` (json.loads + json_repair).
+# Above this, skip the parse attempts and fall back directly to a safe
+# rest action — protects the tick loop from O(N^2) repair time on
+# pathological inputs.
+MAX_PARSE_BYTES: int = 32 * 1024
+
+# Sampling presets per ~/.claude/skills/local-llm/SKILL.md:74-78. Picked
+# by role: creative roles (Artisan, Scholar, Stranger) want exploration;
+# judging roles (Trader, Harvester) want lower variance.
+SAMPLING_CREATIVE: dict[str, float | int] = {
+    "temperature": 1.0,
+    "top_k": 20,
+    "top_p": 0.95,
+}
+SAMPLING_FACTUAL: dict[str, float | int] = {
+    "temperature": 0.6,
+    "top_p": 0.9,
+}
+
+# Default tick budget for a non-infinite microverse.run.
+MAX_TICKS_DEFAULT: int = 1_000_000

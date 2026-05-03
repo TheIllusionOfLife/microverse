@@ -37,7 +37,7 @@ Defense-in-depth: `microverse.llm.thinking.strip_thinking` is unconditionally ap
 
 ## Architecture
 
-See the implementation plan: `~/.claude/plans/use-gemma4-e4b-via-ollama-staged-umbrella.md`.
+The build is staged across seven phases. See `TODO.md` for the per-phase task ladder with machine-checkable acceptance commands; the more detailed implementation plan was authored locally during planning and lives outside the repo. Each phase merges as its own PR (see commit history); `PROMPT.md` is the persistent prompt used by the ralph-loop driver during the build.
 
 ## License
 
