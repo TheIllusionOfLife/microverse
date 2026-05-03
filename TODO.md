@@ -262,7 +262,7 @@ PHASE_3B_COMPLETE @ 2026-05-03T16:14Z
   - **Evidence**: `All checks passed!` + `193 passed, 2 deselected` @ 2026-05-03T16:45Z.
 
 ### Phase 4a Boundary
-PHASE_4A_COMPLETE @ 2026-05-03T16:45Z
+PHASE_4A_COMPLETE @ 2026-05-03T16:45Z (CODE — all tasks 4a.1–4a.5+4a.7 ticked; 4a.6 PARTIAL, full 6h rung deferred to Phase 4b's 24h soak per Risk #7)
 **MERGED**: _<commit-sha> @ <ISO8601>_
 
 ---
