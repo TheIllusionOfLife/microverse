@@ -96,10 +96,11 @@ PHASE_0_COMPLETE @ 2026-05-03T14:35Z
   - **Expected**: `passed`
   - **Evidence**: `11 passed in 0.16s` @ 2026-05-03T14:48Z. Includes a SIGKILL drill via subprocess that confirms 5 committed events survive a `kill -9`.
 
-- [ ] **1.4** `microverse/ops/metrics.py` with counters `json_ok`, `json_repaired`, `json_fallback_rest`, `llm_timeout`, `consecutive_fail` per agent. Persist to `data/metrics.sqlite` every N ticks.
+- [x] **1.4** `microverse/ops/metrics.py` with counters `json_ok`, `json_repaired`, `json_fallback_rest`, `llm_timeout`, `consecutive_fail` per agent. Persist to `data/metrics.sqlite` every N ticks.
   - TDD: `tests/test_metrics.py`.
   - **Acceptance**: `uv run pytest tests/test_metrics.py -q`
   - **Expected**: `passed`
+  - **Evidence**: `10 passed in 0.02s` @ 2026-05-03T14:51Z. Metrics class with bump/get/reset/should_pause/flush/auto_flush_every. SQLite WAL persistence; time-series schema (one row per (name, agent) per flush).
 
 - [ ] **1.5** `microverse/agents/base.py` with `Agent` ABC, `Action` Pydantic v2 model `{thought, action, target, artifact}`. Parse failure → `jsonrepair` retry once → fallback `rest` action + bump `json_fallback_rest`.
   - TDD: `tests/test_action_parse.py` (valid, repairable, garbage).

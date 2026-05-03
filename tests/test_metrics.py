@@ -52,9 +52,7 @@ def test_flush_persists_snapshot_rows(tmp_path: Path):
     m.bump("consecutive_fail", agent="aki")
     m.flush()
 
-    rows = m._conn.execute(
-        "SELECT name, agent, value FROM metrics ORDER BY name, agent"
-    ).fetchall()
+    rows = m._conn.execute("SELECT name, agent, value FROM metrics ORDER BY name, agent").fetchall()
     by_key = {(r[0], r[1]): r[2] for r in rows}
     assert by_key[("consecutive_fail", "aki")] == 1
     assert by_key[("json_ok", None)] == 2
@@ -69,9 +67,7 @@ def test_flush_appends_time_series(tmp_path: Path):
     m.flush()
     m.bump("json_ok")
     m.flush()
-    count = m._conn.execute(
-        "SELECT COUNT(*) FROM metrics WHERE name='json_ok'"
-    ).fetchone()[0]
+    count = m._conn.execute("SELECT COUNT(*) FROM metrics WHERE name='json_ok'").fetchone()[0]
     assert count == 2
     m.close()
 
