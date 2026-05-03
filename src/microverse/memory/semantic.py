@@ -29,11 +29,12 @@ from __future__ import annotations
 
 import json
 import re
-import sqlite3
 import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from microverse.memory import open_sqlite_wal
 
 _SCHEMA = [
     "CREATE TABLE IF NOT EXISTS docs (doc_id TEXT PRIMARY KEY, payload_json TEXT)",
@@ -73,10 +74,7 @@ class SemanticMemory:
     """File-backed FTS5 store of recent events / lore chunks."""
 
     def __init__(self, path: str | Path = ":memory:") -> None:
-        self._conn = sqlite3.connect(str(path), check_same_thread=False)
-        if str(path) != ":memory:":
-            self._conn.execute("PRAGMA journal_mode=WAL")
-        self._conn.execute("PRAGMA synchronous=NORMAL")
+        self._conn = open_sqlite_wal(path)
         for stmt in _SCHEMA:
             self._conn.execute(stmt)
         self._conn.commit()

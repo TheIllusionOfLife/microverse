@@ -14,12 +14,11 @@ the same length as the input. The pipeline never raises.
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
-from json_repair import repair_json
 from pydantic import BaseModel, ConfigDict, Field
 
+from microverse._text import safe_json_loads
 from microverse.agents.base import Action, ActionKind, Agent, WorldContext
 from microverse.agents.harvester import ArtifactCandidate
 from microverse.config import LLM_MAX_TOKENS, LLM_TIMEOUT_S, MAX_PARSE_BYTES, SAMPLING_FACTUAL
@@ -81,18 +80,10 @@ def _safe_parse_scores(raw: str) -> list[dict[str, Any]]:
     """Best-effort parse: strict → json_repair → empty list."""
     if len(raw.encode("utf-8", errors="replace")) > MAX_PARSE_BYTES:
         return []
-    try:
-        return _extract_list(json.loads(raw))
-    except json.JSONDecodeError:
-        pass
-    try:
-        repaired = repair_json(raw, return_objects=False)
-        if not repaired:
-            return []
-        return _extract_list(json.loads(repaired))
-    except json.JSONDecodeError:
-        pass
-    return []
+    parsed = safe_json_loads(raw)
+    if parsed is None:
+        return []
+    return _extract_list(parsed)
 
 
 def _coerce_score(entry: dict[str, Any], artifact_id: int) -> Score:

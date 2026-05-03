@@ -38,6 +38,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from microverse.config import MAX_CONSECUTIVE_FAIL
+from microverse.memory import open_sqlite_wal
 
 _CounterKey = tuple[str, str | None]
 
@@ -62,14 +63,7 @@ class Metrics:
         auto_flush_every: int | None = None,
     ) -> None:
         self._counters: defaultdict[_CounterKey, int] = defaultdict(int)
-        self._conn = sqlite3.connect(str(path), check_same_thread=False)
-        mode_row = self._conn.execute("PRAGMA journal_mode=WAL").fetchone()
-        actual_mode = str(mode_row[0]).lower() if mode_row else ""
-        # `:memory:` always reports "memory" — no durability surface, so
-        # accept it. File-backed dbs: WAL rejection is a hard error.
-        if str(path) != ":memory:" and actual_mode != "wal":
-            raise RuntimeError(f"failed to enable WAL on metrics db {path!r}; got mode={mode_row}")
-        self._conn.execute("PRAGMA synchronous=NORMAL")
+        self._conn = open_sqlite_wal(path)
         self._conn.execute(_SCHEMA)
         self._conn.commit()
         self._auto_flush_every = auto_flush_every

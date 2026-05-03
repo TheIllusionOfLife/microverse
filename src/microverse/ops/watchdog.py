@@ -20,8 +20,9 @@ from __future__ import annotations
 
 import itertools
 import logging
-import re
 from typing import TYPE_CHECKING
+
+from microverse._text import jaccard, tokenize
 
 if TYPE_CHECKING:
     from microverse.memory.episodic import EpisodicMemory
@@ -29,20 +30,6 @@ if TYPE_CHECKING:
     from microverse.world.scheduler import Scheduler
 
 _logger = logging.getLogger(__name__)
-_TOKEN_RE = re.compile(r"\w+", re.UNICODE)
-
-
-def _tokens(text: str) -> set[str]:
-    return {t.lower() for t in _TOKEN_RE.findall(text) if len(t) >= 3}
-
-
-def _pair_jaccard(a: str, b: str) -> float:
-    sa, sb = _tokens(a), _tokens(b)
-    if not sa and not sb:
-        return 1.0
-    if not sa or not sb:
-        return 0.0
-    return len(sa & sb) / len(sa | sb)
 
 
 def compute_diversity(actions: list[str]) -> float:
@@ -50,11 +37,12 @@ def compute_diversity(actions: list[str]) -> float:
     n = len(actions)
     if n < 2:
         return 1.0
+    token_sets = [tokenize(a, min_len=3) for a in actions]
     total = 0.0
     pairs = 0
     for i in range(n):
         for j in range(i + 1, n):
-            total += _pair_jaccard(actions[i], actions[j])
+            total += jaccard(token_sets[i], token_sets[j])
             pairs += 1
     mean = total / pairs if pairs else 0.0
     return 1.0 - mean
@@ -146,9 +134,7 @@ class Watchdog:
         # Cap the Stranger pool: if we already have ``max_strangers``
         # registered, the existing ones haven't done their job — adding
         # more would amplify LLM volume without improving diversity.
-        # `getattr` defensive: tolerate agent classes that don't expose
-        # a ``role`` attribute (counts them as non-strangers).
-        existing = sum(1 for a in self._scheduler.agents if getattr(a, "role", None) == "stranger")
+        existing = sum(1 for a in self._scheduler.agents if a.role == "stranger")
         if existing >= self._max_strangers:
             self._metrics.bump("watchdog_stranger_cap_hit")
             return

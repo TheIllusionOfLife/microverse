@@ -19,6 +19,7 @@ caring about the ollama package's response object types.
 
 from __future__ import annotations
 
+import functools
 import threading
 from typing import Any
 
@@ -39,6 +40,18 @@ def _bump_leak() -> None:
         thinking_leak += 1
 
 
+@functools.lru_cache(maxsize=4)
+def _get_client(timeout_s: float) -> ollama.Client:
+    """Cache one ``ollama.Client`` per distinct timeout.
+
+    The client wraps ``httpx.Client``, which holds a connection pool —
+    rebuilding it on every call is wasteful. ``lru_cache`` is thread-safe
+    in CPython, and ``maxsize=4`` is enough for the default plus a few
+    custom-timeout call sites without unbounded growth.
+    """
+    return ollama.Client(timeout=timeout_s)
+
+
 def chat(
     messages: list[dict[str, str]],
     *,
@@ -51,7 +64,7 @@ def chat(
 
     Returns ``{"content": str, "thinking": str, "raw": dict}``.
     """
-    client = ollama.Client(timeout=timeout_s)
+    client = _get_client(timeout_s)
 
     response = client.chat(
         model=MODEL,

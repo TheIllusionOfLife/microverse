@@ -35,11 +35,12 @@ per append) and the contract testable.
 from __future__ import annotations
 
 import json
-import sqlite3
 import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+from microverse.memory import open_sqlite_wal
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,23 +79,7 @@ class EpisodicMemory:
 
     def __init__(self, path: str | Path) -> None:
         self._path = path
-        # check_same_thread=False because the watchdog will read while
-        # the tick loop writes. We still serialize logically — every
-        # write is one autocommit transaction.
-        self._conn = sqlite3.connect(str(path), check_same_thread=False)
-        # WAL is the durability contract. NORMAL fsync is the standard
-        # WAL pairing — fsync at checkpoint, not at every commit.
-        # Verify the pragma actually took: a misconfigured filesystem
-        # (e.g. some network mounts) silently rejects WAL.
-        mode_row = self._conn.execute("PRAGMA journal_mode=WAL").fetchone()
-        actual_mode = str(mode_row[0]).lower() if mode_row else ""
-        # `:memory:` databases always report "memory" — no durability
-        # surface to defend, so don't fail. For file-backed databases,
-        # silent WAL rejection (e.g. some network mounts) breaks our
-        # kill-safety contract; raise loudly instead.
-        if str(path) != ":memory:" and actual_mode != "wal":
-            raise RuntimeError(f"failed to enable WAL on episodic db {path!r}; got mode={mode_row}")
-        self._conn.execute("PRAGMA synchronous=NORMAL")
+        self._conn = open_sqlite_wal(path)
         self._conn.execute(_SCHEMA)
         self._conn.commit()
 

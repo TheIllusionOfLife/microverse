@@ -11,9 +11,9 @@ with a continuity hint, then keep the prior on continued drift.
 from __future__ import annotations
 
 import logging
-import re
 from typing import TYPE_CHECKING
 
+from microverse._text import jaccard, tokenize
 from microverse.agents.base import Action, ActionKind, Agent, WorldContext
 from microverse.config import LLM_MAX_TOKENS, LLM_TIMEOUT_S, SAMPLING_FACTUAL
 from microverse.llm.ollama_client import chat
@@ -27,125 +27,15 @@ _logger = logging.getLogger(__name__)
 _PERSONA_TEMPLATE = "compression.j2"
 MIN_JACCARD = 0.35
 
-_TOKEN_RE = re.compile(r"\w+", re.UNICODE)
-# Common English function words; their overlap inflates raw Jaccard
-# without signaling preservation of canon. Filter them from both sides.
-_STOP = frozenset(
-    {
-        "the",
-        "a",
-        "an",
-        "and",
-        "or",
-        "but",
-        "of",
-        "to",
-        "in",
-        "on",
-        "at",
-        "for",
-        "with",
-        "by",
-        "from",
-        "as",
-        "is",
-        "are",
-        "was",
-        "were",
-        "be",
-        "been",
-        "being",
-        "it",
-        "its",
-        "this",
-        "that",
-        "these",
-        "those",
-        "they",
-        "them",
-        "their",
-        "we",
-        "us",
-        "our",
-        "you",
-        "your",
-        "he",
-        "she",
-        "his",
-        "her",
-        "him",
-        "i",
-        "my",
-        "me",
-        "do",
-        "does",
-        "did",
-        "have",
-        "has",
-        "had",
-        "not",
-        "no",
-        "so",
-        "if",
-        "then",
-        "than",
-        "when",
-        "while",
-        "where",
-        "what",
-        "who",
-        "whom",
-        "which",
-        "such",
-        "into",
-        "out",
-        "over",
-        "under",
-        "up",
-        "down",
-        "about",
-        "again",
-        "ever",
-        "always",
-        "never",
-        "all",
-        "any",
-        "some",
-        "each",
-        "every",
-        "more",
-        "most",
-        "less",
-        "least",
-        "very",
-        "much",
-        "also",
-        "just",
-    }
-)
-
-
-def _signal_tokens(text: str) -> set[str]:
-    """Tokens that actually signal canonical content: lowercase, ≥3
-    chars, not in the stop list. Phase 3b uses these for drift Jaccard.
-    """
-    return {t.lower() for t in _TOKEN_RE.findall(text) if len(t) >= 3 and t.lower() not in _STOP}
-
 
 def lore_jaccard(a: str, b: str) -> float:
-    """Token-set Jaccard similarity over *signal* tokens (case-folded,
-    stop-words and short tokens dropped).
-
-    Vacuous case (both empty after filtering) returns 1.0 — there is no
-    drift signal, so we don't trigger the guard on a fresh world.
+    """Token-set Jaccard over signal tokens (case-folded, stop-words and
+    sub-3-char tokens dropped).
     """
-    tokens_a = _signal_tokens(a)
-    tokens_b = _signal_tokens(b)
-    if not tokens_a and not tokens_b:
-        return 1.0
-    if not tokens_a or not tokens_b:
-        return 0.0
-    return len(tokens_a & tokens_b) / len(tokens_a | tokens_b)
+    return jaccard(
+        tokenize(a, min_len=3, drop_stopwords=True),
+        tokenize(b, min_len=3, drop_stopwords=True),
+    )
 
 
 class Elder(Agent):

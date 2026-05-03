@@ -77,21 +77,6 @@ def _derive_topic(episodic: EpisodicMemory, agent: Agent) -> str:
     return f"{agent.role} {agent.name}"
 
 
-def _build_world(
-    episodic: EpisodicMemory,
-    semantic: SemanticMemory,
-    *,
-    topic: str,
-) -> WorldContext:
-    """Assemble the per-tick context: weather + recent events + lore."""
-    return build_context(
-        world_base=WorldContext(),
-        episodic=episodic,
-        semantic=semantic,
-        topic=topic,
-    )
-
-
 def _commit_action(episodic: EpisodicMemory, agent: Agent, action: Action) -> int:
     return episodic.append(
         actor=agent.name,
@@ -170,6 +155,20 @@ def run(
     max_ticks = ticks if ticks is not None else MAX_TICKS_DEFAULT
     executed = 0
     consecutive_skips = 0
+
+    # Single-agent precondition: the cached topic depends on the
+    # registered agent's role. The tick loop registers exactly one Artisan
+    # above. If a future change registers more agents, fall back to
+    # per-tick `_derive_topic(episodic, agent)` or key the cache by name.
+    initial_agent = sched.agents[0]
+    topic = _derive_topic(episodic, initial_agent)
+
+    def _safe(label: str, fn):
+        try:
+            fn()
+        except Exception:
+            _logger.exception("%s failed", label)
+
     try:
         while executed < max_ticks and not stop["requested"]:
             agent = sched.next()
@@ -182,8 +181,12 @@ def run(
                     consecutive_skips = 0
                 continue
             consecutive_skips = 0
-            topic = _derive_topic(episodic, agent)
-            world = _build_world(episodic, semantic, topic=topic)
+            world = build_context(
+                world_base=WorldContext(),
+                episodic=episodic,
+                semantic=semantic,
+                topic=topic,
+            )
             try:
                 action = agent.think(world)
             except Exception:
@@ -198,15 +201,17 @@ def run(
             executed += 1
 
             # World clock + watchdog: cheap, run every tick / every Nth.
+            # Refresh topic only on a *successful* advance that emitted
+            # at least one event — on exception we keep the previous
+            # topic rather than stale-scan the episodic log.
             try:
-                clock.advance(episodic, ticks_elapsed=1)
+                emitted = clock.advance(episodic, ticks_elapsed=1)
+                if emitted > 0:
+                    topic = _derive_topic(episodic, agent)
             except Exception:
                 _logger.exception("WorldClock.advance failed")
             if executed % WATCHDOG_EVERY == 0:
-                try:
-                    watchdog.check()
-                except Exception:
-                    _logger.exception("watchdog.check failed")
+                _safe("watchdog.check", watchdog.check)
 
             if executed % HARVEST_FLUSH_EVERY == 0:
                 try:
@@ -229,27 +234,16 @@ def run(
         # batch still go through Trader on shutdown. If it fails (the
         # most common cause: a hung Ollama call interrupted by SIGTERM),
         # bump a counter BEFORE closing metrics so the failure is
-        # visible in the metrics db.
+        # visible in the metrics db. The bump itself is wrapped because
+        # metrics may already be in a bad state.
         try:
             harvester.flush()
         except Exception:
             _logger.exception("final harvester.flush failed")
-            try:
-                metrics.bump("harvest_flush_fail")
-            except Exception:
-                _logger.exception("metrics.bump after flush failure failed")
-        try:
-            metrics.close()
-        except Exception:
-            _logger.exception("metrics.close failed")
-        try:
-            episodic.close()
-        except Exception:
-            _logger.exception("episodic.close failed")
-        try:
-            semantic.close()
-        except Exception:
-            _logger.exception("semantic.close failed")
+            _safe("metrics.bump after flush failure", lambda: metrics.bump("harvest_flush_fail"))
+        _safe("metrics.close", metrics.close)
+        _safe("episodic.close", episodic.close)
+        _safe("semantic.close", semantic.close)
 
     return executed
 

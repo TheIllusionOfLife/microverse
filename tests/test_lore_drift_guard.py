@@ -54,8 +54,7 @@ def test_jaccard_handles_punctuation_and_case():
     assert lore_jaccard("Wood, stone — water!", "wood stone water") == 1.0
 
 
-def test_compress_lore_accepts_when_drift_within_budget():
-    metrics = Metrics(":memory:")
+def test_compress_lore_accepts_when_drift_within_budget(metrics: Metrics):
     prior = "The village by the river thrives on craft and harvest"
     new = "The river village thrives through craft and the autumn harvest"
     canned = {"content": new, "thinking": "", "raw": {}}
@@ -65,8 +64,7 @@ def test_compress_lore_accepts_when_drift_within_budget():
     assert metrics.get("lore_drift_block") == 0
 
 
-def test_compress_lore_retries_with_continuity_hint_then_accepts():
-    metrics = Metrics(":memory:")
+def test_compress_lore_retries_with_continuity_hint_then_accepts(metrics: Metrics):
     prior = "The village stands beside an ancient river. Stonework guards the harvest."
     drifty = "Once upon a time in a galaxy far far away, robots danced."
     settled = "The village stands beside an ancient river; stonework still guards the harvest."
@@ -90,8 +88,7 @@ def test_compress_lore_retries_with_continuity_hint_then_accepts():
     assert metrics.get("lore_drift_block") == 0
 
 
-def test_compress_lore_blocks_after_two_failures():
-    metrics = Metrics(":memory:")
+def test_compress_lore_blocks_after_two_failures(metrics: Metrics):
     prior = "The forge sings in the morning when the river runs slow."
     drifty = "Hexapods dominate the surface in the year 2087."
 
@@ -103,9 +100,8 @@ def test_compress_lore_blocks_after_two_failures():
     assert metrics.get("lore_drift_block") == 1
 
 
-def test_compress_lore_with_empty_prior_accepts_anything():
+def test_compress_lore_with_empty_prior_accepts_anything(metrics: Metrics):
     """A fresh world has no prior to drift from."""
-    metrics = Metrics(":memory:")
     canned = {"content": "First lore: a young river village", "thinking": "", "raw": {}}
     with patch("microverse.agents.elder.chat", return_value=canned):
         out = Elder(name="Old").compress_lore("", _events(), metrics=metrics)
@@ -113,11 +109,10 @@ def test_compress_lore_with_empty_prior_accepts_anything():
     assert metrics.get("lore_drift_block") == 0
 
 
-def test_compress_lore_handles_chat_exception():
+def test_compress_lore_handles_chat_exception(metrics: Metrics):
     """If the LLM call raises, keep the prior and bump the
     double-chat-failure metric — don't let the Elder crash the run
     loop, and don't conflate chat failure with drift."""
-    metrics = Metrics(":memory:")
     prior = "Old lore"
     with patch("microverse.agents.elder.chat", side_effect=TimeoutError("hung")):
         out = Elder(name="Old").compress_lore(prior, _events(), metrics=metrics)
@@ -142,10 +137,9 @@ def test_jaccard_filters_stop_words_and_short_tokens():
     assert lore_jaccard(a, b) == 0.0
 
 
-def test_granular_metrics_distinguish_drift_from_chat_failure():
+def test_granular_metrics_distinguish_drift_from_chat_failure(metrics: Metrics):
     """Drift block and chat failure must bump separate counters so the
     Phase 4 watchdog can tell them apart."""
-    metrics = Metrics(":memory:")
     prior = "the village by the ancient river under stonework arches"
     drifty = "the rockets land on Mars in the year 2087"
     canned = {"content": drifty, "thinking": "", "raw": {}}
@@ -166,8 +160,7 @@ def test_granular_metrics_distinguish_drift_from_chat_failure():
     assert metrics2.get("lore_compress_accepted") == 0
 
 
-def test_round1_success_bumps_compress_accepted():
-    metrics = Metrics(":memory:")
+def test_round1_success_bumps_compress_accepted(metrics: Metrics):
     prior = "the village by the river under stonework arches"
     new = "the river village still endures, with new stonework arches"
     with patch(
