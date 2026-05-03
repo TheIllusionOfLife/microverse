@@ -25,23 +25,122 @@ if TYPE_CHECKING:
 
 _logger = logging.getLogger(__name__)
 _PERSONA_TEMPLATE = "compression.j2"
-_CONTINUITY_HINT = (
-    "\n\nIMPORTANT: preserve the village's existing names, places, "
-    "events, and themes. Do NOT introduce new settings or eras."
-)
-MIN_JACCARD = 0.5
+MIN_JACCARD = 0.35
 
 _TOKEN_RE = re.compile(r"\w+", re.UNICODE)
+# Common English function words; their overlap inflates raw Jaccard
+# without signaling preservation of canon. Filter them from both sides.
+_STOP = frozenset(
+    {
+        "the",
+        "a",
+        "an",
+        "and",
+        "or",
+        "but",
+        "of",
+        "to",
+        "in",
+        "on",
+        "at",
+        "for",
+        "with",
+        "by",
+        "from",
+        "as",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "it",
+        "its",
+        "this",
+        "that",
+        "these",
+        "those",
+        "they",
+        "them",
+        "their",
+        "we",
+        "us",
+        "our",
+        "you",
+        "your",
+        "he",
+        "she",
+        "his",
+        "her",
+        "him",
+        "i",
+        "my",
+        "me",
+        "do",
+        "does",
+        "did",
+        "have",
+        "has",
+        "had",
+        "not",
+        "no",
+        "so",
+        "if",
+        "then",
+        "than",
+        "when",
+        "while",
+        "where",
+        "what",
+        "who",
+        "whom",
+        "which",
+        "such",
+        "into",
+        "out",
+        "over",
+        "under",
+        "up",
+        "down",
+        "about",
+        "again",
+        "ever",
+        "always",
+        "never",
+        "all",
+        "any",
+        "some",
+        "each",
+        "every",
+        "more",
+        "most",
+        "less",
+        "least",
+        "very",
+        "much",
+        "also",
+        "just",
+    }
+)
+
+
+def _signal_tokens(text: str) -> set[str]:
+    """Tokens that actually signal canonical content: lowercase, ≥3
+    chars, not in the stop list. Phase 3b uses these for drift Jaccard.
+    """
+    return {t.lower() for t in _TOKEN_RE.findall(text) if len(t) >= 3 and t.lower() not in _STOP}
 
 
 def lore_jaccard(a: str, b: str) -> float:
-    """Token-set Jaccard similarity, case-folded, punctuation-stripped.
+    """Token-set Jaccard similarity over *signal* tokens (case-folded,
+    stop-words and short tokens dropped).
 
-    Vacuous case (both empty) returns 1.0 — there is no drift signal,
-    so we don't trigger the guard on a fresh world.
+    Vacuous case (both empty after filtering) returns 1.0 — there is no
+    drift signal, so we don't trigger the guard on a fresh world.
     """
-    tokens_a = {t.lower() for t in _TOKEN_RE.findall(a)}
-    tokens_b = {t.lower() for t in _TOKEN_RE.findall(b)}
+    tokens_a = _signal_tokens(a)
+    tokens_b = _signal_tokens(b)
     if not tokens_a and not tokens_b:
         return 1.0
     if not tokens_a or not tokens_b:
@@ -61,7 +160,10 @@ class Elder(Agent):
         # Elder doesn't tick like Artisan; compress_lore is the real work.
         return Action(action=ActionKind.REST)
 
-    def _call(self, prompt: str) -> str | None:
+    def _call(self, prompt: str, *, metrics: Metrics) -> str | None:
+        """Single LLM call. Bumps lore_chat_failure on raise/empty so
+        operators can distinguish infrastructure failures from
+        semantic drift in the metrics."""
         try:
             result = chat(
                 messages=[{"role": "user", "content": prompt}],
@@ -71,9 +173,14 @@ class Elder(Agent):
             )
         except Exception:
             _logger.exception("Elder chat() failed")
+            metrics.bump("lore_chat_failure")
             return None
         content = (result.get("content") if isinstance(result, dict) else "") or ""
-        return content.strip() or None
+        cleaned = content.strip()
+        if not cleaned:
+            metrics.bump("lore_chat_failure")
+            return None
+        return cleaned
 
     def compress_lore(
         self,
@@ -82,7 +189,15 @@ class Elder(Agent):
         *,
         metrics: Metrics,
     ) -> str:
-        """Rewrite the canonical lore. Returns the prior on guard fail."""
+        """Rewrite the canonical lore. Returns the prior on guard fail.
+
+        Granular metrics (the watchdog reads these to distinguish
+        legitimate equilibrium from a stuck Elder):
+          - ``lore_compress_accepted``     — round-1 success
+          - ``lore_compress_retry_accepted`` — round-2 success
+          - ``lore_drift_block``           — kept prior after drift
+          - ``lore_chat_failure``          — chat() raised or returned empty
+        """
         prompt = render(self.persona_template, prior_lore=prior_lore, events=events)
 
         # Empty prior = fresh world; there's nothing to drift FROM, so
@@ -91,17 +206,26 @@ class Elder(Agent):
         empty_prior = not prior_lore.strip()
 
         # Round 1: normal prompt.
-        candidate = self._call(prompt)
+        candidate = self._call(prompt, metrics=metrics)
         if candidate and (empty_prior or lore_jaccard(prior_lore, candidate) >= MIN_JACCARD):
+            metrics.bump("lore_compress_accepted")
             return candidate
 
-        # Round 2: continuity hint appended.
-        retry = self._call(prompt + _CONTINUITY_HINT)
+        # Round 2: continuity-hint variant. The hint goes on the prompt
+        # before the model sees the output instruction; render with a
+        # context flag the persona template handles.
+        retry_prompt = render(
+            self.persona_template,
+            prior_lore=prior_lore,
+            events=events,
+            continuity_hint=True,
+        )
+        retry = self._call(retry_prompt, metrics=metrics)
         if retry and (empty_prior or lore_jaccard(prior_lore, retry) >= MIN_JACCARD):
+            metrics.bump("lore_compress_retry_accepted")
             return retry
 
         # Drift survived two attempts (or chat failed twice). Keep the
-        # prior so the world's mythic continuity is never overwritten
-        # by a hallucination, and bump the metric for visibility.
+        # prior so the world's mythic continuity is never overwritten.
         metrics.bump("lore_drift_block")
         return prior_lore

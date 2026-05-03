@@ -126,3 +126,49 @@ def test_compress_lore_handles_chat_exception():
 
 def test_elder_role_is_elder():
     assert Elder(name="Old").role == "elder"
+
+
+def test_jaccard_filters_stop_words_and_short_tokens():
+    """Two semantically unrelated passages that share function words
+    must NOT clear the threshold via stop-word overlap alone."""
+    a = "the village is in the river valley"
+    b = "the rocket is in the orbital station"
+    # Both share {the, is, in, the} = stop words. After filtering,
+    # signal tokens are disjoint: {village, river, valley} vs
+    # {rocket, orbital, station}.
+    assert lore_jaccard(a, b) == 0.0
+
+
+def test_granular_metrics_distinguish_drift_from_chat_failure():
+    """Drift block and chat failure must bump separate counters so the
+    Phase 4 watchdog can tell them apart."""
+    metrics = Metrics(":memory:")
+    prior = "the village by the ancient river under stonework arches"
+    drifty = "the rockets land on Mars in the year 2087"
+    canned = {"content": drifty, "thinking": "", "raw": {}}
+    with patch("microverse.agents.elder.chat", return_value=canned):
+        Elder(name="Old").compress_lore(prior, _events(), metrics=metrics)
+    assert metrics.get("lore_drift_block") == 1
+    assert metrics.get("lore_chat_failure") == 0
+    assert metrics.get("lore_compress_accepted") == 0
+
+    metrics2 = Metrics(":memory:")
+    with patch("microverse.agents.elder.chat", side_effect=TimeoutError("hung")):
+        Elder(name="Old").compress_lore(prior, _events(), metrics=metrics2)
+    assert metrics2.get("lore_chat_failure") == 2  # round 1 + round 2
+    assert metrics2.get("lore_drift_block") == 1
+    assert metrics2.get("lore_compress_accepted") == 0
+
+
+def test_round1_success_bumps_compress_accepted():
+    metrics = Metrics(":memory:")
+    prior = "the village by the river under stonework arches"
+    new = "the river village still endures, with new stonework arches"
+    with patch(
+        "microverse.agents.elder.chat",
+        return_value={"content": new, "thinking": "", "raw": {}},
+    ):
+        Elder(name="Old").compress_lore(prior, _events(), metrics=metrics)
+    assert metrics.get("lore_compress_accepted") == 1
+    assert metrics.get("lore_compress_retry_accepted") == 0
+    assert metrics.get("lore_drift_block") == 0

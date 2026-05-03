@@ -6,14 +6,21 @@ here, what they made, and what mattered most.
 {{ prior_lore if prior_lore else "(none — this is the first telling)" }}
 
 # Recent events worth weaving in
-{% for e in events -%}
-- {{ e.actor }} {{ e.action }}: {{ e.payload.get("thought", "") }}
+{% for e in (events or []) -%}
+- {{ e.actor | default("someone") }} {{ e.action | default("acted") }}: {{ (e.payload or {}).get("thought", "") }}
 {% endfor %}
 
-# Your task
-Write the new lore document. Rules:
-- Keep the names, places, and themes from the prior lore.
+# Rules
+- Keep the names, places, and themes from the prior lore. The new
+  document should read as a continuation, not a replacement.
 - Weave in the recent events as small additions, not replacements.
 - Keep it short — a paragraph or two, no headings.
 - Never refer to a simulation, AI, model, prompt, or "the outside".
-- Output ONLY the lore prose. No preamble, no commentary, no headers.
+{% if continuity_hint is defined and continuity_hint -%}
+- IMPORTANT: preserve the village's existing names, places, events,
+  and themes. Do NOT introduce new settings, eras, or characters that
+  weren't already in the prior lore.
+{%- endif %}
+
+# Output
+Output ONLY the lore prose. No preamble, no commentary, no headers.
