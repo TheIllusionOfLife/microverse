@@ -171,7 +171,10 @@ class Harvester:
 
         written: list[Path] = []
         for cand, score in zip(candidates, scores, strict=True):
-            if score.score >= cutoff:
+            # cutoff is None ⇒ no signal (e.g. all scores tied / all zero).
+            # Accept nothing — better to lose a batch than to spam the
+            # inbox with unranked output.
+            if cutoff is not None and score.score >= cutoff:
                 path = self._write_artifact(cand)
                 written.append(path)
                 self._append_manifest(cand, accepted=True, path=path, score=score.score)
@@ -179,16 +182,21 @@ class Harvester:
                 self._append_manifest(cand, accepted=False, path=None, score=score.score)
         return written
 
-    def _percentile_cutoff(self, scores: list[float]) -> float:
+    def _percentile_cutoff(self, scores: list[float]) -> float | None:
         """Compute a score floor such that values >= floor land in the
-        top (100 - percentile)% of the population. Empty input yields a
-        cutoff of 1.0 so nothing is accepted.
+        top (100 - percentile)% of the population.
+
+        Returns None when the input is empty OR all scores are tied
+        (in which case there is no ranking signal and the caller should
+        accept nothing).
         """
         if not scores:
-            return 1.0
+            return None
         ordered = sorted(scores)
-        # Linear-rank percentile (no interpolation): index = ceil(N*p/100)-1
-        # but clamp to [0, len-1]. p=70 on 10 items → index 6 → 7th lowest.
+        if ordered[0] == ordered[-1]:
+            return None
+        # Linear-rank percentile (no interpolation): index = N*p/100
+        # clamped to [0, len-1]. p=70 on 10 items → index 7 → 8th lowest.
         idx = max(0, min(len(ordered) - 1, (len(ordered) * self._percentile) // 100))
         return ordered[idx]
 

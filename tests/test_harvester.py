@@ -216,6 +216,29 @@ def test_percentile_buffer_clears_after_flush(tmp_path: Path):
     assert h.flush() == []
 
 
+def test_percentile_all_zero_scores_accepts_nothing(tmp_path: Path):
+    """When the Trader returns all zeros (parse failure / no signal),
+    the percentile cutoff degenerates. Reject everything rather than
+    spam the inbox."""
+    trader = _StubTrader([0.0, 0.0, 0.0, 0.0, 0.0])
+    h = Harvester(tmp_path, trader=trader, percentile=70)
+    for i in range(5):
+        h.consider(ArtifactCandidate(actor="aki", action="craft", artifact=f"x #{i}", ts=0.0))
+    written = h.flush()
+    assert written == []
+    inbox_files = list((tmp_path / "inbox").rglob("*.md"))
+    assert inbox_files == []
+
+
+def test_percentile_all_tied_nonzero_scores_accepts_nothing(tmp_path: Path):
+    """Same logic as all-zero: tied scores carry no ranking signal."""
+    trader = _StubTrader([0.5, 0.5, 0.5, 0.5])
+    h = Harvester(tmp_path, trader=trader, percentile=70)
+    for i in range(4):
+        h.consider(ArtifactCandidate(actor="aki", action="craft", artifact=f"y #{i}", ts=0.0))
+    assert h.flush() == []
+
+
 def test_percentile_no_trader_keeps_phase1_behavior(tmp_path: Path):
     """When constructed without a trader, consider() writes immediately
     using the Phase 1 length heuristic — preserves backwards compat."""

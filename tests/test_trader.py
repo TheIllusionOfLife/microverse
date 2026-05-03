@@ -130,3 +130,22 @@ def test_rank_empty_candidates_returns_empty():
 def test_score_pydantic_model_validates():
     s = Score(artifact_id=0, score=0.5, rationale="x")
     assert s.score == 0.5
+
+
+def test_rank_unwraps_object_wrapped_list():
+    """gemma4 sometimes wraps the score list in an object — the parser
+    must accept ``{"scores": [...]}`` and similar single-list-value
+    objects, not just bare arrays."""
+    canned = {
+        "content": (
+            '{"scores": ['
+            '{"artifact_id": 0, "score": 0.4, "rationale": "x"},'
+            '{"artifact_id": 1, "score": 0.7, "rationale": "y"},'
+            '{"artifact_id": 2, "score": 0.9, "rationale": "z"}]}'
+        ),
+        "thinking": "",
+        "raw": {},
+    }
+    with patch("microverse.agents.trader.chat", return_value=canned):
+        scores = Trader(name="Bo").rank(_candidates())
+    assert [round(s.score, 1) for s in scores] == [0.4, 0.7, 0.9]

@@ -39,23 +39,37 @@ class Score(BaseModel):
     rationale: str = Field(default="", max_length=300)
 
 
+def _extract_list(data: Any) -> list[dict[str, Any]]:
+    """Pull the score list out of common JSON shapes:
+
+      - direct list:                ``[{...}, {...}]``
+      - object with single list:    ``{"scores": [...]}``
+      - object with any list value: best-effort, takes the first list
+
+    Anything else yields an empty list (caller treats as "no scores").
+    """
+    if isinstance(data, list):
+        return [d for d in data if isinstance(d, dict)]
+    if isinstance(data, dict):
+        for value in data.values():
+            if isinstance(value, list):
+                return [d for d in value if isinstance(d, dict)]
+    return []
+
+
 def _safe_parse_scores(raw: str) -> list[dict[str, Any]]:
     """Best-effort parse: strict → json_repair → empty list."""
     if len(raw.encode("utf-8", errors="replace")) > MAX_PARSE_BYTES:
         return []
     try:
-        data = json.loads(raw)
-        if isinstance(data, list):
-            return [d for d in data if isinstance(d, dict)]
+        return _extract_list(json.loads(raw))
     except json.JSONDecodeError:
         pass
     try:
         repaired = repair_json(raw, return_objects=False)
         if not repaired:
             return []
-        data = json.loads(repaired)
-        if isinstance(data, list):
-            return [d for d in data if isinstance(d, dict)]
+        return _extract_list(json.loads(repaired))
     except json.JSONDecodeError:
         pass
     return []
