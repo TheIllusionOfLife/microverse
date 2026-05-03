@@ -11,6 +11,7 @@ from microverse.llm.ollama_client import chat
 @pytest.fixture(autouse=True)
 def reset_counter():
     ollama_client.thinking_leak = 0
+    ollama_client.llm_retry = 0
     # The chat() helper caches an ollama.Client per timeout. Clear the
     # cache so each test's fresh ``patch("...ollama.Client")`` is what
     # actually gets constructed.
@@ -170,6 +171,62 @@ def test_format_and_options_forwarded():
     kwargs = instance.chat.call_args.kwargs
     assert kwargs["format"] == "json"
     assert kwargs["options"] == {"temperature": 0.6, "top_p": 0.9}
+
+
+def test_transient_connection_error_retried_then_succeeds():
+    """A connection-class error on the first call must be retried and
+    the second call's success returned. llm_retry counter increments."""
+    import httpx
+
+    with patch("microverse.llm.ollama_client.ollama.Client") as MockClient:
+        instance = MockClient.return_value
+        instance.chat.side_effect = [
+            httpx.ConnectError("connection refused"),
+            _mock_response(content="recovered"),
+        ]
+        # No real backoff — patch sleep so the test stays fast.
+        with patch("microverse.llm.ollama_client.time.sleep"):
+            result = chat([{"role": "user", "content": "hi"}])
+
+    assert result["content"] == "recovered"
+    assert ollama_client.llm_retry == 1
+    assert instance.chat.call_count == 2
+
+
+def test_non_connection_error_not_retried():
+    """ValueError-class errors (validation, schema) must not retry —
+    those signal a programmer bug, not a transient infra blip."""
+    with patch("microverse.llm.ollama_client.ollama.Client") as MockClient:
+        instance = MockClient.return_value
+        instance.chat.side_effect = ValueError("bad schema")
+
+        with (
+            patch("microverse.llm.ollama_client.time.sleep"),
+            pytest.raises(ValueError),
+        ):
+            chat([{"role": "user", "content": "hi"}])
+
+    assert instance.chat.call_count == 1
+    assert ollama_client.llm_retry == 0
+
+
+def test_max_retries_exceeded_reraises():
+    """After 2 retries (3 total attempts) of connection errors, the
+    last error must propagate."""
+    import httpx
+
+    with patch("microverse.llm.ollama_client.ollama.Client") as MockClient:
+        instance = MockClient.return_value
+        instance.chat.side_effect = httpx.ConnectError("permanent")
+
+        with (
+            patch("microverse.llm.ollama_client.time.sleep"),
+            pytest.raises(httpx.ConnectError),
+        ):
+            chat([{"role": "user", "content": "hi"}])
+
+    assert instance.chat.call_count == 3  # initial + 2 retries
+    assert ollama_client.llm_retry == 2
 
 
 def test_timeout_s_constructs_client_with_timeout():
