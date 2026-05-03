@@ -141,6 +141,44 @@ def test_close_flushes_pending_bumps(tmp_path: Path):
     assert by_name["json_fallback_rest"] == 1
 
 
+def test_close_persists_reset_without_subsequent_bump(tmp_path: Path):
+    """reset() before close() must persist as a 0 row, not silently drop.
+
+    Regression: reset() used to mutate _counters without marking
+    _bumps_since_flush, so close() would skip the flush and the SQLite
+    time-series would forever show the pre-reset value.
+    """
+    import sqlite3
+
+    db = tmp_path / "reset_persist.sqlite"
+    m = Metrics(db, auto_flush_every=100)  # auto-flush won't trigger
+    for _ in range(3):
+        m.bump("consecutive_fail", agent="aki")
+    m.flush()
+    m.reset("consecutive_fail", agent="aki")
+    m.close()
+
+    with sqlite3.connect(str(db)) as conn:
+        rows = conn.execute(
+            "SELECT value FROM metrics WHERE name='consecutive_fail' "
+            "AND agent='aki' ORDER BY id DESC LIMIT 1"
+        ).fetchall()
+    assert rows == [(0,)], f"expected latest row to be 0, got {rows}"
+
+
+def test_reset_triggers_auto_flush(tmp_path: Path):
+    """reset() participates in auto-flush like bump() and set_value()."""
+    db = tmp_path / "reset_auto.sqlite"
+    m = Metrics(db, auto_flush_every=2)
+    m.bump("consecutive_fail", agent="aki")  # 1st bump, no flush yet
+    m.reset("consecutive_fail", agent="aki")  # 2nd write, triggers flush
+    rows = m._conn.execute(
+        "SELECT value FROM metrics WHERE name='consecutive_fail' AND agent='aki'"
+    ).fetchall()
+    assert rows == [(0,)]
+    m.close()
+
+
 def test_concurrent_bumps_are_correct():
     """Multiple threads bumping the same counter must yield the exact
     sum (no lost updates from the GIL-evading defaultdict path)."""
