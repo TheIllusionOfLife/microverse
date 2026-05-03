@@ -102,10 +102,11 @@ PHASE_0_COMPLETE @ 2026-05-03T14:35Z
   - **Expected**: `passed`
   - **Evidence**: `10 passed in 0.02s` @ 2026-05-03T14:51Z. Metrics class with bump/get/reset/should_pause/flush/auto_flush_every. SQLite WAL persistence; time-series schema (one row per (name, agent) per flush).
 
-- [ ] **1.5** `microverse/agents/base.py` with `Agent` ABC, `Action` Pydantic v2 model `{thought, action, target, artifact}`. Parse failure → `jsonrepair` retry once → fallback `rest` action + bump `json_fallback_rest`.
+- [x] **1.5** `microverse/agents/base.py` with `Agent` ABC, `Action` Pydantic v2 model `{thought, action, target, artifact}`. Parse failure → `jsonrepair` retry once → fallback `rest` action + bump `json_fallback_rest`.
   - TDD: `tests/test_action_parse.py` (valid, repairable, garbage).
   - **Acceptance**: `uv run pytest tests/test_action_parse.py -q`
   - **Expected**: `passed`
+  - **Evidence**: `10 passed in 0.06s` @ 2026-05-03T14:54Z. Action enum (StrEnum), Pydantic v2 strict, parse_action 3-stage (strict/repair/fallback), bumps json_ok/json_repaired/json_fallback_rest and resets consecutive_fail on success.
 
 - [ ] **1.6** `microverse/agents/artisan.py` + `microverse/prompts/persona_artisan.j2` (strict JSON output, no meta-references).
   - **Acceptance**: `uv run python -c "from microverse.agents.artisan import Artisan; a=Artisan(name='Aki'); print(a.role)"`

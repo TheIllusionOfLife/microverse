@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import pytest
 
-from microverse.agents.base import Action, ActionKind, parse_action
+from microverse.agents.base import ActionKind, parse_action
 from microverse.ops.metrics import Metrics
 
 
 def test_action_strict_valid_json():
-    payload = '{"thought": "I will craft a lamp.", "action": "craft", "target": null, "artifact": "lamp"}'
+    payload = (
+        '{"thought": "I will craft a lamp.", "action": "craft", "target": null, "artifact": "lamp"}'
+    )
     metrics = Metrics(":memory:")
     a = parse_action(payload, metrics=metrics, agent="aki")
     assert a.action == ActionKind.CRAFT
