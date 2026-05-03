@@ -124,7 +124,7 @@ def run(
     # Trader scheduling is internal — it ranks the buffer at flush time,
     # not as a tick action. We don't register it in the scheduler.
 
-    clock = WorldClock(seed=seed or 0, mean_interval=WORLD_CLOCK_MEAN_INTERVAL)
+    clock = WorldClock(seed=seed, mean_interval=WORLD_CLOCK_MEAN_INTERVAL)
     watchdog = Watchdog(metrics=metrics, episodic=episodic, scheduler=sched)
 
     stop = {"requested": False}

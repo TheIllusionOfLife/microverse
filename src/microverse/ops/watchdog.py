@@ -74,6 +74,7 @@ class Watchdog:
         stagnation_floor: int = 1,
         diversity_floor: float = 0.35,
         diversity_window: int = 20,
+        max_strangers: int = 3,
     ) -> None:
         self._metrics = metrics
         self._episodic = episodic
@@ -83,6 +84,7 @@ class Watchdog:
         self._stagnation_floor = stagnation_floor
         self._diversity_floor = diversity_floor
         self._diversity_window = diversity_window
+        self._max_strangers = max_strangers
 
     def check(self) -> None:
         recent = self._episodic.last(max(self._stagnation_window, self._diversity_window))
@@ -124,6 +126,14 @@ class Watchdog:
             self._spawn_stranger()
 
     def _spawn_stranger(self) -> None:
+        # Cap the Stranger pool: if we already have ``max_strangers``
+        # registered, the existing ones haven't done their job — adding
+        # more would amplify LLM volume without improving diversity.
+        existing = sum(1 for a in self._scheduler.agents if a.role == "stranger")
+        if existing >= self._max_strangers:
+            self._metrics.bump("watchdog_stranger_cap_hit")
+            return
+
         # Lazy import to avoid a watchdog → agents → ... cycle.
         from microverse.agents.stranger import Stranger
 
@@ -131,6 +141,6 @@ class Watchdog:
         try:
             self._scheduler.register(stranger)
         except ValueError:
-            # Name collision — extremely unlikely with ms-resolution
-            # auto-names, but harmless if it happens.
+            # Name collision — extremely unlikely with ms+uuid names,
+            # but harmless if it happens.
             _logger.info("Stranger %r already registered; skipping", stranger.name)

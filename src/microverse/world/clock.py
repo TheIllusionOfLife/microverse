@@ -38,11 +38,19 @@ KNOWN_EVENTS: frozenset[str] = frozenset(
 
 
 class WorldClock:
-    """Deterministic-when-seeded weather scheduler."""
+    """Deterministic-when-seeded weather scheduler.
 
-    def __init__(self, seed: int = 0, *, mean_interval: int = 200) -> None:
+    ``seed=None`` (the default) draws OS entropy — same convention as
+    the agent RNG, so an unseeded production run gets a fresh weather
+    sequence each launch instead of always replaying the same one.
+    Pass an explicit int (including ``0``) to make the run reproducible.
+    """
+
+    def __init__(self, seed: int | None = None, *, mean_interval: int = 200) -> None:
         if mean_interval <= 0:
             raise ValueError("mean_interval must be positive")
+        # `random.Random(None)` seeds from os.urandom, which is what we
+        # want for an unseeded run; `random.Random(0)` is fully fixed.
         self._rng = random.Random(seed)
         self._mean_interval = mean_interval
         self._kinds = sorted(KNOWN_EVENTS)

@@ -116,6 +116,27 @@ def test_echo_chamber_quiet_when_diversity_high(tmp_path: Path):
     assert metrics.get("watchdog_echo_chamber") == 0
 
 
+def test_stranger_pool_capped(tmp_path: Path):
+    """Repeated echo-chamber detections must not spawn unbounded Strangers."""
+    metrics = Metrics(":memory:")
+    sched = WeightedScheduler()
+    sched.register(_StubAgent("aki"))
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
+        _seed_actions(ep, [("aki", "craft a wooden bowl")] * 10)
+        wd = Watchdog(
+            metrics=metrics,
+            episodic=ep,
+            scheduler=sched,
+            diversity_floor=0.35,
+            max_strangers=2,
+        )
+        for _ in range(5):
+            wd.check()
+    strangers = [a for a in sched.agents if a.role == "stranger"]
+    assert len(strangers) == 2  # cap honored
+    assert metrics.get("watchdog_stranger_cap_hit") >= 1
+
+
 def test_stagnation_detected_when_no_recent_artifacts(tmp_path: Path):
     metrics = Metrics(":memory:")
     sched = WeightedScheduler()
