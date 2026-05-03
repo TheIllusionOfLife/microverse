@@ -21,3 +21,7 @@ harvest/
 # Test caches
 .pytest_cache/
 .ruff_cache/
+
+# Claude Code session-local state (ralph-loop, etc.)
+.claude/*.local.md
+.claude/settings.local.json
