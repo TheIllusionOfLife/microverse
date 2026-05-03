@@ -6,14 +6,16 @@ Reads ``data/episodic.sqlite`` and checks:
   - All event ids are unique and contiguous (no gaps in the surviving
     id sequence — a committed event silently dropping out of the
     middle would be visible as a hole).
-  - When ``--watermark W`` is supplied: every id in ``1..W`` still
-    exists after the restart (one in-flight discard at id ``W``
-    itself is allowed, so the surviving prefix may be ``1..W`` or
-    ``1..W-1``). This is the only check that proves "zero tail
-    loss". A count-based check is NOT sufficient: if SIGKILL drops
-    the tail and the restarted process then appends fresh events,
-    the count recovers but the original tail is gone — a hole the
-    raw count never sees.
+  - When ``--watermark W`` is supplied: every id in ``1..W`` must
+    still exist after the restart. ``W`` is captured as
+    ``SELECT MAX(id)`` *before* the SIGKILL, which means by
+    definition it is the highest committed event at kill time —
+    therefore id ``W`` itself must survive. (The in-flight tick
+    discarded by SIGKILL is at id ``W+1``, which the watermark
+    filter ``id <= W`` excludes regardless.) A count-based check
+    is NOT sufficient: if SIGKILL drops the tail and the restarted
+    process then appends fresh events, the count recovers but the
+    original tail is gone — a hole the raw count never sees.
 
 Recommended SIGKILL drill flow:
 
@@ -77,21 +79,15 @@ def verify(db: Path, watermark: int | None = None) -> int:
             )
             return 1
         pre = [i for i in ids if i <= watermark]
-        # Allow exactly one missing id, and only if it is the
-        # watermark itself (the in-flight tick the kill discarded).
-        # Anything else missing in 1..watermark is silent tail loss.
-        # The in-flight branch requires watermark >= 2 so the empty
-        # prefix can't masquerade as a valid "1..0 survived" state
-        # when every pre-kill event was actually lost.
+        # W = MAX(id) was captured BEFORE SIGKILL, so id=W is by
+        # definition committed and MUST survive. Losing it would be
+        # real data loss, not an acceptable "in-flight" case (the
+        # in-flight tick is at id=W+1 and is filtered out by the
+        # `i <= watermark` predicate above). Therefore the only
+        # passing state is the full prefix 1..W.
         expected_full = list(range(1, watermark + 1))
-        expected_minus_tip = list(range(1, watermark))  # 1..W-1
         if pre == expected_full:
             tail_note = f", all 1..{watermark} survived (pre-kill watermark {watermark})"
-        elif watermark >= 2 and pre == expected_minus_tip:
-            tail_note = (
-                f", 1..{watermark - 1} survived; in-flight id "
-                f"{watermark} discarded (pre-kill watermark {watermark})"
-            )
         else:
             missing = sorted(set(expected_full) - set(pre))[:10]
             print(  # noqa: T201

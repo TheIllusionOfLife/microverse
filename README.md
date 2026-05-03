@@ -62,8 +62,11 @@ open harvest/dashboard.html
 W=$(sqlite3 data/episodic.sqlite 'SELECT COALESCE(MAX(id), 0) FROM events')
 
 # 2) SIGKILL the run, restart it, then verify every pre-watermark
-#    id survived (1..W, or 1..W-1 if the in-flight tick at the
-#    watermark itself was discarded):
+#    id survived. Because W = MAX(id) was committed *before* the
+#    kill, the full range 1..W must survive — losing id=W itself
+#    is real data loss, not an acceptable in-flight discard. (The
+#    in-flight tick is at id=W+1 and is filtered out by the
+#    watermark predicate.)
 uv run python scripts/verify_kill_drill.py \
     --db data/episodic.sqlite --watermark "$W"
 # → kill_drill_ok (... all 1..W survived (pre-kill watermark W))

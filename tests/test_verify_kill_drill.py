@@ -86,13 +86,15 @@ def test_watermark_strict_pass(tmp_path: Path) -> None:
     assert verify(db, watermark=5) == 0
 
 
-def test_watermark_in_flight_tip_discarded_passes(tmp_path: Path) -> None:
-    """1..W-1 surviving is acceptable: the in-flight tick at the
-    watermark itself was discarded by SIGKILL. Requires W >= 2 (W=1
-    has no valid in-flight branch — see the empty-prefix test)."""
-    db = tmp_path / "tip.sqlite"
-    _make_db(db, [1, 2, 3, 4])
-    assert verify(db, watermark=5) == 0
+def test_watermark_lost_w_row_fails(tmp_path: Path) -> None:
+    """W = MAX(id) was captured before SIGKILL, so id=W is by
+    definition committed at kill time and MUST survive. Losing it
+    is real data loss — not an acceptable in-flight discard. The
+    in-flight tick is at id=W+1 and is filtered out by the
+    `i <= W` predicate, so it never enters the prefix check."""
+    db = tmp_path / "lost_w.sqlite"
+    _make_db(db, [1, 2, 3, 4])  # id=5 (the watermark) was lost
+    assert verify(db, watermark=5) == 1
 
 
 def test_watermark_with_post_restart_appends_passes(tmp_path: Path) -> None:
