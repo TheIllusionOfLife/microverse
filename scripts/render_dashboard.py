@@ -173,9 +173,15 @@ def render(data_dir: Path, harvest_dir: Path, out_path: Path) -> int:
             score_s = f" score={score:.2f}" if isinstance(score, (int, float)) else ""
             body = ""
             try:
-                body = (harvest_dir / str(path)).read_text(errors="replace")
+                # Path-traversal guard: the manifest is operator-controlled
+                # but agent-derived rows could contain ``..`` segments. Resolve
+                # the candidate and refuse to read anything outside harvest_dir.
+                harvest_root = harvest_dir.resolve()
+                candidate = (harvest_dir / str(path)).resolve()
+                candidate.relative_to(harvest_root)
+                body = candidate.read_text(errors="replace")
                 body = body.split("---", 2)[-1].strip()[:600]
-            except OSError:
+            except (OSError, ValueError):
                 body = "(unreadable)"
             parts.append(
                 f"<div class='artifact'>"

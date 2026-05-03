@@ -111,8 +111,9 @@ def main(argv: list[str] | None = None) -> int:
         "--watermark",
         type=int,
         default=None,
-        help="Pre-kill high-watermark MAX(id). Every id in 1..W must survive "
-        "(or 1..W-1 if the in-flight tick at the watermark was discarded).",
+        help="Pre-kill high-watermark MAX(id). Every id in 1..W must survive. "
+        "The in-flight tick (at id=W+1) may be discarded by SIGKILL but the "
+        "watermark predicate filters it out before the prefix check.",
     )
     args = p.parse_args(argv)
     return verify(args.db, watermark=args.watermark)
