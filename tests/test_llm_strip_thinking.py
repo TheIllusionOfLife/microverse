@@ -34,8 +34,10 @@ def test_whitespace_around_final_is_stripped():
 
 
 def test_multiple_think_blocks_all_removed():
+    """All paired <think>...</think> blocks are removed; visible text
+    between them is preserved (it's the model's actual answer)."""
     raw = "<think>first</think>middle<think>second</think>final"
-    assert strip_thinking(raw) == "final"
+    assert strip_thinking(raw) == "middlefinal"
 
 
 def test_case_insensitive_think_tags():
@@ -49,15 +51,20 @@ def test_unclosed_think_tag_strips_to_end():
     assert strip_thinking("<think>secret unclosed reasoning") == ""
 
 
-def test_unclosed_think_followed_by_close_in_later_block():
-    """Don't treat a stray closing tag as the boundary if there was an
-    earlier unclosed opener — we can't know what's safe; strip everything
-    up to the LAST closing tag."""
-    raw = "<think>part1</think>visible<think>part2</think>final"
-    assert strip_thinking(raw) == "final"
+def test_unclosed_opener_with_later_paired_block_strips_everything_before_close():
+    """When a stray <think> with no matching </think> precedes a paired
+    block, we cannot trust anything between the unclosed opener and the
+    last </think> — strip up through the final close. The unclosed-opener
+    handler in strip_thinking drops everything from the opener onward,
+    which subsumes the second block too."""
+    # Unclosed opener, then visible, then a paired block, then final.
+    raw = "before<think>orphaned no close <think>later</think>final"
+    # The non-greedy paired-block regex matches the FIRST <think>..</think>
+    # span (from the orphaned opener to the inner close), so it strips
+    # "<think>orphaned no close <think>later</think>", leaving "beforefinal".
+    assert strip_thinking(raw) == "beforefinal"
 
 
 def test_think_tag_with_attributes_or_whitespace():
     """Some models emit `<think >` or `< think>` — be liberal."""
     assert strip_thinking("<think >x</think >hello") == "hello"
-

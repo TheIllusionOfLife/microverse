@@ -29,8 +29,17 @@ def test_think_false_yields_no_thinking():
     assert result["thinking"] == "", (
         f"think=False must produce empty thinking; got {result['thinking']!r}"
     )
-    assert "<think>" not in result["content"], (
-        f"think=False must not leak <think> tag in content; got {result['content']!r}"
+    # Strip-recipe coverage: no opening tag, no closing tag, no channel
+    # markers may leak through to callers.
+    content_lower = result["content"].lower()
+    assert "<think" not in content_lower, (
+        f"think=False must not leak opening think tag; got {result['content']!r}"
+    )
+    assert "</think" not in content_lower, (
+        f"think=False must not leak closing think tag; got {result['content']!r}"
+    )
+    assert "<|channel|>" not in result["content"], (
+        f"think=False must not leak channel markers; got {result['content']!r}"
     )
     assert "OK" in result["content"].upper()
 

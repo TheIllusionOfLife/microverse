@@ -1,12 +1,17 @@
 """Thin wrapper around the official Ollama Python client.
 
-Single-model contract: every call goes to ``gemma4:e4b``.
+Single-model contract: every call goes to ``microverse.config.MODEL``.
 
-Thinking discipline:
-  - Pass ``think=False`` (top-level Ollama API field per docs.ollama.com).
-  - As defense-in-depth, run ``strip_thinking`` on the content. If anything
-    was stripped, bump the module-level ``thinking_leak`` counter so the
-    runtime can spot model/runtime regressions.
+Thinking discipline (belt + braces):
+  - Pass ``think=False`` (top-level Ollama API field per docs.ollama.com)
+    so the runtime is asked not to produce thinking tokens.
+  - When ``think=False``, force the returned ``thinking`` field to ``""``
+    so the wrapper itself cannot leak the trace via the dict it returns.
+  - Run ``strip_thinking`` on content unconditionally as defense in depth.
+  - Bump ``thinking_leak`` whenever any leak signal is detected
+    (markers in content, or non-empty ``thinking`` despite ``think=False``).
+    The counter increments under a lock so multi-threaded callers stay
+    coherent (a future watchdog may run alongside agent ticks).
 
 The wrapper returns a plain dict so callers can serialize it without
 caring about the ollama package's response object types.
@@ -14,17 +19,24 @@ caring about the ollama package's response object types.
 
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 import ollama
 
-from microverse.llm.thinking import strip_thinking
+from microverse.config import LLM_TIMEOUT_S, MODEL
+from microverse.llm.thinking import has_thinking_markers, strip_thinking
 
-MODEL = "gemma4:e4b"
-
-# Module-level counter: bumped each time strip_thinking actually trims
-# content. Persisted to data/metrics.sqlite by ops.metrics in Phase 1.
+# Module-level counter: bumped whenever a leak signal is detected on a
+# single call. Persisted to data/metrics.sqlite by ops.metrics in Phase 1.
 thinking_leak: int = 0
+_thinking_leak_lock = threading.Lock()
+
+
+def _bump_leak() -> None:
+    global thinking_leak
+    with _thinking_leak_lock:
+        thinking_leak += 1
 
 
 def chat(
@@ -33,13 +45,12 @@ def chat(
     think: bool = False,
     format: str | None = None,
     options: dict[str, Any] | None = None,
-    timeout_s: float = 90.0,
+    timeout_s: float = LLM_TIMEOUT_S,
 ) -> dict[str, Any]:
-    """Call Ollama chat for ``gemma4:e4b`` with thinking discipline.
+    """Call Ollama chat for ``MODEL`` with thinking discipline.
 
     Returns ``{"content": str, "thinking": str, "raw": dict}``.
     """
-    global thinking_leak
     client = ollama.Client(timeout=timeout_s)
 
     response = client.chat(
@@ -53,9 +64,20 @@ def chat(
     raw_content: str = response.message.content or ""
     raw_thinking: str = getattr(response.message, "thinking", None) or ""
 
+    leak = False
+    if has_thinking_markers(raw_content):
+        leak = True
+    if (not think) and raw_thinking:
+        # Caller asked for no thinking but the runtime produced some.
+        # That's the strongest leak signal we have — count it and clear
+        # the field so callers can never read it.
+        leak = True
+        raw_thinking = ""
+
     cleaned = strip_thinking(raw_content)
-    if cleaned != raw_content.strip():
-        thinking_leak += 1
+
+    if leak:
+        _bump_leak()
 
     return {
         "content": cleaned,

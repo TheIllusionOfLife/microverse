@@ -11,10 +11,10 @@ from microverse.llm.ollama_client import chat
 @pytest.fixture(autouse=True)
 def reset_counter():
     ollama_client.thinking_leak = 0
-    yield
+    return None
 
 
-def _mock_response(*, content: str, thinking: str = "") -> dict:
+def _mock_response(*, content: str, thinking: str = "") -> MagicMock:
     msg = MagicMock()
     msg.content = content
     msg.thinking = thinking

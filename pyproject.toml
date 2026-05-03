@@ -1,7 +1,7 @@
 [project]
 name = "microverse"
 version = "0.1.0"
-description = "Add your description here"
+description = "Long-running multi-agent simulation that produces artifacts on local Ollama gemma4:e4b"
 readme = "README.md"
 authors = [
     { name = "TheIllusionOfLife", email = "TheIllusionOfLife@users.noreply.github.com" }
@@ -14,9 +14,6 @@ dependencies = [
     "pydantic>=2",
     "python-dateutil>=2.9.0.post0",
 ]
-
-[project.scripts]
-microverse = "microverse:main"
 
 [build-system]
 requires = ["uv_build>=0.11.7,<0.12.0"]
@@ -41,5 +38,10 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "B", "UP"]
+# Active rules. Skipping ANN/D for now (too noisy at this stage); revisit later.
+select = ["E", "F", "I", "B", "UP", "SIM", "C4", "PT", "RUF", "T20", "ERA"]
 ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can use print() and looser style.
+"tests/**/*.py" = ["T20", "PT011"]
