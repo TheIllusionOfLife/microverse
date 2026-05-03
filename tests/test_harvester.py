@@ -155,6 +155,87 @@ def test_yaml_frontmatter_safe_against_special_chars(tmp_path: Path):
     assert parsed["action"] == "craft"
 
 
+class _StubTrader:
+    """Hand-rolled trader for tests — returns the scores we say it does."""
+
+    def __init__(self, scores: list[float]) -> None:
+        self._scores = scores
+
+    def rank(self, candidates):
+        from microverse.agents.trader import Score
+
+        return [
+            Score(artifact_id=i, score=self._scores[i], rationale="x")
+            for i in range(len(candidates))
+        ]
+
+
+def test_percentile_writes_only_top_quantile_when_trader_present(tmp_path: Path):
+    """With p70: bottom 70% rejected, top 30% accepted. With 10 items
+    and scores 0.1..1.0, only the top 3 should be written."""
+    trader = _StubTrader([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
+    h = Harvester(tmp_path, trader=trader, percentile=70)
+    cands = [
+        ArtifactCandidate(actor="aki", action="craft", artifact=f"artifact #{i:02d}", ts=0.0)
+        for i in range(10)
+    ]
+    for cand in cands:
+        # consider() must NOT write immediately when trader is set.
+        assert h.consider(cand) is None
+
+    written = h.flush()
+    assert len(written) == 3  # top 30% = 3 of 10
+    inbox_files = list((tmp_path / "inbox").rglob("*.md"))
+    assert len(inbox_files) == 3
+
+
+def test_percentile_manifest_records_score_for_every_candidate(tmp_path: Path):
+    trader = _StubTrader([0.1, 0.5, 0.9])
+    h = Harvester(tmp_path, trader=trader, percentile=70)
+    for i in range(3):
+        h.consider(
+            ArtifactCandidate(actor="aki", action="craft", artifact=f"x #{i}", ts=0.0)
+        )
+    h.flush()
+
+    manifest = tmp_path / "manifest.jsonl"
+    lines = manifest.read_text().splitlines()
+    assert len(lines) == 3
+    import json as _json
+
+    records = [_json.loads(line) for line in lines]
+    assert [r["accepted"] for r in records] == [False, False, True]
+    # Score is included so post-mortems can audit the decision.
+    assert all("score" in r for r in records)
+
+
+def test_percentile_buffer_clears_after_flush(tmp_path: Path):
+    trader = _StubTrader([0.5])
+    h = Harvester(tmp_path, trader=trader, percentile=70)
+    h.consider(
+        ArtifactCandidate(actor="aki", action="craft", artifact="long enough text", ts=0.0)
+    )
+    h.flush()
+    # Second flush with no new candidates: returns empty, no extra writes.
+    assert h.flush() == []
+
+
+def test_percentile_no_trader_keeps_phase1_behavior(tmp_path: Path):
+    """When constructed without a trader, consider() writes immediately
+    using the Phase 1 length heuristic — preserves backwards compat."""
+    h = Harvester(tmp_path)  # no trader
+    p = h.consider(
+        ArtifactCandidate(
+            actor="aki",
+            action="craft",
+            artifact="this artifact is well over twenty chars long",
+            ts=0.0,
+        )
+    )
+    assert p is not None
+    assert p.exists()
+
+
 def test_no_episodic_appended_by_harvester(tmp_path: Path):
     """Harvester must not write to the episodic memory — it lives
     outside the simulated world. We assert this by verifying no
