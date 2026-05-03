@@ -14,7 +14,7 @@ Phase 1 contract:
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from microverse.agents.harvester import ArtifactCandidate, Harvester
@@ -25,7 +25,7 @@ def _candidate(text: str = "a beautiful wooden bowl with carved swirls") -> Arti
         actor="aki",
         action="craft",
         artifact=text,
-        ts=datetime(2026, 5, 3, 12, 0, tzinfo=timezone.utc).timestamp(),
+        ts=datetime(2026, 5, 3, 12, 0, tzinfo=UTC).timestamp(),
     )
 
 
@@ -106,7 +106,8 @@ def test_multiple_artifacts_unique_filenames(tmp_path: Path):
     h = Harvester(tmp_path)
     p1 = h.consider(_candidate(text="alpha alpha alpha alpha alpha"))
     p2 = h.consider(_candidate(text="alpha alpha alpha alpha alpha"))
-    assert p1 is not None and p2 is not None
+    assert p1 is not None
+    assert p2 is not None
     assert p1 != p2  # collision-resolved
 
 
