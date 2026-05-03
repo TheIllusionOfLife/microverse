@@ -156,13 +156,6 @@ def run(
     executed = 0
     consecutive_skips = 0
 
-    # Single-agent precondition: the cached topic depends on the
-    # registered agent's role. The tick loop registers exactly one Artisan
-    # above. If a future change registers more agents, fall back to
-    # per-tick `_derive_topic(episodic, agent)` or key the cache by name.
-    initial_agent = sched.agents[0]
-    topic = _derive_topic(episodic, initial_agent)
-
     def _safe(label: str, fn):
         try:
             fn()
@@ -181,6 +174,10 @@ def run(
                     consecutive_skips = 0
                 continue
             consecutive_skips = 0
+            # Topic depends on agent.role, so derive per-tick: Watchdog
+            # may spawn Strangers mid-run and a cached topic from the
+            # initial agent would mis-tag their lore retrieval.
+            topic = _derive_topic(episodic, agent)
             world = build_context(
                 world_base=WorldContext(),
                 episodic=episodic,
@@ -201,15 +198,7 @@ def run(
             executed += 1
 
             # World clock + watchdog: cheap, run every tick / every Nth.
-            # Refresh topic only on a *successful* advance that emitted
-            # at least one event — on exception we keep the previous
-            # topic rather than stale-scan the episodic log.
-            try:
-                emitted = clock.advance(episodic, ticks_elapsed=1)
-                if emitted > 0:
-                    topic = _derive_topic(episodic, agent)
-            except Exception:
-                _logger.exception("WorldClock.advance failed")
+            _safe("WorldClock.advance", lambda: clock.advance(episodic, ticks_elapsed=1))
             if executed % WATCHDOG_EVERY == 0:
                 _safe("watchdog.check", watchdog.check)
 

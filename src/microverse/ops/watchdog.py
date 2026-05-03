@@ -134,7 +134,10 @@ class Watchdog:
         # Cap the Stranger pool: if we already have ``max_strangers``
         # registered, the existing ones haven't done their job — adding
         # more would amplify LLM volume without improving diversity.
-        existing = sum(1 for a in self._scheduler.agents if a.role == "stranger")
+        # ``getattr`` defensive: ``Agent.role`` is annotated but not
+        # enforced at runtime, so a malformed registered agent would
+        # otherwise crash the stranger spawn path.
+        existing = sum(1 for a in self._scheduler.agents if getattr(a, "role", None) == "stranger")
         if existing >= self._max_strangers:
             self._metrics.bump("watchdog_stranger_cap_hit")
             return
