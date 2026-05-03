@@ -213,24 +213,29 @@ PHASE_2_COMPLETE @ 2026-05-03T15:42Z
 
 ### Phase 3a Boundary
 PHASE_3A_COMPLETE @ 2026-05-03T16:01Z
-**MERGED**: _<commit-sha> @ <ISO8601>_
+**MERGED**: aa712560f4cdd5b565d48d5d976616cde5e3479d @ 2026-05-03T16:10Z (PR #5)
 
 ---
 
 ## Phase 3b — Lore compression (slug: `lore`)
 
-- [ ] **3b.1** Branch `feat/phase-3b-lore`.
-- [ ] **3b.2** `microverse/agents/elder.py` + `microverse/prompts/compression.j2`: triggered every `LORE_REGEN_INTERVAL` ticks; reads FTS5 top events of period + previous lore; emits new `data/lore/world_lore.md`.
-- [ ] **3b.3** Drift guard: lexical Jaccard ≥ 0.5 vs prior lore; on fail, retry with continuity instruction; on second fail, keep old + bump `lore_drift_block`.
-- [ ] **3b.4** Tests: `tests/test_lore_drift_guard.py` (mock Elder LLM with adversarial output → guard triggers).
+- [x] **3b.1** Branch `feat/phase-3b-lore`.
+  - **Evidence**: `feat/phase-3b-lore` @ 2026-05-03T16:10Z. Phase 3a PR #5 merged at aa71256.
+- [x] **3b.2** `microverse/agents/elder.py` + `microverse/prompts/compression.j2`: triggered every `LORE_REGEN_INTERVAL` ticks; reads FTS5 top events of period + previous lore; emits new `data/lore/world_lore.md`.
+  - **Evidence**: Elder.compress_lore(prior, events, *, metrics) wired with persona at compression.j2 + factual sampling @ 2026-05-03T16:14Z.
+- [x] **3b.3** Drift guard: lexical Jaccard ≥ 0.5 vs prior lore; on fail, retry with continuity instruction; on second fail, keep old + bump `lore_drift_block`.
+  - **Evidence**: lore_jaccard helper + two-stage retry (continuity hint appended) + lore_drift_block bump on second-failure or chat exception. Empty-prior bypass so fresh worlds aren't blocked. @ 2026-05-03T16:14Z.
+- [x] **3b.4** Tests: `tests/test_lore_drift_guard.py` (mock Elder LLM with adversarial output → guard triggers).
   - **Acceptance**: `uv run pytest tests/test_lore_drift_guard.py -q`
   - **Expected**: `passed`
-- [ ] **3b.5** Final phase verification.
+  - **Evidence**: `10 passed in 0.14s` @ 2026-05-03T16:14Z.
+- [x] **3b.5** Final phase verification.
   - **Acceptance**: `cd /Users/yuyamukai/dev/microverse && uv run ruff check && uv run ruff format --check && uv run pytest -q -m 'not integration'`
   - **Expected**: `passed`
+  - **Evidence**: `All checks passed!` + `175 passed, 2 deselected in 1.48s` @ 2026-05-03T16:14Z.
 
 ### Phase 3b Boundary
-**Sentinel**: _PHASE_3B_COMPLETE @ <ISO8601>_
+PHASE_3B_COMPLETE @ 2026-05-03T16:14Z
 **MERGED**: _<commit-sha> @ <ISO8601>_
 
 ---
