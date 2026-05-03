@@ -144,7 +144,7 @@ def render(data_dir: Path, harvest_dir: Path, out_path: Path) -> int:
             parts.append(
                 f"<tr><td>{html.escape(name)}</td>"
                 f"<td>{html.escape(agent or '')}</td>"
-                f"<td>{value}</td>"
+                f"<td>{html.escape(str(value))}</td>"
                 f"<td>{_fmt_ts(ts)}</td></tr>"
             )
         parts.append("</table>")

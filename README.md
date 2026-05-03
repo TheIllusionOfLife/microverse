@@ -6,7 +6,7 @@ Built to run autonomously for weeks on local Apple Silicon at zero marginal cost
 
 ## Status
 
-Phases 0 → 4a merged. See `TODO.md` for the phase ladder and per-task evidence; `PROMPT.md` is the build-time ralph-loop driver.
+Phases 0 → 4b merged. See `TODO.md` for the phase ladder and per-task evidence; `PROMPT.md` is the build-time ralph-loop driver.
 
 ## Operator runbook
 
@@ -35,7 +35,8 @@ kill -INT  $(cat microverse.pid)
 kill -TERM $(cat microverse.pid)
 
 # Hard: SIGKILL. WAL guarantees no committed event is lost; the
-# in-flight tick is discarded and re-played on restart.
+# in-flight tick is discarded (not re-played) — only committed
+# events recover on restart.
 kill -KILL $(cat microverse.pid)
 ```
 

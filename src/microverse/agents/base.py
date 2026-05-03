@@ -34,12 +34,22 @@ if TYPE_CHECKING:
 # Words an in-world inhabitant should never utter. ``\b`` boundaries
 # avoid matching inside larger words (e.g., "compromised" doesn't trip
 # "model"). Case-insensitive at compile time.
-META_LEAK_RE = re.compile(r"\b(ai|model|simulation|prompt|outside|llm|api)\b", re.IGNORECASE)
+#
+# "outside" was deliberately removed from the bare-word list because
+# it appears in legitimate village prose ("outside the bakery", "the
+# outside walls"). Meta uses are caught by the phrase regex below.
+META_LEAK_RE = re.compile(r"\b(ai|model|simulation|prompt|llm|api)\b", re.IGNORECASE)
+META_LEAK_PHRASE_RE = re.compile(
+    r"\boutside\s+(this\s+)?(simulation|world|reality|system|prompt|run)\b",
+    re.IGNORECASE,
+)
 
 
 def has_meta_leak(text: str) -> bool:
     """Return True if ``text`` contains an in-world meta-reference."""
-    return bool(text) and META_LEAK_RE.search(text) is not None
+    if not text:
+        return False
+    return bool(META_LEAK_RE.search(text) or META_LEAK_PHRASE_RE.search(text))
 
 
 class ActionKind(StrEnum):

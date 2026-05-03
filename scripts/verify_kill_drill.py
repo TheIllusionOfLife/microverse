@@ -37,13 +37,24 @@ def verify(db: Path) -> int:
     if not ids:
         print("kill_drill_FAIL: zero events in db", file=sys.stderr)  # noqa: T201
         return 1
-    if ids != sorted(ids):
-        print("kill_drill_FAIL: ids not sorted", file=sys.stderr)  # noqa: T201
+    # Contiguity: SQLite AUTOINCREMENT only re-uses ids on rollback,
+    # so any gap means a committed event was lost. The first id need
+    # not be 1 (a snapshot restore can carry a higher floor) but the
+    # set must be every integer from min..max with no holes.
+    expected = list(range(ids[0], ids[-1] + 1))
+    if ids != expected:
+        missing = sorted(set(expected) - set(ids))[:10]
+        print(  # noqa: T201
+            f"kill_drill_FAIL: gap in id sequence; missing first 10: {missing}",
+            file=sys.stderr,
+        )
         return 1
     if len(set(ids)) != len(ids):
         print("kill_drill_FAIL: duplicate ids", file=sys.stderr)  # noqa: T201
         return 1
-    print(f"kill_drill_ok ({len(ids)} events, ids {ids[0]}..{ids[-1]})")  # noqa: T201
+    print(  # noqa: T201
+        f"kill_drill_ok ({len(ids)} events, ids {ids[0]}..{ids[-1]}, contiguous)"
+    )
     return 0
 
 
