@@ -27,10 +27,11 @@
   - **Expected**: `4`
   - **Evidence**: `4` @ 2026-05-03T14:25Z.
 
-- [ ] **0.4** Implement `microverse/llm/thinking.py::strip_thinking` per `~/.claude/skills/local-llm/SKILL.md:99-106`.
+- [x] **0.4** Implement `microverse/llm/thinking.py::strip_thinking` per `~/.claude/skills/local-llm/SKILL.md:99-106`.
   - TDD first: `tests/test_llm_strip_thinking.py` with cases (a) `<think>x</think>foo` → `foo`, (b) `foo` → `foo`, (c) `<think>x</think>` → empty, (d) channel-marker variant.
   - **Acceptance**: `uv run pytest tests/test_llm_strip_thinking.py -q`
   - **Expected**: `passed` substring; no `failed`.
+  - **Evidence**: `6 passed in 0.00s` @ 2026-05-03T14:27Z. Module at src/microverse/llm/thinking.py.
 
 - [ ] **0.5** Implement `microverse/llm/ollama_client.py::chat(messages, *, think=False, format=None, options=None, timeout_s=90)`.
   - Wraps `ollama.chat(model="gemma4:e4b", messages=..., think=think, format=format, options=options)`.
