@@ -4,9 +4,15 @@ Inhabitants do not perceive the Harvester. It observes today's artifact
 buffer and writes accepted artifacts to ``harvest/inbox/<UTC date>/``
 for the host user.
 
-Phase 1 acceptance heuristic is intentionally crude — accept when the
-artifact text is at least ``MIN_ARTIFACT_CHARS`` long. Phase 2 swaps
-this for Trader-ranked percentile selection.
+Two acceptance modes (selectable at construction):
+  - **Phase 1 heuristic** (no trader): each ``consider()`` writes
+    immediately if the artifact text is at least ``MIN_ARTIFACT_CHARS``
+    long. Maintained for backwards compat and zero-LLM smoke tests.
+  - **Phase 2 percentile** (trader given): each ``consider()`` buffers
+    the candidate and returns ``None``. ``flush()`` rates the entire
+    buffer through the Trader, applies a percentile threshold (default
+    p70), writes accepted artifacts, and records every candidate's
+    score in ``manifest.jsonl`` so rejection decisions are auditable.
 
 Atomic write contract:
   - artifact files: write to ``*.tmp``, fsync, then ``os.replace`` to
@@ -34,11 +40,20 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING, Protocol
 
 import yaml
 
+if TYPE_CHECKING:
+    from microverse.agents.trader import Score
+
 MIN_ARTIFACT_CHARS = 20
 SLUG_MAX_LEN = 60
+DEFAULT_PERCENTILE = 70
+
+
+class _RankerProtocol(Protocol):
+    def rank(self, candidates: list[ArtifactCandidate]) -> list[Score]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,21 +119,78 @@ class Harvester:
     None on reject; in either case appends one line to manifest.jsonl.
     """
 
-    def __init__(self, harvest_root: str | Path) -> None:
+    def __init__(
+        self,
+        harvest_root: str | Path,
+        *,
+        trader: _RankerProtocol | None = None,
+        percentile: int = DEFAULT_PERCENTILE,
+    ) -> None:
         self._root = Path(harvest_root)
         self._root.mkdir(parents=True, exist_ok=True)
         self._manifest = self._root / "manifest.jsonl"
+        self._trader = trader
+        self._percentile = percentile
+        self._buffer: list[ArtifactCandidate] = []
 
     def consider(self, candidate: ArtifactCandidate) -> Path | None:
+        # Phase 2 path: trader present → buffer the candidate, write at flush().
+        # Only pre-reject genuinely empty artifacts; let the Trader judge
+        # short ones (it has the right context).
+        if self._trader is not None:
+            if candidate.artifact and candidate.artifact.strip():
+                self._buffer.append(candidate)
+            else:
+                self._append_manifest(candidate, accepted=False, path=None, score=None)
+            return None
+
+        # Phase 1 path: heuristic only — accept on length, no LLM call.
         accepted = False
         path: Path | None = None
-
         if candidate.artifact and len(candidate.artifact.strip()) >= MIN_ARTIFACT_CHARS:
             accepted = True
             path = self._write_artifact(candidate)
-
-        self._append_manifest(candidate, accepted=accepted, path=path)
+        self._append_manifest(candidate, accepted=accepted, path=path, score=None)
         return path
+
+    def flush(self) -> list[Path]:
+        """Apply Trader scoring + percentile threshold; write accepted.
+
+        No-op when no trader is configured. The buffer is always cleared,
+        even if the trader returned malformed output (defense in depth —
+        a stuck buffer would otherwise grow unbounded).
+        """
+        if self._trader is None or not self._buffer:
+            self._buffer.clear()
+            return []
+
+        candidates = list(self._buffer)
+        self._buffer.clear()
+        scores = self._trader.rank(candidates)
+        cutoff = self._percentile_cutoff([s.score for s in scores])
+
+        written: list[Path] = []
+        for cand, score in zip(candidates, scores, strict=True):
+            if score.score >= cutoff:
+                path = self._write_artifact(cand)
+                written.append(path)
+                self._append_manifest(cand, accepted=True, path=path, score=score.score)
+            else:
+                self._append_manifest(cand, accepted=False, path=None, score=score.score)
+        return written
+
+    def _percentile_cutoff(self, scores: list[float]) -> float:
+        """Compute a score floor such that values >= floor land in the
+        top (100 - percentile)% of the population. Empty input yields a
+        cutoff of 1.0 so nothing is accepted.
+        """
+        if not scores:
+            return 1.0
+        ordered = sorted(scores)
+        # Linear-rank percentile (no interpolation): index = ceil(N*p/100)-1
+        # but clamp to [0, len-1]. p=70 on 10 items → index 6 → 7th lowest.
+        idx = max(0, min(len(ordered) - 1, (len(ordered) * self._percentile) // 100))
+        return ordered[idx]
 
     def _write_artifact(self, candidate: ArtifactCandidate) -> Path:
         date = datetime.fromtimestamp(candidate.ts, tz=UTC).strftime("%Y-%m-%d")
@@ -144,6 +216,7 @@ class Harvester:
         *,
         accepted: bool,
         path: Path | None,
+        score: float | None = None,
     ) -> None:
         record = {
             "ts": candidate.ts,
@@ -151,6 +224,7 @@ class Harvester:
             "action": candidate.action,
             "accepted": accepted,
             "path": str(path.relative_to(self._root)) if path else None,
+            "score": score,
         }
         line = json.dumps(record, separators=(",", ":")) + "\n"
         # Records are well below PIPE_BUF (4 KB on macOS/Linux), so a

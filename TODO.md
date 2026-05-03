@@ -163,9 +163,10 @@ PHASE_1_COMPLETE @ 2026-05-03T15:11Z
   - **Acceptance**: `uv run pytest tests/test_trader.py -q`
   - **Expected**: `passed`
   - **Evidence**: `9 passed in 0.13s` @ 2026-05-03T15:25Z. Trader.rank(candidates) returns one Score per candidate keyed by index; out-of-range scores clamped; missing entries default to 0; garbage / repaired JSON / oversized inputs all yield safe fallback. Persona uses factual sampling (temp 0.6).
-- [ ] **2.3** Harvester now consumes Trader's ranking + percentile threshold (default p70).
+- [x] **2.3** Harvester now consumes Trader's ranking + percentile threshold (default p70).
   - **Acceptance**: `uv run pytest tests/test_harvester.py -q -k percentile`
   - **Expected**: `passed`
+  - **Evidence**: `15 passed in 0.15s` @ 2026-05-03T15:32Z (4 percentile-named tests selected). Harvester(trader=..., percentile=70) buffers candidates and flush() applies linear-rank cutoff. Manifest records score for every candidate (accepted or not) for auditability. Phase 1 (no trader) path preserved for backwards compat.
 - [ ] **2.4** `microverse/world/snapshot.py`: cold backup every 1000 ticks; tar.gz of `data/`. Snapshots are NOT recovery — WAL is. Tests: `tests/test_snapshot_roundtrip.py` (snapshot → wipe → restore → state matches snapshot time).
   - **Acceptance**: `uv run pytest tests/test_snapshot_roundtrip.py -q`
   - **Expected**: `passed`

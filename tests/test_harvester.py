@@ -193,9 +193,7 @@ def test_percentile_manifest_records_score_for_every_candidate(tmp_path: Path):
     trader = _StubTrader([0.1, 0.5, 0.9])
     h = Harvester(tmp_path, trader=trader, percentile=70)
     for i in range(3):
-        h.consider(
-            ArtifactCandidate(actor="aki", action="craft", artifact=f"x #{i}", ts=0.0)
-        )
+        h.consider(ArtifactCandidate(actor="aki", action="craft", artifact=f"x #{i}", ts=0.0))
     h.flush()
 
     manifest = tmp_path / "manifest.jsonl"
@@ -212,9 +210,7 @@ def test_percentile_manifest_records_score_for_every_candidate(tmp_path: Path):
 def test_percentile_buffer_clears_after_flush(tmp_path: Path):
     trader = _StubTrader([0.5])
     h = Harvester(tmp_path, trader=trader, percentile=70)
-    h.consider(
-        ArtifactCandidate(actor="aki", action="craft", artifact="long enough text", ts=0.0)
-    )
+    h.consider(ArtifactCandidate(actor="aki", action="craft", artifact="long enough text", ts=0.0))
     h.flush()
     # Second flush with no new candidates: returns empty, no extra writes.
     assert h.flush() == []
