@@ -41,32 +41,37 @@
   - **Expected**: `True`
   - **Evidence**: `True` @ 2026-05-03T14:30Z. 7 unit tests passing (think kwarg, leak counter, options/format forwarding, timeout).
 
-- [ ] **0.6** Integration test for `think=False` on real Ollama.
+- [x] **0.6** Integration test for `think=False` on real Ollama.
   - `tests/test_ollama_think_off.py`, marked `@pytest.mark.integration`.
   - One call with `think=True` to confirm `thinking` populates.
   - One call with `think=False` to confirm `thinking == ""` AND `<think>` not in `content`.
   - If `think=True` fails (model isn't a thinking model in Ollama's view), document in README and skip the `think=True` branch — `think=False` empty-thinking assertion is the contract.
   - **Acceptance**: `uv run pytest tests/test_ollama_think_off.py -q -m integration`
   - **Expected**: `passed`
+  - **Evidence**: `1 passed, 1 skipped in 5.31s` @ 2026-05-03T14:33Z. think=False contract holds; gemma4:e4b not classified as thinking-capable by Ollama so the think=True branch is skipped (documented in README.md).
 
-- [ ] **0.7** Smoke test (real model in the loop).
+- [x] **0.7** Smoke test (real model in the loop).
   - **Acceptance**: `uv run python -c "from microverse.llm.ollama_client import chat; r=chat([{'role':'user','content':'Reply with the single word OK.'}], think=False); assert r['content'].strip()=='OK', r; assert r['thinking']=='', r; print('smoke_ok')"`
   - **Expected**: `smoke_ok`
+  - **Evidence**: `smoke_ok` @ 2026-05-03T14:34Z.
 
-- [ ] **0.8** Confirm `pr-create` skill available; if not, fall back to raw `gh pr create`.
+- [x] **0.8** Confirm `pr-create` skill available; if not, fall back to raw `gh pr create`.
   - **Acceptance**: `ls ~/.claude/skills/pr-create 2>/dev/null && echo skill_present || echo will_use_gh_directly`
   - **Expected**: one of `skill_present`, `will_use_gh_directly`
+  - **Evidence**: `skill_present` @ 2026-05-03T14:34Z.
 
-- [ ] **0.9** Final phase verification.
+- [x] **0.9** Final phase verification.
   - **Acceptance**: `cd /Users/yuyamukai/dev/microverse && uv run ruff check && uv run ruff format --check && uv run pytest -q`
   - **Expected**: `passed` substring; no `failed`, no `error`.
+  - **Evidence**: `All checks passed!` + `8 files already formatted` + `14 passed, 1 skipped in 0.68s` @ 2026-05-03T14:35Z. (1 skip is the documented gemma4 think=True branch.)
 
-- [ ] **0.10** Record sentinel `PHASE_0_COMPLETE` here once 0.2–0.9 ticked.
+- [x] **0.10** Record sentinel `PHASE_0_COMPLETE` here once 0.2–0.9 ticked.
   - **Acceptance**: `grep -c '^PHASE_0_COMPLETE @ ' TODO.md`
   - **Expected**: `1`
+  - **Evidence**: `1` @ 2026-05-03T14:35Z. Sentinel line written into "Phase 0 Boundary" block below.
 
 ### Phase 0 Boundary
-**Sentinel**: _PHASE_0_COMPLETE @ <ISO8601>_
+PHASE_0_COMPLETE @ 2026-05-03T14:35Z
 **MERGED**: _<commit-sha> @ <ISO8601>_
 
 ---

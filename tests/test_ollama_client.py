@@ -62,9 +62,7 @@ def test_chat_forwards_think_true_when_requested():
 def test_strip_thinking_applied_when_content_has_leak():
     with patch("microverse.llm.ollama_client.ollama.Client") as MockClient:
         instance = MockClient.return_value
-        instance.chat.return_value = _mock_response(
-            content="<think>internal</think>real answer"
-        )
+        instance.chat.return_value = _mock_response(content="<think>internal</think>real answer")
 
         result = chat([{"role": "user", "content": "hi"}])
 
