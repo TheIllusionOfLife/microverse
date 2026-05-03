@@ -119,9 +119,10 @@ PHASE_0_COMPLETE @ 2026-05-03T14:35Z
   - **Expected**: `passed`
   - **Evidence**: `9 passed in 0.02s` @ 2026-05-03T15:00Z. Phase 1 uses a length-threshold heuristic (≥ 20 chars). persona_harvester.j2 deferred to Phase 2 (Trader-driven LLM selection). Atomic writes verified — no leftover .tmp files; safe filename slug; collision suffix -N.
 
-- [ ] **1.8** `microverse/world/scheduler.py` (round-robin; just Artisan in phase 1).
+- [x] **1.8** `microverse/world/scheduler.py` (round-robin; just Artisan in phase 1).
   - **Acceptance**: `uv run pytest tests/test_scheduler.py -q`
   - **Expected**: `passed`
+  - **Evidence**: `6 passed` @ 2026-05-03T15:02Z (76 total). RoundRobinScheduler with register/unregister/agents/next; rejects duplicate names; raises LookupError on empty.
 
 - [ ] **1.9** `microverse/run.py` entrypoint with `--ticks N`, `--seed`, `--tempo 0`. SIGINT graceful exit.
   - **Acceptance**: `uv run python -m microverse.run --help`

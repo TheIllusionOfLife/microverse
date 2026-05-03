@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 import pytest
 
 from microverse.agents.base import Action, ActionKind, Agent, WorldContext
@@ -11,7 +13,7 @@ from microverse.world.scheduler import RoundRobinScheduler
 class _StubAgent(Agent):
     role = "stub"
     persona_template = ""
-    sampling: dict[str, float | int] = {}
+    sampling: ClassVar[dict[str, float | int]] = {}
 
     def think(self, world: WorldContext) -> Action:
         return Action(action=ActionKind.REST)
