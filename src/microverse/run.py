@@ -8,12 +8,22 @@ Run with::
     uv run python -m microverse.run --seed 42
 
 Environment overrides:
-    MICROVERSE_DATA      override data/ directory (episodic, metrics)
+    MICROVERSE_DATA      override data/ directory (episodic, metrics, snapshots)
     MICROVERSE_HARVEST   override harvest/ directory (artifact inbox)
 
 SIGINT exits cleanly. SIGKILL is recoverable — the SQLite-WAL contract
 in :mod:`microverse.memory.episodic` guarantees no committed event is
 lost; the in-flight tick is simply discarded.
+
+Phase 2 wiring:
+  - Artisan + Trader registered in a ``WeightedScheduler`` (seeded if
+    ``--seed`` given). Trader has lower soul_tokens than Artisan so
+    judgment turns are spaced out.
+  - Harvester is constructed with the Trader so ``consider()`` buffers
+    candidates and ``flush()`` applies p70 percentile selection. The
+    tick loop calls ``flush()`` every ``HARVEST_FLUSH_EVERY`` ticks.
+  - Cold-backup snapshots taken every ``SNAPSHOT_EVERY`` ticks via
+    :func:`microverse.world.snapshot.maybe_snapshot`.
 """
 
 from __future__ import annotations
@@ -30,12 +40,18 @@ from pathlib import Path
 from microverse.agents.artisan import Artisan
 from microverse.agents.base import Action, Agent, WorldContext
 from microverse.agents.harvester import ArtifactCandidate, Harvester
+from microverse.agents.trader import Trader
 from microverse.config import MAX_TICKS_DEFAULT
 from microverse.memory.episodic import EpisodicMemory
 from microverse.ops.metrics import Metrics
-from microverse.world.scheduler import RoundRobinScheduler
+from microverse.world.scheduler import WeightedScheduler
+from microverse.world.snapshot import maybe_snapshot
 
 _logger = logging.getLogger(__name__)
+
+# Phase 2 cadences.
+HARVEST_FLUSH_EVERY = 50  # ticks between Trader-driven harvest flushes
+SNAPSHOT_EVERY = 1000  # cold backups; WAL handles real durability
 
 
 def _build_world(_episodic: EpisodicMemory) -> WorldContext:
@@ -77,8 +93,7 @@ def run(
     harvest_dir: str | Path | None = None,
 ) -> int:
     """Run the tick loop. Returns the number of ticks executed."""
-    if seed is not None:
-        random.seed(seed)
+    rng = random.Random(seed) if seed is not None else random.Random()
 
     data_dir = (
         Path(data_dir) if data_dir is not None else Path(os.environ.get("MICROVERSE_DATA", "data"))
@@ -90,31 +105,35 @@ def run(
     )
     data_dir.mkdir(parents=True, exist_ok=True)
     harvest_dir.mkdir(parents=True, exist_ok=True)
+    snapshots_dir = data_dir / "snapshots"
 
     episodic = EpisodicMemory(data_dir / "episodic.sqlite")
     metrics = Metrics(data_dir / "metrics.sqlite", auto_flush_every=10)
-    harvester = Harvester(harvest_dir)
 
-    sched = RoundRobinScheduler()
-    sched.register(Artisan(name="Aki", metrics=metrics))
+    trader = Trader(name="Bo", soul_tokens=30)
+    harvester = Harvester(harvest_dir, trader=trader, percentile=70)
+
+    sched = WeightedScheduler(rng=rng)
+    sched.register(Artisan(name="Aki", metrics=metrics, soul_tokens=100))
+    # Trader scheduling is internal — it ranks the buffer at flush time,
+    # not as a tick action. We don't register it in the scheduler.
 
     stop = {"requested": False}
 
-    def _on_sigint(_signum: int, _frame: object) -> None:
+    def _on_signal(_signum: int, _frame: object) -> None:
         stop["requested"] = True
 
-    signal.signal(signal.SIGINT, _on_sigint)
+    # Catch SIGINT (Ctrl-C) AND SIGTERM (e.g. `timeout`, supervisor kills,
+    # systemd stop) so the finally block runs and the harvester buffer
+    # gets a final flush. SIGKILL is still recoverable via WAL — the
+    # in-flight tick is discarded but committed events are intact.
+    signal.signal(signal.SIGINT, _on_signal)
+    signal.signal(signal.SIGTERM, _on_signal)
 
     max_ticks = ticks if ticks is not None else MAX_TICKS_DEFAULT
     executed = 0
     consecutive_skips = 0
     try:
-        # Loop on `executed` rather than iteration count so paused
-        # agents don't consume the budget. Bound consecutive skips so
-        # an all-paused world doesn't hot-spin: after one full rotation
-        # of skips we sleep and *reset* consecutive_fail for every
-        # agent — the watchdog stub's auto-rehab — giving them another
-        # chance instead of looping forever.
         while executed < max_ticks and not stop["requested"]:
             agent = sched.next()
             if metrics.should_pause(agent.name):
@@ -130,30 +149,48 @@ def run(
             try:
                 action = agent.think(world)
             except Exception:
-                # Hung/crashed Ollama call: count it, push the agent
-                # toward pause, do not crash the whole run.
                 _logger.exception("think() failed for agent %s", agent.name)
                 metrics.bump("llm_timeout")
                 metrics.bump("consecutive_fail", agent=agent.name)
-                # Throttle so a persistent failure doesn't spin.
                 time.sleep(min(max(tempo or 1.0, 1.0), 5.0))
                 continue
-            # Defense-in-depth reset: parse_action already resets on
-            # json_ok/json_repaired paths, but if a future caller path
-            # leaves consecutive_fail elevated after a *successful*
-            # think(), we still want the next failure to count from 1.
             metrics.reset("consecutive_fail", agent=agent.name)
             _commit_action(episodic, agent, action)
             _maybe_harvest(harvester, agent, action)
             executed += 1
+
+            if executed % HARVEST_FLUSH_EVERY == 0:
+                try:
+                    harvester.flush()
+                except Exception:
+                    _logger.exception("harvester.flush failed")
+                    metrics.bump("harvest_flush_fail")
+            maybe_snapshot(
+                executed,
+                interval=SNAPSHOT_EVERY,
+                data_dir=data_dir,
+                snapshots_dir=snapshots_dir,
+            )
+
             sleep_s = tempo if tempo is not None else agent.tempo()
             if sleep_s > 0:
                 time.sleep(sleep_s)
     finally:
-        # Close each resource independently — a failure in one must
-        # not skip the rest.
+        # Final flush so any buffered candidates from the last partial
+        # batch still go through Trader on shutdown. If it fails (the
+        # most common cause: a hung Ollama call interrupted by SIGTERM),
+        # bump a counter BEFORE closing metrics so the failure is
+        # visible in the metrics db.
         try:
-            metrics.close()  # flushes pending bumps internally
+            harvester.flush()
+        except Exception:
+            _logger.exception("final harvester.flush failed")
+            try:
+                metrics.bump("harvest_flush_fail")
+            except Exception:
+                _logger.exception("metrics.bump after flush failure failed")
+        try:
+            metrics.close()
         except Exception:
             _logger.exception("metrics.close failed")
         try:

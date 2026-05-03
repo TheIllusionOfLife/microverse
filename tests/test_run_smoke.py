@@ -34,12 +34,44 @@ def _canned_chat(call_count: list[int]):
     return _chat
 
 
+def _trader_chat_fixed_scores():
+    """Trader stub: returns varied scores so the percentile cutoff has
+    something to discriminate. Scores produce a clear top-30%."""
+
+    def _chat(**_kwargs: object) -> dict[str, object]:
+        # Return a JSON list with descending scores by artifact_id —
+        # the harvester will pull whatever count it needs and rank.
+        return {
+            "content": (
+                "["
+                '{"artifact_id": 0, "score": 0.1, "rationale": "x"},'
+                '{"artifact_id": 1, "score": 0.2, "rationale": "x"},'
+                '{"artifact_id": 2, "score": 0.3, "rationale": "x"},'
+                '{"artifact_id": 3, "score": 0.4, "rationale": "x"},'
+                '{"artifact_id": 4, "score": 0.5, "rationale": "x"},'
+                '{"artifact_id": 5, "score": 0.6, "rationale": "x"},'
+                '{"artifact_id": 6, "score": 0.7, "rationale": "x"},'
+                '{"artifact_id": 7, "score": 0.8, "rationale": "x"},'
+                '{"artifact_id": 8, "score": 0.9, "rationale": "x"},'
+                '{"artifact_id": 9, "score": 1.0, "rationale": "x"}'
+                "]"
+            ),
+            "thinking": "",
+            "raw": {},
+        }
+
+    return _chat
+
+
 def test_30_ticks_produces_at_least_one_artifact(tmp_path: Path):
     data_dir = tmp_path / "data"
     harvest_dir = tmp_path / "harvest"
     call_count = [0]
 
-    with patch("microverse.agents.artisan.chat", side_effect=_canned_chat(call_count)):
+    with (
+        patch("microverse.agents.artisan.chat", side_effect=_canned_chat(call_count)),
+        patch("microverse.agents.trader.chat", side_effect=_trader_chat_fixed_scores()),
+    ):
         executed = run(
             ticks=30,
             seed=42,
@@ -49,21 +81,20 @@ def test_30_ticks_produces_at_least_one_artifact(tmp_path: Path):
         )
 
     assert executed == 30
-    assert call_count[0] == 30  # one chat per tick
+    assert call_count[0] == 30  # one Artisan chat per tick
 
     inbox_files = list((harvest_dir / "inbox").rglob("*.md"))
-    assert len(inbox_files) >= 1, "expected at least one harvested artifact"
+    # 10 artifacts (every 3rd tick); Trader scores 0.1..1.0; p70 cutoff
+    # of 10 distinct scores accepts the top 3.
+    assert len(inbox_files) == 3, f"expected 3 accepted, got {len(inbox_files)}"
 
-    # Manifest line count == number of consider() calls. The Artisan
-    # always emits an artifact every 3rd tick (10 of 30) plus None
-    # otherwise. Harvester is only called when artifact is non-null —
-    # so manifest should have 10 lines (all accepted).
     manifest = harvest_dir / "manifest.jsonl"
     assert manifest.exists()
     lines = manifest.read_text().splitlines()
+    # 10 manifest lines: one per buffered candidate (3 accepted, 7 rejected).
     assert len(lines) == 10
-    accepted = [json.loads(line)["accepted"] for line in lines]
-    assert all(accepted)
+    accepted_count = sum(1 for line in lines if json.loads(line)["accepted"])
+    assert accepted_count == 3
 
 
 def test_run_creates_data_and_harvest_dirs(tmp_path: Path):
