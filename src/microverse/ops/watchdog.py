@@ -94,6 +94,18 @@ class Watchdog:
         self._check_runaway(agent_events)
         self._check_stagnation(agent_events)
         self._check_echo_chamber(agent_events)
+        self._check_meta_leak(agent_events)
+
+    def _check_meta_leak(self, events: list) -> None:
+        # Lazy import to avoid a watchdog → agents → ... cycle.
+        from microverse.agents.base import has_meta_leak
+
+        for e in events:
+            payload = e.payload or {}
+            if has_meta_leak(str(payload.get("thought", ""))) or has_meta_leak(
+                str(payload.get("artifact") or "")
+            ):
+                self._metrics.bump("watchdog_meta_leak", agent=e.actor)
 
     def _check_runaway(self, events: list) -> None:
         # events are newest-first. Walk per-agent and count the longest

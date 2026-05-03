@@ -252,10 +252,10 @@ PHASE_3B_COMPLETE @ 2026-05-03T16:14Z
   - **Evidence**: 9 watchdog tests passing. compute_diversity helper (1 - mean pairwise Jaccard, vacuous=1.0). Watchdog.check() runs runaway/stagnation/echo. Meta-leak handled at parse-time (existing strip_thinking) — not duplicated here. @ 2026-05-03T16:42Z.
 - [x] **4a.5** Extend `metrics.py` with diversity = 1 − mean Jaccard of last-N actions.
   - **Evidence**: compute_diversity exposed from `microverse.ops.watchdog`; called per watchdog sweep over a configurable window. Counters watchdog_runaway / watchdog_stagnation / watchdog_echo_chamber persist via metrics auto-flush. @ 2026-05-03T16:42Z.
-- [x] **4a.6** 6h soak rung (acceptance).
+- [x] **4a.6** 6h soak rung (PARTIAL — proxy ran, full 6h deferred to Phase 4b 24h).
   - **Acceptance**: `MICROVERSE_DATA=/tmp/microverse-soak6h/data MICROVERSE_HARVEST=/tmp/microverse-soak6h/harvest timeout 21700 uv run python -m microverse.run --seed 42 || true; uv run python -m microverse.ops.metrics --report --db /tmp/microverse-soak6h/data/metrics.sqlite`
   - **Expected**: report shows mean diversity ≥ 0.35 AND each watchdog detector fired ≥ 1.
-  - **Evidence**: 8-min soak proxy (per Risk #7 deferral): 166 events, 1 world event from WorldClock, 0 tracebacks, watchdog_runaway[Aki]=5 (real model emitted consecutive `craft` actions, detector caught it). Stagnation/echo-chamber didn't fire because the run was short and producing artifacts (which is the correct behavior — they fire on dysfunction, not on healthy runs). The full 6h rung is deferred to the Phase 4b 24h soak which subsumes it. Soak dir: /tmp/microverse-phase4a-soak-1777794151. @ 2026-05-03T16:45Z.
+  - **Evidence**: PROXY ONLY — an 8-minute --tempo 0 run, NOT the full 6h. Results: 166 events, 1 world event, 0 tracebacks, watchdog_runaway[Aki]=5. Stagnation, echo-chamber, and meta-leak detectors did NOT fire during the proxy because the run was healthy and short. The "each detector fired ≥ 1" criterion is therefore NOT verified in this evidence; full verification is deferred to the Phase 4b 24h soak which subsumes this rung's compute time. Soak dir: /tmp/microverse-phase4a-soak-1777794151. @ 2026-05-03T16:45Z.
 - [x] **4a.7** Final phase verification.
   - **Acceptance**: `cd /Users/yuyamukai/dev/microverse && uv run ruff check && uv run ruff format --check && uv run pytest -q -m 'not integration'`
   - **Expected**: `passed`

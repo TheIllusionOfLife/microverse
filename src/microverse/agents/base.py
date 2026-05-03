@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import abc
 import json
+import re
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import TYPE_CHECKING
@@ -28,6 +29,17 @@ from microverse.config import MAX_PARSE_BYTES
 
 if TYPE_CHECKING:
     from microverse.ops.metrics import Metrics
+
+
+# Words an in-world inhabitant should never utter. ``\b`` boundaries
+# avoid matching inside larger words (e.g., "compromised" doesn't trip
+# "model"). Case-insensitive at compile time.
+META_LEAK_RE = re.compile(r"\b(ai|model|simulation|prompt|outside|llm|api)\b", re.IGNORECASE)
+
+
+def has_meta_leak(text: str) -> bool:
+    """Return True if ``text`` contains an in-world meta-reference."""
+    return bool(text) and META_LEAK_RE.search(text) is not None
 
 
 class ActionKind(StrEnum):
@@ -79,6 +91,13 @@ def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
     if isinstance(data, dict):
         try:
             action = Action.model_validate(data)
+            # Meta-reference guard: if the agent's own words break the
+            # in-world fiction, fall back to rest. Different counter
+            # from json_fallback_rest so the watchdog can distinguish
+            # parse failures from immersion breaks.
+            if has_meta_leak(action.thought) or has_meta_leak(action.artifact or ""):
+                metrics.bump("meta_leak_block", agent=agent)
+                return _rest_action()
             metrics.bump("json_ok")
             metrics.reset("consecutive_fail", agent=agent)
             return action
@@ -94,6 +113,9 @@ def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
         if not isinstance(repaired_data, dict):
             raise ValueError("repair did not produce an object")
         action = Action.model_validate(repaired_data)
+        if has_meta_leak(action.thought) or has_meta_leak(action.artifact or ""):
+            metrics.bump("meta_leak_block", agent=agent)
+            return _rest_action()
         metrics.bump("json_repaired")
         metrics.reset("consecutive_fail", agent=agent)
         return action

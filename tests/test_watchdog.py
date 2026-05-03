@@ -137,6 +137,29 @@ def test_stranger_pool_capped(tmp_path: Path):
     assert metrics.get("watchdog_stranger_cap_hit") >= 1
 
 
+def test_meta_leak_detector_bumps_per_actor(tmp_path: Path):
+    """The watchdog scans recent agent payloads for in-world meta-
+    references and bumps a per-actor counter."""
+    metrics = Metrics(":memory:")
+    sched = WeightedScheduler()
+    sched.register(_StubAgent("aki"))
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
+        ep.append(
+            actor="aki",
+            action="speak",
+            target=None,
+            payload={"thought": "I am an AI inside this simulation"},
+        )
+        ep.append(
+            actor="aki",
+            action="speak",
+            target=None,
+            payload={"thought": "ordinary thought"},
+        )
+        Watchdog(metrics=metrics, episodic=ep, scheduler=sched).check()
+    assert metrics.get("watchdog_meta_leak", agent="aki") >= 1
+
+
 def test_stagnation_detected_when_no_recent_artifacts(tmp_path: Path):
     metrics = Metrics(":memory:")
     sched = WeightedScheduler()
