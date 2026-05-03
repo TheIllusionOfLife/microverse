@@ -62,11 +62,26 @@ WATCHDOG_EVERY = 25  # ticks between watchdog sweeps
 WORLD_CLOCK_MEAN_INTERVAL = 100  # mean ticks between weather events
 
 
+def _derive_topic(episodic: EpisodicMemory, agent: Agent) -> str:
+    """Pick a scene-topic for FTS5 lore retrieval.
+
+    Strategy: use the most recent ``weather.*`` event's kind as a topic
+    word (so during a drought, the agent's lore_excerpt prefers
+    drought-tagged lore). If no weather has happened yet, fall back to
+    the agent's role plus the agent's name so lore retrieval is at
+    least seeded with something.
+    """
+    for e in episodic.last(50):
+        if e.actor == "world" and e.action.startswith("weather."):
+            return f"{e.action.removeprefix('weather.')} {agent.role}"
+    return f"{agent.role} {agent.name}"
+
+
 def _build_world(
     episodic: EpisodicMemory,
     semantic: SemanticMemory,
     *,
-    topic: str = "",
+    topic: str,
 ) -> WorldContext:
     """Assemble the per-tick context: weather + recent events + lore."""
     return build_context(
@@ -167,7 +182,8 @@ def run(
                     consecutive_skips = 0
                 continue
             consecutive_skips = 0
-            world = _build_world(episodic, semantic)
+            topic = _derive_topic(episodic, agent)
+            world = _build_world(episodic, semantic, topic=topic)
             try:
                 action = agent.think(world)
             except Exception:

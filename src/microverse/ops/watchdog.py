@@ -121,6 +121,11 @@ class Watchdog:
         window = events[: self._diversity_window]
         actions_text = [f"{e.action} {e.payload.get('thought', '') or ''}" for e in window]
         diversity = compute_diversity(actions_text)
+        # Record the current diversity snapshot (scaled to integer %)
+        # so Phase 4b's dashboard can verify the "mean diversity ≥ 0.35"
+        # acceptance criterion from the metrics DB.
+        if len(actions_text) >= 2:
+            self._metrics.set_value("watchdog_diversity_pct", round(diversity * 100))
         if len(actions_text) >= 2 and diversity < self._diversity_floor:
             self._metrics.bump("watchdog_echo_chamber")
             self._spawn_stranger()

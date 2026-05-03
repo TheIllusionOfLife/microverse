@@ -98,6 +98,21 @@ class Metrics:
         with self._lock:
             self._counters[(name, agent)] = 0
 
+    def set_value(self, name: str, value: int, *, agent: str | None = None) -> None:
+        """Snapshot-style metric: overwrite the in-memory value rather
+        than incrementing. Used for gauges (e.g., current diversity %)
+        where the latest reading is what the dashboard wants, not a
+        running sum."""
+        with self._lock:
+            self._counters[(name, agent)] = value
+            self._bumps_since_flush += 1
+            should_flush = (
+                self._auto_flush_every is not None
+                and self._bumps_since_flush >= self._auto_flush_every
+            )
+        if should_flush:
+            self.flush()
+
     def should_pause(self, agent: str) -> bool:
         """Watchdog stub: pause an agent after MAX_CONSECUTIVE_FAIL fails."""
         return self.get("consecutive_fail", agent=agent) >= MAX_CONSECUTIVE_FAIL
