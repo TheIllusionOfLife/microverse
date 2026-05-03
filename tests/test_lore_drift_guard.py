@@ -114,14 +114,17 @@ def test_compress_lore_with_empty_prior_accepts_anything():
 
 
 def test_compress_lore_handles_chat_exception():
-    """If the LLM call raises, keep the prior and bump the metric —
-    don't let the Elder crash the run loop."""
+    """If the LLM call raises, keep the prior and bump the
+    double-chat-failure metric — don't let the Elder crash the run
+    loop, and don't conflate chat failure with drift."""
     metrics = Metrics(":memory:")
     prior = "Old lore"
     with patch("microverse.agents.elder.chat", side_effect=TimeoutError("hung")):
         out = Elder(name="Old").compress_lore(prior, _events(), metrics=metrics)
     assert out == prior
-    assert metrics.get("lore_drift_block") == 1
+    assert metrics.get("lore_double_chat_failure") == 1
+    assert metrics.get("lore_drift_block") == 0
+    assert metrics.get("lore_chat_failure") == 2
 
 
 def test_elder_role_is_elder():
@@ -156,7 +159,10 @@ def test_granular_metrics_distinguish_drift_from_chat_failure():
     with patch("microverse.agents.elder.chat", side_effect=TimeoutError("hung")):
         Elder(name="Old").compress_lore(prior, _events(), metrics=metrics2)
     assert metrics2.get("lore_chat_failure") == 2  # round 1 + round 2
-    assert metrics2.get("lore_drift_block") == 1
+    # Two chat failures shouldn't be conflated with drift — they have
+    # their own counter so the watchdog can react differently.
+    assert metrics2.get("lore_double_chat_failure") == 1
+    assert metrics2.get("lore_drift_block") == 0
     assert metrics2.get("lore_compress_accepted") == 0
 
 

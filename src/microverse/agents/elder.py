@@ -225,7 +225,11 @@ class Elder(Agent):
             metrics.bump("lore_compress_retry_accepted")
             return retry
 
-        # Drift survived two attempts (or chat failed twice). Keep the
-        # prior so the world's mythic continuity is never overwritten.
-        metrics.bump("lore_drift_block")
+        # Both attempts failed. Distinguish the two failure modes so
+        # the watchdog can react differently to "model is hung" vs
+        # "model is hallucinating away from canon".
+        if candidate is None and retry is None:
+            metrics.bump("lore_double_chat_failure")
+        else:
+            metrics.bump("lore_drift_block")
         return prior_lore
