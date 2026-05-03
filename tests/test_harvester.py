@@ -1,0 +1,122 @@
+"""Tests for microverse.agents.harvester.Harvester.
+
+Phase 1 contract:
+  - Out-of-world: never appears in episodic events.
+  - Atomic writes: artifact files via tmp + os.replace; manifest.jsonl
+    via append + fsync.
+  - Each accepted artifact lands at:
+        harvest/inbox/<UTC date>/<slug>.md
+    with a UTF-8 frontmatter line listing actor, action, ts.
+  - Each consider() call appends one line to manifest.jsonl regardless
+    of accept/reject with {accepted, path|null, actor, ...}.
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime, timezone
+from pathlib import Path
+
+from microverse.agents.harvester import ArtifactCandidate, Harvester
+
+
+def _candidate(text: str = "a beautiful wooden bowl with carved swirls") -> ArtifactCandidate:
+    return ArtifactCandidate(
+        actor="aki",
+        action="craft",
+        artifact=text,
+        ts=datetime(2026, 5, 3, 12, 0, tzinfo=timezone.utc).timestamp(),
+    )
+
+
+def test_accepts_long_artifact_writes_file(tmp_path: Path):
+    h = Harvester(tmp_path)
+    cand = _candidate()
+    path = h.consider(cand)
+    assert path is not None
+    assert path.exists()
+    assert path.parent.name == "2026-05-03"
+    body = path.read_text()
+    assert "aki" in body
+    assert "wooden bowl" in body
+
+
+def test_rejects_too_short_artifact(tmp_path: Path):
+    h = Harvester(tmp_path)
+    cand = _candidate(text="ok")
+    path = h.consider(cand)
+    assert path is None
+
+
+def test_rejects_none_artifact(tmp_path: Path):
+    h = Harvester(tmp_path)
+    cand = ArtifactCandidate(actor="aki", action="rest", artifact=None, ts=0.0)
+    assert h.consider(cand) is None
+
+
+def test_writes_manifest_line_on_accept(tmp_path: Path):
+    h = Harvester(tmp_path)
+    h.consider(_candidate())
+    manifest = tmp_path / "manifest.jsonl"
+    assert manifest.exists()
+    lines = manifest.read_text().splitlines()
+    assert len(lines) == 1
+    record = json.loads(lines[0])
+    assert record["accepted"] is True
+    assert record["actor"] == "aki"
+    assert record["path"].endswith(".md")
+
+
+def test_writes_manifest_line_on_reject(tmp_path: Path):
+    h = Harvester(tmp_path)
+    h.consider(ArtifactCandidate(actor="aki", action="rest", artifact=None, ts=0.0))
+    manifest = tmp_path / "manifest.jsonl"
+    record = json.loads(manifest.read_text().splitlines()[0])
+    assert record["accepted"] is False
+    assert record["path"] is None
+
+
+def test_atomic_no_temp_files_left_behind(tmp_path: Path):
+    h = Harvester(tmp_path)
+    h.consider(_candidate())
+    leftover_tmps = list(tmp_path.rglob("*.tmp"))
+    assert leftover_tmps == []
+
+
+def test_filename_slug_is_safe(tmp_path: Path):
+    h = Harvester(tmp_path)
+    cand = ArtifactCandidate(
+        actor="aki",
+        action="craft",
+        artifact="A beautiful Wooden / Bowl ../escape with %weird% chars",
+        ts=0.0,
+    )
+    path = h.consider(cand)
+    assert path is not None
+    name = path.name
+    # No path traversal characters in the slug.
+    for ch in ("/", "\\", "..", " "):
+        assert ch not in name
+    # Stem is lowercase alnum + hyphens + underscores.
+    stem = path.stem
+    assert all(c.isalnum() or c in "-_" for c in stem)
+
+
+def test_multiple_artifacts_unique_filenames(tmp_path: Path):
+    h = Harvester(tmp_path)
+    p1 = h.consider(_candidate(text="alpha alpha alpha alpha alpha"))
+    p2 = h.consider(_candidate(text="alpha alpha alpha alpha alpha"))
+    assert p1 is not None and p2 is not None
+    assert p1 != p2  # collision-resolved
+
+
+def test_no_episodic_appended_by_harvester(tmp_path: Path):
+    """Harvester must not write to the episodic memory — it lives
+    outside the simulated world. We assert this by verifying no
+    EpisodicMemory was given to it (the constructor doesn't accept one)
+    and by spot-checking that no .sqlite file is created in the harvest
+    root."""
+    h = Harvester(tmp_path)
+    h.consider(_candidate())
+    sqlites = list(tmp_path.rglob("*.sqlite"))
+    assert sqlites == []
