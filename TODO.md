@@ -124,17 +124,20 @@ PHASE_0_COMPLETE @ 2026-05-03T14:35Z
   - **Expected**: `passed`
   - **Evidence**: `6 passed` @ 2026-05-03T15:02Z (76 total). RoundRobinScheduler with register/unregister/agents/next; rejects duplicate names; raises LookupError on empty.
 
-- [ ] **1.9** `microverse/run.py` entrypoint with `--ticks N`, `--seed`, `--tempo 0`. SIGINT graceful exit.
+- [x] **1.9** `microverse/run.py` entrypoint with `--ticks N`, `--seed`, `--tempo 0`. SIGINT graceful exit.
   - **Acceptance**: `uv run python -m microverse.run --help`
   - **Expected**: substring `--tempo`
+  - **Evidence**: help shows `--tempo TEMPO` line @ 2026-05-03T15:04Z. Tick loop wires Artisan + Harvester + Metrics + EpisodicMemory + RoundRobinScheduler. Honors MICROVERSE_DATA / MICROVERSE_HARVEST env. SIGINT sets stop flag; loop exits cleanly between ticks. Watchdog stub: `metrics.should_pause(agent)` skips paused agents for the rotation.
 
-- [ ] **1.10** `tests/test_run_smoke.py`: monkeypatch `chat` to canned actions, every 3rd tick yields artifact, run 30 ticks at `--tempo 0`, assert ≥ 1 file in `harvest/inbox/`.
+- [x] **1.10** `tests/test_run_smoke.py`: monkeypatch `chat` to canned actions, every 3rd tick yields artifact, run 30 ticks at `--tempo 0`, assert ≥ 1 file in `harvest/inbox/`.
   - **Acceptance**: `uv run pytest tests/test_run_smoke.py -q`
   - **Expected**: `passed`
+  - **Evidence**: `2 passed in 0.13s` @ 2026-05-03T15:05Z. 30-tick run yields exactly 10 accepted artifacts (every 3rd action emits one), manifest.jsonl matches.
 
-- [ ] **1.11** `tests/test_kill_safety.py`: spawn `python -m microverse.run` subprocess; `kill -9` after 5 events committed; restart; assert event id sequence intact, no duplicates, no loss.
+- [x] **1.11** `tests/test_kill_safety.py`: spawn `python -m microverse.run` subprocess; `kill -9` after 5 events committed; restart; assert event id sequence intact, no duplicates, no loss.
   - **Acceptance**: `uv run pytest tests/test_kill_safety.py -q`
   - **Expected**: `passed`
+  - **Evidence**: `2 passed in 0.74s` @ 2026-05-03T15:08Z. Test 1: spawn run subprocess, fake_chat SIGKILLs self on 6th call (after 5 commits), assert exactly 5 monotonic ids. Test 2: kill mid-3rd commit, restart, append 2 more — final ids are [1,2,3,4,5] strictly increasing across the kill boundary.
 
 - [ ] **1.12** Real-Ollama acceptance run.
   - **Acceptance**: `rm -rf /tmp/microverse-acc && MICROVERSE_DATA=/tmp/microverse-acc/data MICROVERSE_HARVEST=/tmp/microverse-acc/harvest uv run python -m microverse.run --ticks 30 --tempo 0 --seed 42 && find /tmp/microverse-acc/harvest/inbox -type f | wc -l | tr -d ' '`
