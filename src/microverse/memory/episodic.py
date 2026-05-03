@@ -40,7 +40,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from microverse.memory import open_sqlite_wal
+from microverse.memory._sqlite import open_sqlite_wal
 
 
 @dataclass(frozen=True, slots=True)

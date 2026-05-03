@@ -150,17 +150,22 @@ def jaccard(a: set[str], b: set[str]) -> float:
 def safe_json_loads(raw: str) -> Any | None:
     """Best-effort JSON parse: strict → ``json_repair`` → ``None``.
 
-    Returns the parsed object on success or ``None`` if both passes fail
-    or produce a non-object/non-list (``""``, ``{}`` and ``[]`` from a
-    bad repair are explicitly treated as failure so callers don't have
-    to special-case them).
+    Returns the parsed object only if it is a *non-empty* dict or list.
+    Anything else (parse failure, scalar, ``""``, ``{}``, ``[]``) yields
+    ``None`` so callers don't have to special-case them.
 
     Does NOT enforce a byte-size cap; callers that care about runaway
     inputs (e.g. ``parse_action``) check ``MAX_PARSE_BYTES`` themselves
     before calling this so they can attach their own metric side effects.
     """
+
+    def _container_or_none(value: Any) -> Any | None:
+        if isinstance(value, (dict, list)) and value:
+            return value
+        return None
+
     try:
-        return json.loads(raw)
+        return _container_or_none(json.loads(raw))
     except json.JSONDecodeError:
         pass
 
@@ -168,6 +173,6 @@ def safe_json_loads(raw: str) -> Any | None:
         repaired = repair_json(raw, return_objects=False)
         if not repaired or repaired in ("{}", "[]", '""'):
             return None
-        return json.loads(repaired)
+        return _container_or_none(json.loads(repaired))
     except json.JSONDecodeError:
         return None

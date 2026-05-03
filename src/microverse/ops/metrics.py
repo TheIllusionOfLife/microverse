@@ -38,7 +38,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from microverse.config import MAX_CONSECUTIVE_FAIL
-from microverse.memory import open_sqlite_wal
+from microverse.memory._sqlite import open_sqlite_wal
 
 _CounterKey = tuple[str, str | None]
 

@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from microverse.memory import open_sqlite_wal
+from microverse.memory._sqlite import open_sqlite_wal
 
 _SCHEMA = [
     "CREATE TABLE IF NOT EXISTS docs (doc_id TEXT PRIMARY KEY, payload_json TEXT)",
