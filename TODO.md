@@ -16,14 +16,16 @@
   - **Expected**: `feat/phase-0-bootstrap`
   - **Evidence**: pre-ralph; verified by orchestrator at branch creation.
 
-- [ ] **0.2** Initialize `uv` package + add deps.
+- [x] **0.2** Initialize `uv` package + add deps.
   - Steps: `cd /Users/yuyamukai/dev/microverse && uv init --package microverse --python 3.12` (skip if already initialized); `uv add ollama 'pydantic>=2' jinja2 python-dateutil json-repair`; `uv add --dev pytest pytest-asyncio ruff`.
   - **Acceptance**: `uv run python -c "import ollama, pydantic, jinja2, json_repair; print('deps_ok')"`
   - **Expected**: `deps_ok`
+  - **Evidence**: `deps_ok` @ 2026-05-03T14:24Z. Project initialized with src/ layout (`uv init --package --name microverse .`). Deps: ollama 0.6.2, pydantic 2.13.3, jinja2 3.1.6, python-dateutil 2.9, json-repair 0.59.5, pytest 9.0.3, pytest-asyncio 1.3, ruff 0.15.12.
 
-- [ ] **0.3** Create `.gitignore` for `data/`, `harvest/`, `.venv/`, `__pycache__/`, `*.pyc`, `dist/`, `*.egg-info/`.
+- [x] **0.3** Create `.gitignore` for `data/`, `harvest/`, `.venv/`, `__pycache__/`, `*.pyc`, `dist/`, `*.egg-info/`.
   - **Acceptance**: `grep -E '^(data/|harvest/|\.venv/|__pycache__/)' /Users/yuyamukai/dev/microverse/.gitignore | wc -l | tr -d ' '`
   - **Expected**: `4`
+  - **Evidence**: `4` @ 2026-05-03T14:25Z.
 
 - [ ] **0.4** Implement `microverse/llm/thinking.py::strip_thinking` per `~/.claude/skills/local-llm/SKILL.md:99-106`.
   - TDD first: `tests/test_llm_strip_thinking.py` with cases (a) `<think>x</think>foo` → `foo`, (b) `foo` → `foo`, (c) `<think>x</think>` → empty, (d) channel-marker variant.
