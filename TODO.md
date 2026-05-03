@@ -213,13 +213,14 @@ PHASE_2_COMPLETE @ 2026-05-03T15:42Z
 
 ### Phase 3a Boundary
 PHASE_3A_COMPLETE @ 2026-05-03T16:01Z
-**MERGED**: _<commit-sha> @ <ISO8601>_
+**MERGED**: aa712560f4cdd5b565d48d5d976616cde5e3479d @ 2026-05-03T16:10Z (PR #5)
 
 ---
 
 ## Phase 3b — Lore compression (slug: `lore`)
 
-- [ ] **3b.1** Branch `feat/phase-3b-lore`.
+- [x] **3b.1** Branch `feat/phase-3b-lore`.
+  - **Evidence**: `feat/phase-3b-lore` @ 2026-05-03T16:10Z. Phase 3a PR #5 merged at aa71256.
 - [ ] **3b.2** `microverse/agents/elder.py` + `microverse/prompts/compression.j2`: triggered every `LORE_REGEN_INTERVAL` ticks; reads FTS5 top events of period + previous lore; emits new `data/lore/world_lore.md`.
 - [ ] **3b.3** Drift guard: lexical Jaccard ≥ 0.5 vs prior lore; on fail, retry with continuity instruction; on second fail, keep old + bump `lore_drift_block`.
 - [ ] **3b.4** Tests: `tests/test_lore_drift_guard.py` (mock Elder LLM with adversarial output → guard triggers).
