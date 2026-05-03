@@ -102,9 +102,9 @@ class Watchdog:
 
         for e in events:
             payload = e.payload or {}
-            if has_meta_leak(str(payload.get("thought", ""))) or has_meta_leak(
-                str(payload.get("artifact") or "")
-            ):
+            thought = str(payload.get("thought") or "")
+            artifact = str(payload.get("artifact") or "")
+            if has_meta_leak(thought) or has_meta_leak(artifact):
                 self._metrics.bump("watchdog_meta_leak", agent=e.actor)
 
     def _check_runaway(self, events: list) -> None:
@@ -125,13 +125,13 @@ class Watchdog:
 
     def _check_stagnation(self, events: list) -> None:
         window = events[: self._stagnation_window]
-        artifacts = sum(1 for e in window if e.payload.get("artifact"))
+        artifacts = sum(1 for e in window if (e.payload or {}).get("artifact"))
         if window and artifacts < self._stagnation_floor:
             self._metrics.bump("watchdog_stagnation")
 
     def _check_echo_chamber(self, events: list) -> None:
         window = events[: self._diversity_window]
-        actions_text = [f"{e.action} {e.payload.get('thought', '') or ''}" for e in window]
+        actions_text = [f"{e.action} {(e.payload or {}).get('thought', '') or ''}" for e in window]
         diversity = compute_diversity(actions_text)
         # Record the current diversity snapshot (scaled to integer %)
         # so Phase 4b's dashboard can verify the "mean diversity ≥ 0.35"

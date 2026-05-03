@@ -113,6 +113,20 @@ def test_action_repair_handles_common_llm_wrappers(raw: str):
     assert metrics.get("json_repaired") == 1
 
 
+def test_meta_phrase_outside_the_simulation_blocks():
+    """Regression: 'outside the simulation' must trigger the meta-leak
+    guard. Earlier version of the regex required 'this' between
+    'outside' and the trigger noun and silently missed 'the'."""
+    payload = (
+        '{"thought": "I sense there is something outside the simulation", '
+        '"action": "speak", "target": null, "artifact": null}'
+    )
+    metrics = Metrics(":memory:")
+    a = parse_action(payload, metrics=metrics, agent="aki")
+    assert a.action == ActionKind.REST
+    assert metrics.get("meta_leak_block", agent="aki") == 1
+
+
 def test_meta_reference_in_thought_blocks_action():
     """If the parsed action's thought contains a meta-token (AI, model,
     simulation, prompt, outside), fall back to rest and bump

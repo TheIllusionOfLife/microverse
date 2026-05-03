@@ -6,7 +6,106 @@ Built to run autonomously for weeks on local Apple Silicon at zero marginal cost
 
 ## Status
 
-Phase 0 (bootstrap) in progress. See `TODO.md` for the phase ladder and `PROMPT.md` for the build-time ralph-loop driver.
+Phases 0 → 4b merged. See `TODO.md` for the phase ladder and per-task evidence; `PROMPT.md` is the build-time ralph-loop driver.
+
+## Operator runbook
+
+### Start a run
+
+```bash
+# Background, infinite, default tempo (production-ish):
+nohup uv run python -m microverse.run --seed 42 > microverse.log 2>&1 &
+echo $! > microverse.pid
+
+# Foreground, bounded, fast (smoke / acceptance):
+uv run python -m microverse.run --ticks 30 --tempo 0 --seed 42
+```
+
+Environment overrides:
+
+- `MICROVERSE_DATA` — override the `data/` location (episodic + metrics + snapshots).
+- `MICROVERSE_HARVEST` — override the `harvest/` location.
+
+### Stop and resume
+
+```bash
+# Graceful: SIGINT (Ctrl-C) or SIGTERM. The finally block flushes
+# Trader buffers, closes Metrics + Episodic.
+kill -INT  $(cat microverse.pid)
+kill -TERM $(cat microverse.pid)
+
+# Hard: SIGKILL. WAL guarantees no committed event is lost; the
+# in-flight tick is discarded (not re-played) — only committed
+# events recover on restart.
+kill -KILL $(cat microverse.pid)
+```
+
+To resume after any of the above, just re-run the start command pointing at the same `MICROVERSE_DATA` and `MICROVERSE_HARVEST`.
+
+### Inspect
+
+```bash
+# Latest metrics snapshot:
+uv run python -m microverse.ops.metrics --report --db data/metrics.sqlite
+
+# Static dashboard (HTML, no JS, no external assets):
+uv run python scripts/render_dashboard.py --data data --harvest harvest
+open harvest/dashboard.html
+```
+
+### Verify kill-safety after a SIGKILL drill
+
+```bash
+# 1) Capture the pre-kill high-watermark MAX(id). A bare COUNT(*) is
+#    NOT enough — after restart the process appends new events, so
+#    raw counts can mask a missing pre-kill tail.
+W=$(sqlite3 data/episodic.sqlite 'SELECT COALESCE(MAX(id), 0) FROM events')
+
+# 2) SIGKILL the run, restart it, then verify every pre-watermark
+#    id survived. Because W = MAX(id) was committed *before* the
+#    kill, the full range 1..W must survive — losing id=W itself
+#    is real data loss, not an acceptable in-flight discard. (The
+#    in-flight tick is at id=W+1 and is filtered out by the
+#    watermark predicate.)
+uv run python scripts/verify_kill_drill.py \
+    --db data/episodic.sqlite --watermark "$W"
+# → kill_drill_ok (... all 1..W survived (pre-kill watermark W))
+```
+
+Without `--watermark`, the script only proves event-log internal integrity (no gaps, no duplicates). The pre-kill watermark is what catches silent tail loss — it filters the post-restart event set down to ids ≤ W so freshly appended events cannot hide a missing tail.
+
+### Snapshot / restore
+
+Snapshots are taken automatically every 1000 ticks under `data/snapshots/`. WAL is the durability primary; snapshots are for catastrophic-corruption rollback only.
+
+```bash
+# Manual snapshot:
+uv run python -c "from microverse.world.snapshot import take_snapshot; \
+  print(take_snapshot('data', 'data/snapshots'))"
+
+# Restore (wipes data/ and replaces with the archive):
+uv run python -c "from microverse.world.snapshot import restore_snapshot; \
+  restore_snapshot('data/snapshots/<archive>.tar.gz', 'data')"
+```
+
+### Watchdog tuning
+
+`microverse.ops.watchdog.Watchdog` constructor knobs (defaults in parens):
+
+- `runaway_max_consecutive` (4) — N identical actions per agent in a row before flagging.
+- `stagnation_window` (50) / `stagnation_floor` (1) — fewer than `floor` artifacts in the most recent `window` triggers stagnation.
+- `diversity_floor` (0.35) — `1 - mean Jaccard` below this triggers echo-chamber → spawns a Stranger.
+- `diversity_window` (20) — number of recent actions used for the diversity calc.
+- `max_strangers` (3) — caps the Stranger pool to avoid pile-up if echo persists.
+
+Override via `Watchdog(metrics=..., episodic=..., scheduler=..., diversity_floor=0.40, ...)` in `run.py`.
+
+### Common failure recovery
+
+- **All agents paused:** the run loop auto-rehabs by resetting `consecutive_fail` after one rotation of skips. If the model keeps failing, check `data/metrics.sqlite` for `llm_timeout` and `json_fallback_rest` rates.
+- **Trader returning all-zero scores:** `harvester` will accept nothing on tied populations (intended). Check `lore_chat_failure` to see if the Trader's chat itself is failing.
+- **Lore drift loop:** `lore_drift_block` rising means the Elder keeps producing off-canon rewrites. Inspect the most recent `data/lore/world_lore.md` and consider raising `MIN_JACCARD` in `agents/elder.py`.
+- **Disk filling:** snapshots accumulate in `data/snapshots/`. Manually trim oldest archives. (A retention policy is on the post-core backlog.)
 
 ## Prerequisites
 
