@@ -148,3 +148,58 @@ class Metrics:
 
     def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
         self.close()
+
+
+def _report(db_path: str) -> int:
+    """Print the latest snapshot of every (name, agent) counter.
+
+    Reads ``db_path`` directly (no Metrics open — avoids re-creating
+    the schema on a missing DB). Returns 0 on success, 1 if the DB
+    doesn't exist.
+    """
+    import sys
+    from pathlib import Path
+
+    p = Path(db_path)
+    if not p.exists():
+        print(f"metrics db not found: {db_path}", file=sys.stderr)
+        return 1
+    conn = sqlite3.connect(str(p))
+    try:
+        rows = conn.execute(
+            """
+            SELECT name, agent, value, ts
+            FROM metrics m
+            WHERE id = (
+                SELECT MAX(id) FROM metrics
+                WHERE name = m.name AND IFNULL(agent, '') = IFNULL(m.agent, '')
+            )
+            ORDER BY name, agent
+            """
+        ).fetchall()
+    finally:
+        conn.close()
+
+    print(f"{'name':<32} {'agent':<20} {'value':>10}  ts")
+    for name, agent, value, ts in rows:
+        print(f"{name:<32} {(agent or ''):<20} {value:>10}  {ts}")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="microverse.ops.metrics")
+    parser.add_argument("--report", action="store_true", help="Print the latest snapshot.")
+    parser.add_argument("--db", required=True, help="Path to metrics.sqlite.")
+    args = parser.parse_args(argv)
+    if args.report:
+        return _report(args.db)
+    parser.print_help()
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+
+    sys.exit(main())
