@@ -138,6 +138,11 @@ def run(
                 # Throttle so a persistent failure doesn't spin.
                 time.sleep(min(max(tempo or 1.0, 1.0), 5.0))
                 continue
+            # Defense-in-depth reset: parse_action already resets on
+            # json_ok/json_repaired paths, but if a future caller path
+            # leaves consecutive_fail elevated after a *successful*
+            # think(), we still want the next failure to count from 1.
+            metrics.reset("consecutive_fail", agent=agent.name)
             _commit_action(episodic, agent, action)
             _maybe_harvest(harvester, agent, action)
             executed += 1

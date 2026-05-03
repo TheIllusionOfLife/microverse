@@ -127,8 +127,8 @@ def test_emoji_only_artifact_uses_hash_slug(tmp_path: Path):
     assert path is not None
     # Pure-emoji input must take the hash-prefixed fallback path.
     assert path.stem.startswith("artifact-")
-    # Hash prefix is 8 hex chars, so the full stem is 9 chars after
-    # the dash — confirm we used the fallback, not a coincidence.
+    # Hash prefix is 8 hex chars after the dash — confirm we landed in
+    # the fallback path, not a coincidence.
     assert len(path.stem) == len("artifact-") + 8
 
 
