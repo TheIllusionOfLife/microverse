@@ -286,7 +286,8 @@ PHASE_4A_COMPLETE @ 2026-05-03T16:45Z (CODE — all tasks 4a.1–4a.5+4a.7 ticke
 - [ ] **4b.6** 72h soak rung (optional — can be deferred per Risk #7).
   - **Acceptance**: same as 24h but `sleep 259200`. May be split across calendar.
   - **Expected**: `soak72_ok`
-- [ ] **4b.7** `git tag v0.1.0` after merge — pending PR merge.
+- [x] **4b.7** `git tag v0.1.0` after merge.
+  - **Evidence**: Tagged `v0.1.0` on merge commit `13af0aeb68c9d63c6cf62860e1f094bc93f8bee1` after Phase 4b PR #8 squash-merged @ 2026-05-03T19:06Z.
 - [x] **4b.8** Final phase verification.
   - **Acceptance**: `cd /Users/yuyamukai/dev/microverse && uv run ruff check && uv run ruff format --check && uv run pytest -q -m 'not integration'`
   - **Expected**: `passed`
@@ -294,7 +295,7 @@ PHASE_4A_COMPLETE @ 2026-05-03T16:45Z (CODE — all tasks 4a.1–4a.5+4a.7 ticke
 
 ### Phase 4b Boundary
 PHASE_4B_COMPLETE @ 2026-05-03T17:15Z (CODE — dashboard, runbook, kill-drill verification all delivered; 24h and 72h soak rungs deferred to operator-driven runs per Risk #7)
-**MERGED**: _<commit-sha> @ <ISO8601>_
+**MERGED**: 13af0aeb68c9d63c6cf62860e1f094bc93f8bee1 @ 2026-05-03T19:06:01+09:00
 
 ---
 
