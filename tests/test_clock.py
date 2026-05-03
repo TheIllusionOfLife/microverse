@@ -78,7 +78,7 @@ def test_different_seeds_diverge(tmp_path: Path):
         seq2 = [e.action for e in ep2.last(200) if e.actor == "world"]
 
     # Different seeds should at least sometimes produce different sequences.
-    assert seq1 != seq2 or seq1 == [] and seq2 == []  # accept "both empty" too
+    assert seq1 != seq2 or (seq1 == [] and seq2 == [])  # accept "both empty" too
 
 
 def test_payload_includes_kind(tmp_path: Path):

@@ -44,6 +44,8 @@ from microverse.agents.trader import Trader
 from microverse.config import MAX_TICKS_DEFAULT
 from microverse.memory.episodic import EpisodicMemory
 from microverse.ops.metrics import Metrics
+from microverse.ops.watchdog import Watchdog
+from microverse.world.clock import WorldClock
 from microverse.world.scheduler import WeightedScheduler
 from microverse.world.snapshot import maybe_snapshot
 
@@ -52,6 +54,10 @@ _logger = logging.getLogger(__name__)
 # Phase 2 cadences.
 HARVEST_FLUSH_EVERY = 50  # ticks between Trader-driven harvest flushes
 SNAPSHOT_EVERY = 1000  # cold backups; WAL handles real durability
+
+# Phase 4a cadences.
+WATCHDOG_EVERY = 25  # ticks between watchdog sweeps
+WORLD_CLOCK_MEAN_INTERVAL = 100  # mean ticks between weather events
 
 
 def _build_world(_episodic: EpisodicMemory) -> WorldContext:
@@ -118,6 +124,9 @@ def run(
     # Trader scheduling is internal — it ranks the buffer at flush time,
     # not as a tick action. We don't register it in the scheduler.
 
+    clock = WorldClock(seed=seed or 0, mean_interval=WORLD_CLOCK_MEAN_INTERVAL)
+    watchdog = Watchdog(metrics=metrics, episodic=episodic, scheduler=sched)
+
     stop = {"requested": False}
 
     def _on_signal(_signum: int, _frame: object) -> None:
@@ -158,6 +167,17 @@ def run(
             _commit_action(episodic, agent, action)
             _maybe_harvest(harvester, agent, action)
             executed += 1
+
+            # World clock + watchdog: cheap, run every tick / every Nth.
+            try:
+                clock.advance(episodic, ticks_elapsed=1)
+            except Exception:
+                _logger.exception("WorldClock.advance failed")
+            if executed % WATCHDOG_EVERY == 0:
+                try:
+                    watchdog.check()
+                except Exception:
+                    _logger.exception("watchdog.check failed")
 
             if executed % HARVEST_FLUSH_EVERY == 0:
                 try:

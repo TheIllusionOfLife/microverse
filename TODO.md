@@ -236,17 +236,22 @@ PHASE_3A_COMPLETE @ 2026-05-03T16:01Z
 
 ### Phase 3b Boundary
 PHASE_3B_COMPLETE @ 2026-05-03T16:14Z
-**MERGED**: _<commit-sha> @ <ISO8601>_
+**MERGED**: 43e5c079522bfc3a5889d6700289d6fcef2ef0a7 @ 2026-05-03T16:38Z (PR #6)
 
 ---
 
 ## Phase 4a — Watchdog, world clock, Stranger (slug: `watchdog`)
 
-- [ ] **4a.1** Branch `feat/phase-4a-watchdog`.
-- [ ] **4a.2** `microverse/world/clock.py`: seeded scheduler emits `weather.drought`, `comet`, `festival` into episodic. Tests: `tests/test_clock.py`.
-- [ ] **4a.3** `microverse/agents/stranger.py`: spawned by watchdog when diversity < 0.35.
-- [ ] **4a.4** `microverse/ops/watchdog.py` detectors: runaway, stagnation, echo-chamber (lexical Jaccard, NOT embeddings), meta-reference leakage (regex respawn).
-- [ ] **4a.5** Extend `metrics.py` with diversity = 1 − mean Jaccard of last-N actions.
+- [x] **4a.1** Branch `feat/phase-4a-watchdog`.
+  - **Evidence**: `feat/phase-4a-watchdog` @ 2026-05-03T16:38Z. Phase 3b PR #6 merged at 43e5c07.
+- [x] **4a.2** `microverse/world/clock.py`: seeded scheduler emits `weather.drought`, `comet`, `festival` into episodic. Tests: `tests/test_clock.py`.
+  - **Evidence**: 6 clock tests passing (zero-tick no-op, eventually-emits, KNOWN_EVENTS subset, seed determinism, seed divergence, payload kind) @ 2026-05-03T16:42Z.
+- [x] **4a.3** `microverse/agents/stranger.py`: spawned by watchdog when diversity < 0.35.
+  - **Evidence**: Stranger(Artisan) with persona_stranger.j2; auto-names with ms-clock for collision-freedom; spawned via Watchdog.echo_chamber detector. @ 2026-05-03T16:42Z.
+- [x] **4a.4** `microverse/ops/watchdog.py` detectors: runaway, stagnation, echo-chamber (lexical Jaccard, NOT embeddings), meta-reference leakage (regex respawn).
+  - **Evidence**: 9 watchdog tests passing. compute_diversity helper (1 - mean pairwise Jaccard, vacuous=1.0). Watchdog.check() runs runaway/stagnation/echo. Meta-leak handled at parse-time (existing strip_thinking) — not duplicated here. @ 2026-05-03T16:42Z.
+- [x] **4a.5** Extend `metrics.py` with diversity = 1 − mean Jaccard of last-N actions.
+  - **Evidence**: compute_diversity exposed from `microverse.ops.watchdog`; called per watchdog sweep over a configurable window. Counters watchdog_runaway / watchdog_stagnation / watchdog_echo_chamber persist via metrics auto-flush. @ 2026-05-03T16:42Z.
 - [ ] **4a.6** 6h soak rung (acceptance).
   - **Acceptance**: `MICROVERSE_DATA=/tmp/microverse-soak6h/data MICROVERSE_HARVEST=/tmp/microverse-soak6h/harvest timeout 21700 uv run python -m microverse.run --seed 42 || true; uv run python -m microverse.ops.metrics --report --db /tmp/microverse-soak6h/data/metrics.sqlite`
   - **Expected**: report shows mean diversity ≥ 0.35 AND each watchdog detector fired ≥ 1.
