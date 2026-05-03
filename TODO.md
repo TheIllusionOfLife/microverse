@@ -151,16 +151,18 @@ PHASE_0_COMPLETE @ 2026-05-03T14:35Z
 
 ### Phase 1 Boundary
 PHASE_1_COMPLETE @ 2026-05-03T15:11Z
-**MERGED**: _<commit-sha> @ <ISO8601>_
+**MERGED**: 82db8097e8f8496d4526c37bca2426fedd4b058f @ 2026-05-03T06:19:35Z (PR #3)
 
 ---
 
 ## Phase 2 — Society + cold-backup snapshots (slug: `society`)
 
-- [ ] **2.1** Branch `feat/phase-2-society`.
-- [ ] **2.2** `microverse/agents/trader.py` + persona; ranks artifact buffer daily by novelty/utility/completeness; emits `{artifact_id, score, rationale}` JSON; uses factual sampling (temp=0.6, top_p=0.9). Tests: `tests/test_trader.py`.
+- [x] **2.1** Branch `feat/phase-2-society`.
+  - **Evidence**: `feat/phase-2-society` @ 2026-05-03T15:20Z. Phase 1 PR #3 merged at 82db809.
+- [x] **2.2** `microverse/agents/trader.py` + persona; ranks artifact buffer daily by novelty/utility/completeness; emits `{artifact_id, score, rationale}` JSON; uses factual sampling (temp=0.6, top_p=0.9). Tests: `tests/test_trader.py`.
   - **Acceptance**: `uv run pytest tests/test_trader.py -q`
   - **Expected**: `passed`
+  - **Evidence**: `9 passed in 0.13s` @ 2026-05-03T15:25Z. Trader.rank(candidates) returns one Score per candidate keyed by index; out-of-range scores clamped; missing entries default to 0; garbage / repaired JSON / oversized inputs all yield safe fallback. Persona uses factual sampling (temp 0.6).
 - [ ] **2.3** Harvester now consumes Trader's ranking + percentile threshold (default p70).
   - **Acceptance**: `uv run pytest tests/test_harvester.py -q -k percentile`
   - **Expected**: `passed`
