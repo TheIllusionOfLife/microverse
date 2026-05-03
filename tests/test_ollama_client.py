@@ -80,6 +80,78 @@ def test_thinking_leak_counter_does_not_bump_when_clean():
     assert ollama_client.thinking_leak == 0
 
 
+def test_think_false_clears_thinking_field_even_if_model_emits_it():
+    """If think=False but the runtime still populates message.thinking,
+    the wrapper must clear it so callers cannot accidentally read it.
+    """
+    with patch("microverse.llm.ollama_client.ollama.Client") as MockClient:
+        instance = MockClient.return_value
+        instance.chat.return_value = _mock_response(
+            content="real answer", thinking="model leaked thinking despite think=False"
+        )
+
+        result = chat([{"role": "user", "content": "hi"}], think=False)
+
+    assert result["thinking"] == ""
+    # And: this counts as a leak signal
+    assert ollama_client.thinking_leak == 1
+
+
+def test_think_true_preserves_thinking_field():
+    """When the caller explicitly requested thinking, do not clear it."""
+    with patch("microverse.llm.ollama_client.ollama.Client") as MockClient:
+        instance = MockClient.return_value
+        instance.chat.return_value = _mock_response(content="answer", thinking="reasoning")
+
+        result = chat([{"role": "user", "content": "hi"}], think=True)
+
+    assert result["thinking"] == "reasoning"
+
+
+def test_unclosed_think_in_content_increments_leak_counter():
+    """Counter must trigger on detected markers, not just on stripped
+    output, so unclosed <think> is still flagged as a leak."""
+    with patch("microverse.llm.ollama_client.ollama.Client") as MockClient:
+        instance = MockClient.return_value
+        instance.chat.return_value = _mock_response(content="<think>unclosed reasoning")
+
+        chat([{"role": "user", "content": "hi"}])
+
+    assert ollama_client.thinking_leak == 1
+
+
+def test_channel_marker_in_content_increments_leak_counter():
+    with patch("microverse.llm.ollama_client.ollama.Client") as MockClient:
+        instance = MockClient.return_value
+        instance.chat.return_value = _mock_response(
+            content="<|channel|>analysis<|message|>x<|channel|>final<|message|>final"
+        )
+
+        chat([{"role": "user", "content": "hi"}])
+
+    assert ollama_client.thinking_leak == 1
+
+
+def test_counter_concurrency_safe():
+    """Bump counter from many threads — final count must equal calls."""
+    import threading
+
+    with patch("microverse.llm.ollama_client.ollama.Client") as MockClient:
+        instance = MockClient.return_value
+        instance.chat.return_value = _mock_response(content="<think>x</think>ok")
+
+        threads = [
+            threading.Thread(target=lambda: chat([{"role": "user", "content": "hi"}]))
+            for _ in range(20)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+    assert ollama_client.thinking_leak == 20
+
+
 def test_format_and_options_forwarded():
     with patch("microverse.llm.ollama_client.ollama.Client") as MockClient:
         instance = MockClient.return_value
