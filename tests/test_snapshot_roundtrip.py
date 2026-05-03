@@ -130,6 +130,74 @@ def test_restore_is_atomic_on_extract_failure(tmp_path: Path, monkeypatch):
     assert leftover == []
 
 
+def test_snapshot_with_open_writer_roundtrips_committed_events(tmp_path: Path):
+    """The real failure mode: snapshot a SQLite DB while another
+    connection has it open and has just committed events that are
+    still in the WAL (not yet checkpointed into the main file).
+
+    Without a pre-snapshot wal_checkpoint(TRUNCATE), the tarball
+    captures main + WAL in a state that may lose the most-recent
+    commits on restore. With the checkpoint helper, a restored DB
+    must have every committed event.
+    """
+    from microverse.memory.episodic import EpisodicMemory
+
+    data_dir = tmp_path / "data"
+    snapshots_dir = tmp_path / "snapshots"
+    data_dir.mkdir()
+
+    writer = EpisodicMemory(data_dir / "episodic.sqlite")
+    for i in range(50):
+        writer.append(actor="aki", action="speak", target=None, payload={"i": i})
+    # Intentionally do NOT close the writer — pending WAL frames are
+    # the whole point of this test.
+
+    archive = take_snapshot(data_dir, snapshots_dir)
+    assert archive is not None
+    writer.close()
+
+    # Restore into a fresh location and verify every committed event survived.
+    restore_dir = tmp_path / "restored"
+    restore_snapshot(archive, restore_dir)
+    reader = EpisodicMemory(restore_dir / "episodic.sqlite")
+    try:
+        assert reader.count() == 50
+    finally:
+        reader.close()
+
+
+def test_take_snapshot_aborts_when_checkpoint_busy(tmp_path: Path):
+    """If another connection holds an open transaction that prevents
+    wal_checkpoint(TRUNCATE) from completing, take_snapshot must abort
+    rather than archive a possibly-torn DB."""
+    import sqlite3
+
+    from microverse.memory.episodic import EpisodicMemory
+    from microverse.world.snapshot import SnapshotBusyError
+
+    data_dir = tmp_path / "data"
+    snapshots_dir = tmp_path / "snapshots"
+    data_dir.mkdir()
+
+    db_path = data_dir / "episodic.sqlite"
+    em = EpisodicMemory(db_path)
+    em.append(actor="aki", action="speak", target=None, payload={"i": 0})
+
+    # Hold a write transaction open from a separate connection so
+    # wal_checkpoint(TRUNCATE) cannot reclaim the WAL.
+    blocker = sqlite3.connect(str(db_path), timeout=0.1)
+    blocker.execute("BEGIN IMMEDIATE")
+    try:
+        import pytest
+
+        with pytest.raises(SnapshotBusyError):
+            take_snapshot(data_dir, snapshots_dir)
+    finally:
+        blocker.rollback()
+        blocker.close()
+        em.close()
+
+
 def test_snapshots_dir_inside_data_is_excluded(tmp_path: Path):
     """When snapshots/ is a subdirectory of data/, an existing snapshot
     must NOT be included in the next snapshot. Otherwise archives nest
