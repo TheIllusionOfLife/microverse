@@ -49,9 +49,12 @@ _RANK_SCHEMA: dict[str, Any] = {
     "items": {
         "type": "object",
         "properties": {
-            "artifact_id": {"type": "integer"},
-            "score": {"type": "number"},
-            "rationale": {"type": "string"},
+            # Bounds mirror the ``Score`` Pydantic model (ge=0 / 0.0-1.0 /
+            # max_length=300) so the model is steered toward valid output
+            # rather than relying on ``_coerce_score`` to clamp after.
+            "artifact_id": {"type": "integer", "minimum": 0},
+            "score": {"type": "number", "minimum": 0, "maximum": 1},
+            "rationale": {"type": "string", "maxLength": 300},
         },
         "required": ["artifact_id", "score"],
     },

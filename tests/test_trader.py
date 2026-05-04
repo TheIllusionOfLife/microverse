@@ -209,6 +209,22 @@ def test_extract_list_does_not_wrap_unrelated_root_dict():
     assert _extract_list({"summary": "ok", "count": 3}) == []
 
 
+def test_extract_list_prefers_wrapped_list_over_root_wrap():
+    """Branch ordering regression guard: when a root dict has *both* a
+    known wrapping key (``scores``) and a top-level ``artifact_id``, the
+    wrapped list must win — wrapping the root would silently drop the
+    real per-candidate scores."""
+    payload = {
+        "artifact_id": 99,
+        "scores": [
+            {"artifact_id": 0, "score": 0.4, "rationale": "x"},
+            {"artifact_id": 1, "score": 0.7, "rationale": "y"},
+        ],
+    }
+    out = _extract_list(payload)
+    assert [d["artifact_id"] for d in out] == [0, 1]
+
+
 def test_rank_handles_single_root_object_response():
     """End-to-end: a single-object root response yields a score for that
     artifact_id and the documented 0.0 default for the rest."""
@@ -239,6 +255,11 @@ def test_rank_passes_array_json_schema_as_format():
     assert {"artifact_id", "score"}.issubset(items["required"])
     assert items["properties"]["artifact_id"]["type"] == "integer"
     assert items["properties"]["score"]["type"] == "number"
+    # Bounds must mirror the Pydantic Score model.
+    assert items["properties"]["score"]["minimum"] == 0
+    assert items["properties"]["score"]["maximum"] == 1
+    assert items["properties"]["artifact_id"]["minimum"] == 0
+    assert items["properties"]["rationale"]["maxLength"] == 300
 
 
 def test_rank_drops_root_dict_missing_required_score_field():
