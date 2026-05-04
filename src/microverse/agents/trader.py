@@ -73,6 +73,10 @@ def _extract_list(data: Any) -> list[dict[str, Any]]:
         candidates = [v for v in data.values() if _list_looks_like_scores(v)]
         if len(candidates) == 1:
             return [d for d in candidates[0] if isinstance(d, dict)]
+        # 3. Single Score-shaped object at root: wrap so the caller still
+        # gets one score (gemma4 sometimes emits this under format="json").
+        if "artifact_id" in data:
+            return [data]
     return []
 
 
