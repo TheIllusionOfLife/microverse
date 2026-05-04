@@ -40,6 +40,23 @@ class Score(BaseModel):
 
 _PREFERRED_LIST_KEYS = ("scores", "rankings", "items", "artifacts", "results")
 
+# Ollama JSON Schema. Forces an array root so gemma4:e4b cannot collapse
+# to a single object the way it does under format="json". Empirically
+# verified against gemma4:e4b under think=False; re-check on Ollama
+# upgrades (cf. ollama/ollama#15260 for known regressions in this area).
+_RANK_SCHEMA: dict[str, Any] = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "artifact_id": {"type": "integer"},
+            "score": {"type": "number"},
+            "rationale": {"type": "string"},
+        },
+        "required": ["artifact_id", "score"],
+    },
+}
+
 
 def _list_looks_like_scores(value: object) -> TypeGuard[list[dict[str, Any]]]:
     """Quick shape check: list of dicts each having an ``artifact_id``."""
@@ -128,7 +145,7 @@ class Trader(Agent):
         result = chat(
             messages=[{"role": "user", "content": prompt}],
             think=False,
-            format="json",
+            format=_RANK_SCHEMA,
             options={**self.sampling, "num_predict": LLM_MAX_TOKENS},
             timeout_s=LLM_TIMEOUT_S,
         )
