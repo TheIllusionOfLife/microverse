@@ -205,7 +205,10 @@ Run the standard local checks:
 ```bash
 uv run ruff check
 uv run ruff format --check
+uv run mypy src/microverse
+uv run pip-audit
 uv run pytest -q -m 'not integration'
+uv build
 ```
 
 Run integration tests only when Ollama is live and `gemma4:e4b` is available:
@@ -221,6 +224,20 @@ uv run python -m microverse.run --help
 uv run python -m microverse.ops.metrics --help
 uv run python scripts/render_dashboard.py --help
 ```
+
+GitHub Actions runs these quality gates on pull requests and `main`. Dependabot
+keeps Python and workflow dependencies current.
+
+## Security
+
+See `SECURITY.md` for supported versions, vulnerability reporting, and guidance
+for handling generated runtime data in `data/` and `harvest/`.
+
+## Architecture Decisions
+
+Architecture decisions live in `docs/adr/`. Start with
+`docs/adr/0001-local-first-agent-runtime.md` for the local-first runtime,
+single-model Ollama, SQLite WAL, and FTS5 recall decisions.
 
 ## Thinking-mode handling
 

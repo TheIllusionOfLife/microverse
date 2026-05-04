@@ -3,15 +3,11 @@
 ## Project Structure & Module Organization
 
 Microverse is a Python 3.12 package using a `src/` layout. Runtime code lives in
-`src/microverse/`: `agents/` contains resident behavior, `memory/` contains
-SQLite-backed episodic and semantic memory, `world/` contains scheduling,
-clock, and snapshot logic, `ops/` contains metrics and watchdog tooling, and
-`llm/` wraps local Ollama calls. Operator scripts live in `scripts/`. Tests live
-in `tests/` and mirror the runtime modules by behavior, for example
-`tests/test_harvester.py` and `tests/test_kill_safety.py`.
+`src/microverse/`: `agents/`, `memory/`, `world/`, `ops/`, and `llm/` map to the
+main runtime subsystems. Operator scripts live in `scripts/`. Tests live in
+`tests/` and mirror behavior, for example `tests/test_harvester.py`.
 
-Generated runtime state is intentionally outside source control: `data/`,
-`harvest/`, logs, and local virtual environments should remain untracked.
+Generated state stays untracked: `data/`, `harvest/`, logs, and virtualenvs.
 
 ## Build, Test, and Development Commands
 
@@ -19,22 +15,25 @@ Generated runtime state is intentionally outside source control: `data/`,
 - `uv run python -m microverse.run --ticks 30 --tempo 0 --seed 42` runs a fast
   bounded smoke simulation.
 - `uv run python -m microverse.ops.metrics --report --db data/metrics.sqlite`
-  prints the latest metrics snapshot.
+  prints metrics.
 - `uv run python scripts/render_dashboard.py --data data --harvest harvest`
-  renders `harvest/dashboard.html`.
+  renders the dashboard.
 - `uv run ruff check` runs lint checks.
 - `uv run ruff format --check` verifies formatting.
+- `uv run mypy src/microverse` runs static type checks.
+- `uv run pip-audit` checks locked dependencies for known vulnerabilities.
 - `uv run pytest -q -m 'not integration'` runs the default test suite.
+- `uv build` verifies the package build.
 
 Use `uv run pytest -q -m integration` only when Ollama is running locally with
 `gemma4:e4b` pulled.
 
 ## Coding Style & Naming Conventions
 
-Use Ruff for linting and formatting. The project targets Python 3.12, a
-100-character line length, and 4-space indentation. Prefer typed, dependency-light
-modules with clear boundaries. Module and function names use `snake_case`; class
-names use `PascalCase`; constants use `UPPER_SNAKE_CASE`.
+Use Ruff for linting and formatting. The project targets Python 3.12,
+100-character lines, and 4-space indentation. Prefer typed, dependency-light
+modules. Use `snake_case` for functions/modules, `PascalCase` for classes, and
+`UPPER_SNAKE_CASE` for constants.
 
 Keep behavior simple and local-first. All model calls should go through
 `microverse.llm.ollama_client`, and shared runtime constants belong in
@@ -49,11 +48,17 @@ marked `integration` so the default suite remains fast and offline.
 
 ## Commit & Pull Request Guidelines
 
-Recent history uses short imperative or conventional-style summaries such as
-`docs: refresh README`, `refactor: simplify codebase`, and
-`chore: post-v0.1.0 hardening`. Keep commits focused and include verification in
-the PR body. PRs should describe the change, list commands run, and call out any
+Recent history uses short summaries such as `docs: refresh README`,
+`refactor: simplify codebase`, and `chore: post-v0.1.0 hardening`. Keep commits
+focused. PRs should describe the change, list commands run, and call out
 operator-impacting behavior such as data, snapshot, or harvest changes.
 
 Never push directly to `main`; push an explicit branch, for example
 `git push origin docs/update-readme`.
+
+## Security & Architecture Notes
+
+See `SECURITY.md` before touching generated content, dependency handling, or
+runtime data paths. Architecture decisions live in `docs/adr/`; update or add an
+ADR when changing core runtime invariants such as model routing, persistence, or
+remote services.

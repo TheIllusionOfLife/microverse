@@ -10,8 +10,11 @@ See also `AGENTS.md` (contributor conventions) and `README.md` (operator workflo
 uv sync                                                    # install deps
 uv run ruff check                                          # lint
 uv run ruff format --check                                 # formatting
+uv run mypy src/microverse                                 # static typing
+uv run pip-audit                                           # dependency audit
 uv run pytest -q -m 'not integration'                      # default suite (offline, no Ollama)
 uv run pytest -q -m integration                            # only when Ollama + gemma4:e4b are live
+uv build                                                   # package build check
 uv run pytest -q tests/test_harvester.py::test_name        # single test
 uv run python -m microverse.run --ticks 30 --tempo 0 --seed 42   # bounded smoke run
 uv run python -m microverse.ops.metrics --report --db data/metrics.sqlite
@@ -20,6 +23,8 @@ uv run python scripts/verify_kill_drill.py --db data/episodic.sqlite --watermark
 ```
 
 `MICROVERSE_DATA` and `MICROVERSE_HARVEST` redirect runtime state and harvest output respectively. `data/`, `harvest/`, and logs are intentionally untracked.
+
+CI runs Ruff, mypy, pip-audit, the default pytest suite, and `uv build` on pull requests. `SECURITY.md` covers vulnerability reporting and generated-data handling. Architecture decisions live in `docs/adr/`.
 
 ## Architecture
 
@@ -60,6 +65,6 @@ Layout follows `src/` package convention; modules map cleanly to roles:
 - Branch before any work; never push to `main`. Push an explicit branch (e.g., `git push origin docs/update-readme`).
 - TDD for behavioral changes: red commit, then green commit; small slices may be one commit.
 - One PR open at a time; address review feedback as follow-up commits to the same PR.
-- Verification before declaring done: `uv run ruff check && uv run ruff format --check && uv run pytest -q -m 'not integration'`.
+- Verification before declaring done: `uv run ruff check && uv run ruff format --check && uv run mypy src/microverse && uv run pip-audit && uv run pytest -q -m 'not integration' && uv build`.
 - Ruff config: line length 100, `py312`, rule set `E,F,I,B,UP,SIM,C4,PT,RUF,T20,ERA`. `print()` allowed only in tests, `ops/metrics.py`, and `run.py`.
 - Live-Ollama tests must carry the `integration` marker so the default suite stays offline and fast.
