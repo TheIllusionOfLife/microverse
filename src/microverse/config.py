@@ -12,6 +12,11 @@ MODEL: str = "gemma4:e4b"
 # Hard caps for a single LLM call.
 LLM_TIMEOUT_S: float = 90.0
 LLM_MAX_TOKENS: int = 1024
+# Trader.rank() returns one Score per buffered artifact in a single
+# response; a full 50-tick flush can hold ~20 items with up-to-300-char
+# rationales, which exceeds the 1024-token default. Bump to fit the
+# whole array without truncating the tail to score=0.0.
+LLM_MAX_TOKENS_RANK: int = 4096
 
 # Retry / failure-mode caps used by agents and the watchdog.
 MAX_RETRIES: int = 2
