@@ -40,6 +40,26 @@ class Score(BaseModel):
 
 _PREFERRED_LIST_KEYS = ("scores", "rankings", "items", "artifacts", "results")
 
+# Ollama JSON Schema. Forces an array root so gemma4:e4b cannot collapse
+# to a single object the way it does under format="json". Empirically
+# verified against gemma4:e4b under think=False; re-check on Ollama
+# upgrades (cf. ollama/ollama#15260 for known regressions in this area).
+_RANK_SCHEMA: dict[str, Any] = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            # Bounds mirror the ``Score`` Pydantic model (ge=0 / 0.0-1.0 /
+            # max_length=300) so the model is steered toward valid output
+            # rather than relying on ``_coerce_score`` to clamp after.
+            "artifact_id": {"type": "integer", "minimum": 0},
+            "score": {"type": "number", "minimum": 0, "maximum": 1},
+            "rationale": {"type": "string", "maxLength": 300},
+        },
+        "required": ["artifact_id", "score"],
+    },
+}
+
 
 def _list_looks_like_scores(value: object) -> TypeGuard[list[dict[str, Any]]]:
     """Quick shape check: list of dicts each having an ``artifact_id``."""
@@ -73,6 +93,10 @@ def _extract_list(data: Any) -> list[dict[str, Any]]:
         candidates = [v for v in data.values() if _list_looks_like_scores(v)]
         if len(candidates) == 1:
             return [d for d in candidates[0] if isinstance(d, dict)]
+        # 3. Single Score-shaped object at root: wrap so the caller still
+        # gets one score (gemma4 sometimes emits this under format="json").
+        if "artifact_id" in data:
+            return [data]
     return []
 
 
@@ -124,7 +148,7 @@ class Trader(Agent):
         result = chat(
             messages=[{"role": "user", "content": prompt}],
             think=False,
-            format="json",
+            format=_RANK_SCHEMA,
             options={**self.sampling, "num_predict": LLM_MAX_TOKENS},
             timeout_s=LLM_TIMEOUT_S,
         )

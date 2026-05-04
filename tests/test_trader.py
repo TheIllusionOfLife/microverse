@@ -16,7 +16,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from microverse.agents.harvester import ArtifactCandidate
-from microverse.agents.trader import Score, Trader
+from microverse.agents.trader import Score, Trader, _extract_list
 
 
 def _candidates() -> list[ArtifactCandidate]:
@@ -55,9 +55,9 @@ def test_rank_returns_one_score_per_candidate_in_index_order():
     assert len(scores) == 3
     assert [s.artifact_id for s in scores] == [0, 1, 2]
     assert [round(s.score, 1) for s in scores] == [0.9, 0.3, 0.7]
-    # Sanity: factual sampling + JSON format requested.
+    # Sanity: factual sampling + array-shaped JSON Schema requested.
     kwargs = mock_chat.call_args.kwargs
-    assert kwargs.get("format") == "json"
+    assert isinstance(kwargs.get("format"), dict)
     assert kwargs.get("options", {}).get("temperature", 1.0) == 0.6
 
 
@@ -192,3 +192,86 @@ def test_rank_falls_back_to_unique_score_shaped_list():
     with patch("microverse.agents.trader.chat", return_value=canned):
         scores = Trader(name="Bo").rank(_candidates())
     assert [round(s.score, 1) for s in scores] == [0.6, 0.7, 0.8]
+
+
+def test_extract_list_wraps_single_root_object_with_artifact_id():
+    """When format=json makes a model emit one object instead of a list,
+    the parser must wrap it as ``[dict]`` so the caller still sees a
+    score for that artifact_id (rather than getting an empty list and
+    defaulting every candidate to 0.0)."""
+    assert _extract_list({"artifact_id": 0, "score": 0.7, "rationale": "x"}) == [
+        {"artifact_id": 0, "score": 0.7, "rationale": "x"}
+    ]
+
+
+def test_extract_list_does_not_wrap_unrelated_root_dict():
+    """A dict without ``artifact_id`` is not a Score — must not wrap."""
+    assert _extract_list({"summary": "ok", "count": 3}) == []
+
+
+def test_extract_list_prefers_wrapped_list_over_root_wrap():
+    """Branch ordering regression guard: when a root dict has *both* a
+    known wrapping key (``scores``) and a top-level ``artifact_id``, the
+    wrapped list must win — wrapping the root would silently drop the
+    real per-candidate scores."""
+    payload = {
+        "artifact_id": 99,
+        "scores": [
+            {"artifact_id": 0, "score": 0.4, "rationale": "x"},
+            {"artifact_id": 1, "score": 0.7, "rationale": "y"},
+        ],
+    }
+    out = _extract_list(payload)
+    assert [d["artifact_id"] for d in out] == [0, 1]
+
+
+def test_rank_handles_single_root_object_response():
+    """End-to-end: a single-object root response yields a score for that
+    artifact_id and the documented 0.0 default for the rest."""
+    canned = {
+        "content": '{"artifact_id": 0, "score": 0.7, "rationale": "x"}',
+        "thinking": "",
+        "raw": {},
+    }
+    with patch("microverse.agents.trader.chat", return_value=canned):
+        scores = Trader(name="Bo").rank(_candidates())
+    assert scores[0].score == 0.7
+    assert scores[1].score == 0.0
+    assert scores[2].score == 0.0
+
+
+def test_rank_passes_array_json_schema_as_format():
+    """Layer B: instead of ``format="json"`` (which lets gemma4 collapse
+    to a single object), the Trader must pass an Ollama JSON Schema
+    constraining the response to an array of Score-shaped objects."""
+    canned = {"content": "[]", "thinking": "", "raw": {}}
+    with patch("microverse.agents.trader.chat", return_value=canned) as mock_chat:
+        Trader(name="Bo").rank(_candidates())
+    fmt = mock_chat.call_args.kwargs["format"]
+    assert isinstance(fmt, dict), f"expected schema dict, got {type(fmt).__name__}"
+    assert fmt["type"] == "array"
+    items = fmt["items"]
+    assert items["type"] == "object"
+    assert {"artifact_id", "score"}.issubset(items["required"])
+    assert items["properties"]["artifact_id"]["type"] == "integer"
+    assert items["properties"]["score"]["type"] == "number"
+    # Bounds must mirror the Pydantic Score model.
+    assert items["properties"]["score"]["minimum"] == 0
+    assert items["properties"]["score"]["maximum"] == 1
+    assert items["properties"]["artifact_id"]["minimum"] == 0
+    assert items["properties"]["rationale"]["maxLength"] == 300
+
+
+def test_rank_drops_root_dict_missing_required_score_field():
+    """artifact_id present but score missing — the wrap still happens,
+    but ``_coerce_score``'s default-0.0 path keeps the entry safe rather
+    than producing a partial/corrupt score."""
+    canned = {
+        "content": '{"artifact_id": 1, "rationale": "x"}',
+        "thinking": "",
+        "raw": {},
+    }
+    with patch("microverse.agents.trader.chat", return_value=canned):
+        scores = Trader(name="Bo").rank(_candidates())
+    assert scores[1].score == 0.0
+    assert scores[1].rationale == "x"

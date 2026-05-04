@@ -125,7 +125,7 @@ def chat(
     messages: list[dict[str, str]],
     *,
     think: bool = False,
-    format: str | None = None,
+    format: str | dict[str, Any] | None = None,
     options: dict[str, Any] | None = None,
     timeout_s: float = LLM_TIMEOUT_S,
 ) -> dict[str, Any]:
