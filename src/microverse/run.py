@@ -35,6 +35,7 @@ import random
 import signal
 import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
 
 from microverse.agents.artisan import Artisan
@@ -49,7 +50,7 @@ from microverse.ops.metrics import Metrics
 from microverse.ops.watchdog import Watchdog
 from microverse.world.clock import WorldClock
 from microverse.world.scheduler import WeightedScheduler
-from microverse.world.snapshot import maybe_snapshot
+from microverse.world.snapshot import SnapshotBusyError, maybe_snapshot
 
 _logger = logging.getLogger(__name__)
 
@@ -60,6 +61,18 @@ SNAPSHOT_EVERY = 1000  # cold backups; WAL handles real durability
 # Phase 4a cadences.
 WATCHDOG_EVERY = 25  # ticks between watchdog sweeps
 WORLD_CLOCK_MEAN_INTERVAL = 100  # mean ticks between weather events
+
+
+def _all_agents_paused(metrics: Metrics, agents: Sequence[Agent]) -> bool:
+    """True iff every registered agent is currently paused.
+
+    Used by the tick loop to decide when to fire the deadlock-break
+    rehab path. Checking *all* (rather than relying on a skip-count
+    heuristic) prevents a single persistently-failing agent from
+    pulling the entire roster's counters back to zero, which would
+    mask legitimate per-agent failures.
+    """
+    return all(metrics.should_pause(a.name) for a in agents)
 
 
 def _derive_topic(episodic: EpisodicMemory, agent: Agent) -> str:
@@ -167,10 +180,18 @@ def run(
             agent = sched.next()
             if metrics.should_pause(agent.name):
                 consecutive_skips += 1
+                # Two-stage guard: the skip counter throttles how often
+                # we even consider rehab (cheap O(1)), but the actual
+                # reset only fires when *every* registered agent is
+                # paused. Otherwise a single persistently-failing agent
+                # would pull un-paused agents' counters back to zero,
+                # masking their real failures.
                 if consecutive_skips > max(len(sched.agents), 1) * 3:
-                    time.sleep(max(tempo or 1.0, 1.0))
-                    for a in sched.agents:
-                        metrics.reset("consecutive_fail", agent=a.name)
+                    if _all_agents_paused(metrics, sched.agents):
+                        time.sleep(max(tempo or 1.0, 1.0))
+                        for a in sched.agents:
+                            if metrics.should_pause(a.name):
+                                metrics.reset("consecutive_fail", agent=a.name)
                     consecutive_skips = 0
                 continue
             consecutive_skips = 0
@@ -208,12 +229,20 @@ def run(
                 except Exception:
                     _logger.exception("harvester.flush failed")
                     metrics.bump("harvest_flush_fail")
-            maybe_snapshot(
-                executed,
-                interval=SNAPSHOT_EVERY,
-                data_dir=data_dir,
-                snapshots_dir=snapshots_dir,
-            )
+            try:
+                maybe_snapshot(
+                    executed,
+                    interval=SNAPSHOT_EVERY,
+                    data_dir=data_dir,
+                    snapshots_dir=snapshots_dir,
+                )
+            except SnapshotBusyError:
+                # A competing writer prevented wal_checkpoint(TRUNCATE)
+                # from completing cleanly. Skip this interval rather
+                # than ship a possibly-torn archive; the next interval
+                # will try again.
+                _logger.warning("snapshot skipped: WAL checkpoint busy")
+                metrics.bump("snapshot_skip_busy")
 
             sleep_s = tempo if tempo is not None else agent.tempo()
             if sleep_s > 0:

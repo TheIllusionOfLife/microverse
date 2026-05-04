@@ -130,6 +130,133 @@ def test_restore_is_atomic_on_extract_failure(tmp_path: Path, monkeypatch):
     assert leftover == []
 
 
+def test_snapshot_with_open_writer_roundtrips_committed_events(tmp_path: Path):
+    """The real failure mode: snapshot a SQLite DB while another
+    connection has it open and has just committed events that are
+    still in the WAL (not yet checkpointed into the main file).
+
+    Without a pre-snapshot wal_checkpoint(TRUNCATE), the tarball
+    captures main + WAL in a state that may lose the most-recent
+    commits on restore. With the checkpoint helper, a restored DB
+    must have every committed event.
+    """
+    from microverse.memory.episodic import EpisodicMemory
+
+    data_dir = tmp_path / "data"
+    snapshots_dir = tmp_path / "snapshots"
+    data_dir.mkdir()
+
+    writer = EpisodicMemory(data_dir / "episodic.sqlite")
+    for i in range(50):
+        writer.append(actor="aki", action="speak", target=None, payload={"i": i})
+    # Intentionally do NOT close the writer — pending WAL frames are
+    # the whole point of this test.
+
+    archive = take_snapshot(data_dir, snapshots_dir)
+    assert archive is not None
+    writer.close()
+
+    # Restore into a fresh location and verify every committed event survived.
+    restore_dir = tmp_path / "restored"
+    restore_snapshot(archive, restore_dir)
+    reader = EpisodicMemory(restore_dir / "episodic.sqlite")
+    try:
+        assert reader.count() == 50
+    finally:
+        reader.close()
+
+
+def test_take_snapshot_aborts_when_checkpoint_busy(tmp_path: Path):
+    """If another connection holds an open transaction that prevents
+    wal_checkpoint(TRUNCATE) from completing, take_snapshot must abort
+    rather than archive a possibly-torn DB."""
+    import sqlite3
+
+    from microverse.memory.episodic import EpisodicMemory
+    from microverse.world.snapshot import SnapshotBusyError
+
+    data_dir = tmp_path / "data"
+    snapshots_dir = tmp_path / "snapshots"
+    data_dir.mkdir()
+
+    db_path = data_dir / "episodic.sqlite"
+    em = EpisodicMemory(db_path)
+    em.append(actor="aki", action="speak", target=None, payload={"i": 0})
+
+    # Hold a write transaction open from a separate connection so
+    # wal_checkpoint(TRUNCATE) cannot reclaim the WAL.
+    blocker = sqlite3.connect(str(db_path), timeout=0.1)
+    blocker.execute("BEGIN IMMEDIATE")
+    try:
+        import pytest
+
+        with pytest.raises(SnapshotBusyError):
+            take_snapshot(data_dir, snapshots_dir)
+    finally:
+        blocker.rollback()
+        blocker.close()
+        em.close()
+
+
+def test_take_snapshot_skips_non_wal_sqlite_files(tmp_path: Path):
+    """A real SQLite file in non-WAL journal mode has nothing to
+    checkpoint. wal_checkpoint returns no rows; the helper must skip
+    that file rather than treat the missing row as 'busy'."""
+    import sqlite3
+
+    data_dir = tmp_path / "data"
+    snapshots_dir = tmp_path / "snapshots"
+    data_dir.mkdir()
+
+    # Real SQLite file in default journal mode (NOT WAL).
+    db_path = data_dir / "rollback.sqlite"
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("CREATE TABLE t (x INTEGER)")
+    conn.execute("INSERT INTO t (x) VALUES (1)")
+    conn.commit()
+    conn.close()
+
+    archive = take_snapshot(data_dir, snapshots_dir)
+    assert archive is not None
+    assert archive.exists()
+
+
+def test_take_snapshot_propagates_real_corruption(tmp_path: Path, monkeypatch):
+    """A SQLite error other than SQLITE_NOTADB (e.g. SQLITE_CORRUPT)
+    must propagate so the operator notices instead of silently shipping
+    a possibly-bad archive. We patch sqlite3.connect to return a
+    wrapper that raises SQLITE_CORRUPT on wal_checkpoint —
+    reproducing real on-disk corruption that triggers a checkpoint
+    failure is brittle across SQLite versions."""
+    import sqlite3
+
+    import pytest
+
+    from microverse.world import snapshot as snapshot_mod
+
+    data_dir = tmp_path / "data"
+    snapshots_dir = tmp_path / "snapshots"
+    data_dir.mkdir()
+    (data_dir / "episodic.sqlite").write_bytes(b"placeholder")
+
+    class _CorruptConn:
+        def execute(self, sql, *args):
+            if "wal_checkpoint" in sql.lower():
+                err = sqlite3.DatabaseError("database disk image is malformed")
+                err.sqlite_errorcode = 11  # SQLITE_CORRUPT
+                raise err
+            # busy_timeout PRAGMA call is harmless to no-op in the mock.
+            return None
+
+        def close(self):
+            return None
+
+    monkeypatch.setattr(snapshot_mod.sqlite3, "connect", lambda *a, **k: _CorruptConn())
+
+    with pytest.raises(sqlite3.DatabaseError, match="malformed"):
+        take_snapshot(data_dir, snapshots_dir)
+
+
 def test_snapshots_dir_inside_data_is_excluded(tmp_path: Path):
     """When snapshots/ is a subdirectory of data/, an existing snapshot
     must NOT be included in the next snapshot. Otherwise archives nest

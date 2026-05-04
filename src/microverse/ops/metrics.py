@@ -89,8 +89,22 @@ class Metrics:
             return self._counters.get((name, agent), 0)
 
     def reset(self, name: str, *, agent: str | None = None) -> None:
+        """Set counter ``(name, agent)`` to zero and mark it dirty.
+
+        Marking dirty + honoring ``auto_flush_every`` ensures a reset
+        right before ``close()`` (e.g. the deadlock-break path in
+        ``run.py``) lands in SQLite as a 0 row. Otherwise the
+        time-series would show the pre-reset value indefinitely.
+        """
         with self._lock:
             self._counters[(name, agent)] = 0
+            self._bumps_since_flush += 1
+            should_flush = (
+                self._auto_flush_every is not None
+                and self._bumps_since_flush >= self._auto_flush_every
+            )
+        if should_flush:
+            self.flush()
 
     def set_value(self, name: str, value: int, *, agent: str | None = None) -> None:
         """Snapshot-style metric: overwrite the in-memory value rather

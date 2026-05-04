@@ -163,6 +163,34 @@ def test_run_survives_chat_exception(tmp_path: Path):
     assert rows == [("llm_timeout", 5)]
 
 
+def test_deadlock_break_only_fires_when_all_agents_paused():
+    """The deadlock-break must not reset counters as long as at least
+    one agent is still un-paused — otherwise legitimate per-agent
+    failures get masked.
+    """
+    from microverse.ops.metrics import Metrics
+    from microverse.run import _all_agents_paused
+
+    m = Metrics(":memory:")
+    # Two stub agents named like real ones.
+    agents = [type("A", (), {"name": "aki"})(), type("A", (), {"name": "bo"})()]
+
+    # Neither paused — must be False.
+    assert _all_agents_paused(m, agents) is False
+
+    # Only one paused — still False (the un-paused agent can still tick).
+    for _ in range(3):
+        m.bump("consecutive_fail", agent="aki")
+    assert m.should_pause("aki") is True
+    assert m.should_pause("bo") is False
+    assert _all_agents_paused(m, agents) is False
+
+    # Both paused — True.
+    for _ in range(3):
+        m.bump("consecutive_fail", agent="bo")
+    assert _all_agents_paused(m, agents) is True
+
+
 def test_run_recovers_from_all_paused_via_consecutive_fail_reset(tmp_path: Path):
     """Three consecutive parse failures pause the only agent. The tick
     loop must auto-rehab via reset(consecutive_fail) so the run can
