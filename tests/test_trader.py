@@ -16,7 +16,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from microverse.agents.harvester import ArtifactCandidate
-from microverse.agents.trader import Score, Trader
+from microverse.agents.trader import Score, Trader, _extract_list
 
 
 def _candidates() -> list[ArtifactCandidate]:
@@ -192,3 +192,48 @@ def test_rank_falls_back_to_unique_score_shaped_list():
     with patch("microverse.agents.trader.chat", return_value=canned):
         scores = Trader(name="Bo").rank(_candidates())
     assert [round(s.score, 1) for s in scores] == [0.6, 0.7, 0.8]
+
+
+def test_extract_list_wraps_single_root_object_with_artifact_id():
+    """When format=json makes a model emit one object instead of a list,
+    the parser must wrap it as ``[dict]`` so the caller still sees a
+    score for that artifact_id (rather than getting an empty list and
+    defaulting every candidate to 0.0)."""
+    assert _extract_list({"artifact_id": 0, "score": 0.7, "rationale": "x"}) == [
+        {"artifact_id": 0, "score": 0.7, "rationale": "x"}
+    ]
+
+
+def test_extract_list_does_not_wrap_unrelated_root_dict():
+    """A dict without ``artifact_id`` is not a Score — must not wrap."""
+    assert _extract_list({"summary": "ok", "count": 3}) == []
+
+
+def test_rank_handles_single_root_object_response():
+    """End-to-end: a single-object root response yields a score for that
+    artifact_id and the documented 0.0 default for the rest."""
+    canned = {
+        "content": '{"artifact_id": 0, "score": 0.7, "rationale": "x"}',
+        "thinking": "",
+        "raw": {},
+    }
+    with patch("microverse.agents.trader.chat", return_value=canned):
+        scores = Trader(name="Bo").rank(_candidates())
+    assert scores[0].score == 0.7
+    assert scores[1].score == 0.0
+    assert scores[2].score == 0.0
+
+
+def test_rank_drops_root_dict_missing_required_score_field():
+    """artifact_id present but score missing — the wrap still happens,
+    but ``_coerce_score``'s default-0.0 path keeps the entry safe rather
+    than producing a partial/corrupt score."""
+    canned = {
+        "content": '{"artifact_id": 1, "rationale": "x"}',
+        "thinking": "",
+        "raw": {},
+    }
+    with patch("microverse.agents.trader.chat", return_value=canned):
+        scores = Trader(name="Bo").rank(_candidates())
+    assert scores[1].score == 0.0
+    assert scores[1].rationale == "x"
