@@ -23,7 +23,7 @@ from microverse.agents.base import Action, ActionKind, Agent, WorldContext
 from microverse.agents.harvester import ArtifactCandidate
 from microverse.config import (
     LLM_MAX_TOKENS_RANK,
-    LLM_TIMEOUT_S,
+    LLM_TIMEOUT_RANK_S,
     MAX_PARSE_BYTES,
     SAMPLING_FACTUAL,
 )
@@ -155,7 +155,7 @@ class Trader(Agent):
             think=False,
             format=_RANK_SCHEMA,
             options={**self.sampling, "num_predict": LLM_MAX_TOKENS_RANK},
-            timeout_s=LLM_TIMEOUT_S,
+            timeout_s=LLM_TIMEOUT_RANK_S,
         )
 
         entries = _safe_parse_scores(result["content"])

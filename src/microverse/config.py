@@ -17,6 +17,11 @@ LLM_MAX_TOKENS: int = 1024
 # rationales, which exceeds the 1024-token default. Bump to fit the
 # whole array without truncating the tail to score=0.0.
 LLM_MAX_TOKENS_RANK: int = 4096
+# Pair the larger budget with a longer per-call timeout so a worst-case
+# generation near the 4096-token cap doesn't breach the 90s per-call
+# limit on slower local hardware (~30 tok/s on Apple Silicon for an 8B
+# Q4 model puts 4096 tokens at ~137s).
+LLM_TIMEOUT_RANK_S: float = 300.0
 
 # Retry / failure-mode caps used by agents and the watchdog.
 MAX_RETRIES: int = 2
