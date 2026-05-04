@@ -118,16 +118,18 @@ def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
     repaired = safe_json_loads(raw)
     if isinstance(repaired, dict):
         try:
-            action = Action.model_validate(repaired)
+            repaired_action: Action | None = Action.model_validate(repaired)
         except ValidationError:
-            action = None
-        if action is not None:
-            if has_meta_leak(action.thought) or has_meta_leak(action.artifact or ""):
+            repaired_action = None
+        if repaired_action is not None:
+            if has_meta_leak(repaired_action.thought) or has_meta_leak(
+                repaired_action.artifact or ""
+            ):
                 metrics.bump("meta_leak_block", agent=agent)
                 return _rest_action()
             metrics.bump("json_repaired")
             metrics.reset("consecutive_fail", agent=agent)
-            return action
+            return repaired_action
 
     metrics.bump("json_fallback_rest")
     metrics.bump("consecutive_fail", agent=agent)

@@ -35,7 +35,7 @@ import random
 import signal
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from microverse.agents.artisan import Artisan
@@ -169,7 +169,7 @@ def run(
     executed = 0
     consecutive_skips = 0
 
-    def _safe(label: str, fn):
+    def _safe(label: str, fn: Callable[[], object]) -> None:
         try:
             fn()
         except Exception:
