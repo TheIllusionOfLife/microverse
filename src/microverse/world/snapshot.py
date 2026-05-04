@@ -27,6 +27,10 @@ from pathlib import Path
 
 _logger = logging.getLogger(__name__)
 
+# SQLite extended error codes. Stable across SQLite versions.
+# https://www.sqlite.org/rescode.html
+_SQLITE_NOTADB = 26  # "file is not a database"
+
 
 class SnapshotBusyError(RuntimeError):
     """Raised when wal_checkpoint(TRUNCATE) cannot complete cleanly.
@@ -55,24 +59,33 @@ def _checkpoint_wal(data_dir: Path) -> None:
     """
     for db_path in sorted(data_dir.rglob("*.sqlite")):
         conn = sqlite3.connect(str(db_path), timeout=5.0)
+        row: tuple | None = None
         try:
             conn.execute("PRAGMA busy_timeout = 5000")
             try:
                 row = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
             except sqlite3.DatabaseError as e:
-                # Not a valid SQLite file (corrupt, or test fixture
-                # using a *.sqlite suffix on plain content). Skip with
-                # a warn — refusing to snapshot would punish operators
-                # for a single bad file unrelated to durability.
-                _logger.warning("wal_checkpoint skipped for %s: %s", db_path, e)
-                continue
+                # Skip ONLY "not a database" (errcode 26 SQLITE_NOTADB):
+                # files with a .sqlite suffix that aren't actually SQLite
+                # (test fixtures, accidental writes). Real corruption
+                # (SQLITE_CORRUPT etc.) must propagate so the operator
+                # notices instead of silently producing a bad archive.
+                if getattr(e, "sqlite_errorcode", None) == _SQLITE_NOTADB:
+                    _logger.warning("not a SQLite database, skipping: %s", db_path)
+                    continue
+                raise
         finally:
             conn.close()
+        # PRAGMA wal_checkpoint returns no rows on databases that aren't
+        # in WAL journal mode. Skip those — they have no WAL to reclaim
+        # and the tar will capture them consistently as-is.
+        if row is None:
+            continue
         # Row is (busy, log_pages, checkpointed_pages). Either a busy
         # signal (1) or a mismatch between log/checkpointed pages
         # means the WAL was not fully reclaimed — the archive would
         # capture an inconsistent state.
-        busy, log_pages, checkpointed = row if row else (1, -1, -1)
+        busy, log_pages, checkpointed = row
         if busy != 0 or log_pages != checkpointed:
             raise SnapshotBusyError(
                 f"wal_checkpoint(TRUNCATE) incomplete for {db_path}: "

@@ -175,22 +175,28 @@ def test_format_and_options_forwarded():
 
 def test_transient_connection_error_retried_then_succeeds():
     """A connection-class error on the first call must be retried and
-    the second call's success returned. llm_retry counter increments."""
-    import httpx
+    the second call's success returned. llm_retry counter increments.
 
+    Uses the built-in ConnectionError (the type ollama-python actually
+    emits by wrapping httpx.ConnectError) rather than httpx.ConnectError
+    directly — testing the type that reaches our code in production.
+    """
     with patch("microverse.llm.ollama_client.ollama.Client") as MockClient:
         instance = MockClient.return_value
         instance.chat.side_effect = [
-            httpx.ConnectError("connection refused"),
+            ConnectionError("connection refused"),
             _mock_response(content="recovered"),
         ]
-        # No real backoff — patch sleep so the test stays fast.
-        with patch("microverse.llm.ollama_client.time.sleep"):
+        # No real backoff — patch sleep so the test stays fast,
+        # AND assert the schedule so a regression to (0, 0) is caught.
+        with patch("microverse.llm.ollama_client.time.sleep") as mock_sleep:
             result = chat([{"role": "user", "content": "hi"}])
 
     assert result["content"] == "recovered"
     assert ollama_client.llm_retry == 1
     assert instance.chat.call_count == 2
+    # Pin the backoff schedule: one retry → one sleep at the first backoff.
+    mock_sleep.assert_called_once_with(0.5)
 
 
 def test_non_connection_error_not_retried():
@@ -213,20 +219,58 @@ def test_non_connection_error_not_retried():
 def test_max_retries_exceeded_reraises():
     """After 2 retries (3 total attempts) of connection errors, the
     last error must propagate."""
-    import httpx
-
     with patch("microverse.llm.ollama_client.ollama.Client") as MockClient:
         instance = MockClient.return_value
-        instance.chat.side_effect = httpx.ConnectError("permanent")
+        instance.chat.side_effect = ConnectionError("permanent")
 
         with (
-            patch("microverse.llm.ollama_client.time.sleep"),
-            pytest.raises(httpx.ConnectError),
+            patch("microverse.llm.ollama_client.time.sleep") as mock_sleep,
+            pytest.raises(ConnectionError),
         ):
             chat([{"role": "user", "content": "hi"}])
 
     assert instance.chat.call_count == 3  # initial + 2 retries
     assert ollama_client.llm_retry == 2
+    # Pin the schedule: two retries → sleep called twice at (0.5, 1.5).
+    assert mock_sleep.call_args_list == [((0.5,), {}), ((1.5,), {})]
+
+
+def test_5xx_response_error_retried():
+    """ollama.ResponseError with status_code >= 500 is transient
+    (daemon restart, upstream proxy hiccup) and must be retried."""
+    import ollama as _ollama
+
+    with patch("microverse.llm.ollama_client.ollama.Client") as MockClient:
+        instance = MockClient.return_value
+        instance.chat.side_effect = [
+            _ollama.ResponseError("upstream restart", 503),
+            _mock_response(content="recovered"),
+        ]
+        with patch("microverse.llm.ollama_client.time.sleep"):
+            result = chat([{"role": "user", "content": "hi"}])
+
+    assert result["content"] == "recovered"
+    assert ollama_client.llm_retry == 1
+    assert instance.chat.call_count == 2
+
+
+def test_4xx_response_error_not_retried():
+    """ollama.ResponseError with status_code < 500 is a caller bug
+    (bad model name, malformed payload). Retrying just wastes time."""
+    import ollama as _ollama
+
+    with patch("microverse.llm.ollama_client.ollama.Client") as MockClient:
+        instance = MockClient.return_value
+        instance.chat.side_effect = _ollama.ResponseError("bad model", 404)
+
+        with (
+            patch("microverse.llm.ollama_client.time.sleep"),
+            pytest.raises(_ollama.ResponseError),
+        ):
+            chat([{"role": "user", "content": "hi"}])
+
+    assert instance.chat.call_count == 1
+    assert ollama_client.llm_retry == 0
 
 
 def test_timeout_s_constructs_client_with_timeout():
