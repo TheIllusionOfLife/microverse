@@ -55,9 +55,9 @@ def test_rank_returns_one_score_per_candidate_in_index_order():
     assert len(scores) == 3
     assert [s.artifact_id for s in scores] == [0, 1, 2]
     assert [round(s.score, 1) for s in scores] == [0.9, 0.3, 0.7]
-    # Sanity: factual sampling + JSON format requested.
+    # Sanity: factual sampling + array-shaped JSON Schema requested.
     kwargs = mock_chat.call_args.kwargs
-    assert kwargs.get("format") == "json"
+    assert isinstance(kwargs.get("format"), dict)
     assert kwargs.get("options", {}).get("temperature", 1.0) == 0.6
 
 
@@ -222,6 +222,23 @@ def test_rank_handles_single_root_object_response():
     assert scores[0].score == 0.7
     assert scores[1].score == 0.0
     assert scores[2].score == 0.0
+
+
+def test_rank_passes_array_json_schema_as_format():
+    """Layer B: instead of ``format="json"`` (which lets gemma4 collapse
+    to a single object), the Trader must pass an Ollama JSON Schema
+    constraining the response to an array of Score-shaped objects."""
+    canned = {"content": "[]", "thinking": "", "raw": {}}
+    with patch("microverse.agents.trader.chat", return_value=canned) as mock_chat:
+        Trader(name="Bo").rank(_candidates())
+    fmt = mock_chat.call_args.kwargs["format"]
+    assert isinstance(fmt, dict), f"expected schema dict, got {type(fmt).__name__}"
+    assert fmt["type"] == "array"
+    items = fmt["items"]
+    assert items["type"] == "object"
+    assert {"artifact_id", "score"}.issubset(items["required"])
+    assert items["properties"]["artifact_id"]["type"] == "integer"
+    assert items["properties"]["score"]["type"] == "number"
 
 
 def test_rank_drops_root_dict_missing_required_score_field():
