@@ -209,6 +209,30 @@ def test_extract_list_does_not_wrap_unrelated_root_dict():
     assert _extract_list({"summary": "ok", "count": 3}) == []
 
 
+def test_rank_requests_extra_tokens_for_full_buffer_response():
+    """A 50-tick flush can buffer ~20 candidates; 1024 num_predict tokens
+    truncated tail entries to score=0.0 in operator soaks. Trader.rank()
+    must request the dedicated ``LLM_MAX_TOKENS_RANK`` budget so the
+    full array fits in one response. The matching ``LLM_TIMEOUT_RANK_S``
+    keeps the call from breaching the per-call timeout when the larger
+    budget is actually consumed (e.g. on slower local hardware)."""
+    from microverse.config import (
+        LLM_MAX_TOKENS,
+        LLM_MAX_TOKENS_RANK,
+        LLM_TIMEOUT_RANK_S,
+        LLM_TIMEOUT_S,
+    )
+
+    canned = {"content": "[]", "thinking": "", "raw": {}}
+    with patch("microverse.agents.trader.chat", return_value=canned) as mock_chat:
+        Trader(name="Bo").rank(_candidates())
+    kwargs = mock_chat.call_args.kwargs
+    assert kwargs["options"]["num_predict"] == LLM_MAX_TOKENS_RANK
+    assert LLM_MAX_TOKENS_RANK > LLM_MAX_TOKENS, "rank budget must exceed default"
+    assert kwargs["timeout_s"] == LLM_TIMEOUT_RANK_S
+    assert LLM_TIMEOUT_RANK_S > LLM_TIMEOUT_S, "rank timeout must exceed default"
+
+
 def test_extract_list_prefers_wrapped_list_over_root_wrap():
     """Branch ordering regression guard: when a root dict has *both* a
     known wrapping key (``scores``) and a top-level ``artifact_id``, the

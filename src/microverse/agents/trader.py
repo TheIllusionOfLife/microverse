@@ -21,7 +21,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from microverse._text import safe_json_loads
 from microverse.agents.base import Action, ActionKind, Agent, WorldContext
 from microverse.agents.harvester import ArtifactCandidate
-from microverse.config import LLM_MAX_TOKENS, LLM_TIMEOUT_S, MAX_PARSE_BYTES, SAMPLING_FACTUAL
+from microverse.config import (
+    LLM_MAX_TOKENS_RANK,
+    LLM_TIMEOUT_RANK_S,
+    MAX_PARSE_BYTES,
+    SAMPLING_FACTUAL,
+)
 from microverse.llm.ollama_client import chat
 from microverse.prompts import render
 
@@ -149,8 +154,8 @@ class Trader(Agent):
             messages=[{"role": "user", "content": prompt}],
             think=False,
             format=_RANK_SCHEMA,
-            options={**self.sampling, "num_predict": LLM_MAX_TOKENS},
-            timeout_s=LLM_TIMEOUT_S,
+            options={**self.sampling, "num_predict": LLM_MAX_TOKENS_RANK},
+            timeout_s=LLM_TIMEOUT_RANK_S,
         )
 
         entries = _safe_parse_scores(result["content"])
