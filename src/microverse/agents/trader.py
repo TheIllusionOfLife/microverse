@@ -14,7 +14,7 @@ the same length as the input. The pipeline never raises.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TypeGuard
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -41,7 +41,7 @@ class Score(BaseModel):
 _PREFERRED_LIST_KEYS = ("scores", "rankings", "items", "artifacts", "results")
 
 
-def _list_looks_like_scores(value: object) -> bool:
+def _list_looks_like_scores(value: object) -> TypeGuard[list[dict[str, Any]]]:
     """Quick shape check: list of dicts each having an ``artifact_id``."""
     if not isinstance(value, list) or not value:
         return False
@@ -133,7 +133,7 @@ class Trader(Agent):
         by_id: dict[int, dict[str, Any]] = {}
         for entry in entries:
             try:
-                aid = int(entry.get("artifact_id"))
+                aid = int(entry.get("artifact_id", -1))
             except (TypeError, ValueError):
                 continue
             if 0 <= aid < len(candidates):
