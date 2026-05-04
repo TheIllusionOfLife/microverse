@@ -1,142 +1,236 @@
 # Microverse Battery
 
-A long-running multi-agent simulation inspired by *Rick and Morty*'s Microverse Battery. Inhabitant agents live in a fictional world, produce artifacts (essays, code, data, designs), and a single out-of-world Harvester ferries the best artifacts to `harvest/inbox/` for the user.
+Microverse Battery is a long-running local multi-agent simulation inspired by
+*Rick and Morty*'s Microverse Battery. A small fictional society generates
+artifacts such as essays, code, data, and designs; a Trader ranks those
+artifacts; and a Harvester writes the best ones to `harvest/` for review.
 
-Built to run autonomously for weeks on local Apple Silicon at zero marginal cost using **only** `gemma4:e4b` via local Ollama.
+The project is designed to run on a local Apple Silicon machine with zero
+marginal model cost by using Ollama and a single model: `gemma4:e4b`.
 
 ## Status
 
-Phases 0 → 4b merged. See `TODO.md` for the phase ladder and per-task evidence; `PROMPT.md` is the build-time ralph-loop driver.
+`v0.1.0` implements the core simulation loop, persistence, artifact harvesting,
+dashboard rendering, kill-safety checks, snapshots, watchdog checks, lore
+compression components, and tests. Long soak validation is still operator-run:
+the repo contains the commands and verification tools, but a 24-hour run should
+be done on a dedicated machine window.
 
-## Operator runbook
+## What it does
 
-### Start a run
+- Runs a tick-based world loop with agents such as Artisan, Trader, Elder, and
+  Stranger.
+- Stores committed events in SQLite WAL-backed memory under `data/`.
+- Builds bounded context from recent events and FTS5 semantic memory.
+- Includes an Elder lore-compression component with a drift guard.
+- Buffers generated artifacts, ranks them, and writes accepted artifacts to
+  `harvest/inbox/`.
+- Emits metrics and a static, self-contained HTML dashboard.
+- Survives process crashes without losing committed events.
+
+## Requirements
+
+- macOS on Apple Silicon
+- Python 3.12 managed through `uv`
+- Ollama running locally
+- `gemma4:e4b` pulled in Ollama
 
 ```bash
-# Background, infinite, default tempo (production-ish):
+ollama pull gemma4:e4b
+ollama serve
+```
+
+If Ollama is already running as a service, you do not need to run
+`ollama serve` again.
+
+## Quickstart
+
+Install dependencies and run the non-integration test suite:
+
+```bash
+uv sync
+uv run pytest -q -m 'not integration'
+```
+
+Run a bounded smoke simulation:
+
+```bash
+uv run python -m microverse.run --ticks 30 --tempo 0 --seed 42
+```
+
+This creates local runtime data in `data/` and harvested artifacts in
+`harvest/`.
+
+## Running the simulation
+
+Start a longer background run:
+
+```bash
 nohup uv run python -m microverse.run --seed 42 > microverse.log 2>&1 &
 echo $! > microverse.pid
+```
 
-# Foreground, bounded, fast (smoke / acceptance):
+Run in the foreground with a fixed tick count:
+
+```bash
+uv run python -m microverse.run --ticks 100 --seed 42
+```
+
+Run as fast as possible for local acceptance checks:
+
+```bash
 uv run python -m microverse.run --ticks 30 --tempo 0 --seed 42
 ```
 
 Environment overrides:
 
-- `MICROVERSE_DATA` — override the `data/` location (episodic + metrics + snapshots).
-- `MICROVERSE_HARVEST` — override the `harvest/` location.
+- `MICROVERSE_DATA` changes the runtime data directory.
+- `MICROVERSE_HARVEST` changes the harvest output directory.
 
-### Stop and resume
+Example:
 
 ```bash
-# Graceful: SIGINT (Ctrl-C) or SIGTERM. The finally block flushes
-# Trader buffers, closes Metrics + Episodic.
-kill -INT  $(cat microverse.pid)
-kill -TERM $(cat microverse.pid)
-
-# Hard: SIGKILL. WAL guarantees no committed event is lost; the
-# in-flight tick is discarded (not re-played) — only committed
-# events recover on restart.
-kill -KILL $(cat microverse.pid)
+MICROVERSE_DATA=/tmp/microverse/data \
+MICROVERSE_HARVEST=/tmp/microverse/harvest \
+uv run python -m microverse.run --ticks 30 --tempo 0 --seed 42
 ```
 
-To resume after any of the above, just re-run the start command pointing at the same `MICROVERSE_DATA` and `MICROVERSE_HARVEST`.
+## Inspecting output
 
-### Inspect
+Print the latest metrics snapshot:
 
 ```bash
-# Latest metrics snapshot:
 uv run python -m microverse.ops.metrics --report --db data/metrics.sqlite
+```
 
-# Static dashboard (HTML, no JS, no external assets):
+Render the static dashboard:
+
+```bash
 uv run python scripts/render_dashboard.py --data data --harvest harvest
 open harvest/dashboard.html
 ```
 
-### Verify kill-safety after a SIGKILL drill
-
-```bash
-# 1) Capture the pre-kill high-watermark MAX(id). A bare COUNT(*) is
-#    NOT enough — after restart the process appends new events, so
-#    raw counts can mask a missing pre-kill tail.
-W=$(sqlite3 data/episodic.sqlite 'SELECT COALESCE(MAX(id), 0) FROM events')
-
-# 2) SIGKILL the run, restart it, then verify every pre-watermark
-#    id survived. Because W = MAX(id) was committed *before* the
-#    kill, the full range 1..W must survive — losing id=W itself
-#    is real data loss, not an acceptable in-flight discard. (The
-#    in-flight tick is at id=W+1 and is filtered out by the
-#    watermark predicate.)
-uv run python scripts/verify_kill_drill.py \
-    --db data/episodic.sqlite --watermark "$W"
-# → kill_drill_ok (... all 1..W survived (pre-kill watermark W))
-```
-
-Without `--watermark`, the script only proves event-log internal integrity (no gaps, no duplicates). The pre-kill watermark is what catches silent tail loss — it filters the post-restart event set down to ids ≤ W so freshly appended events cannot hide a missing tail.
-
-### Snapshot / restore
-
-Snapshots are taken automatically every 1000 ticks under `data/snapshots/`. WAL is the durability primary; snapshots are for catastrophic-corruption rollback only.
-
-```bash
-# Manual snapshot:
-uv run python -c "from microverse.world.snapshot import take_snapshot; \
-  print(take_snapshot('data', 'data/snapshots'))"
-
-# Restore (wipes data/ and replaces with the archive):
-uv run python -c "from microverse.world.snapshot import restore_snapshot; \
-  restore_snapshot('data/snapshots/<archive>.tar.gz', 'data')"
-```
-
-### Watchdog tuning
-
-`microverse.ops.watchdog.Watchdog` constructor knobs (defaults in parens):
-
-- `runaway_max_consecutive` (4) — N identical actions per agent in a row before flagging.
-- `stagnation_window` (50) / `stagnation_floor` (1) — fewer than `floor` artifacts in the most recent `window` triggers stagnation.
-- `diversity_floor` (0.35) — `1 - mean Jaccard` below this triggers echo-chamber → spawns a Stranger.
-- `diversity_window` (20) — number of recent actions used for the diversity calc.
-- `max_strangers` (3) — caps the Stranger pool to avoid pile-up if echo persists.
-
-Override via `Watchdog(metrics=..., episodic=..., scheduler=..., diversity_floor=0.40, ...)` in `run.py`.
-
-### Common failure recovery
-
-- **All agents paused:** the run loop auto-rehabs by resetting `consecutive_fail` after one rotation of skips. If the model keeps failing, check `data/metrics.sqlite` for `llm_timeout` and `json_fallback_rest` rates.
-- **Trader returning all-zero scores:** `harvester` will accept nothing on tied populations (intended). Check `lore_chat_failure` to see if the Trader's chat itself is failing.
-- **Lore drift loop:** `lore_drift_block` rising means the Elder keeps producing off-canon rewrites. Inspect the most recent `data/lore/world_lore.md` and consider raising `MIN_JACCARD` in `agents/elder.py`.
-- **Disk filling:** snapshots accumulate in `data/snapshots/`. Manually trim oldest archives. (A retention policy is on the post-core backlog.)
-
-## Prerequisites
-
-- macOS on Apple Silicon (tested on M-series)
-- Python 3.12 via `uv`
-- Ollama running locally with `gemma4:e4b` pulled
-  ```bash
-  ollama pull gemma4:e4b
-  ollama serve  # if not already running
-  ```
-
-## Setup
-
-```bash
-uv sync
-uv run pytest -q                  # unit tests
-uv run pytest -q -m integration   # hits live Ollama
-```
-
-## Thinking-mode discipline
-
-Per official Ollama docs, `think` is a top-level field on the chat/generate API. Empirically on this codebase:
-
-- `think=False` on `gemma4:e4b` returns `message.thinking == ""` and no `<think>` leak in `message.content`. ✅ Contract holds.
-- `think=True` also returns empty `thinking` for `gemma4:e4b` — Ollama does not classify this build as a thinking-capable model in its registry. The integration test (`tests/test_ollama_think_off.py::test_think_true_branch_or_skip`) skips this branch when observed.
-
-Defense-in-depth: `microverse.llm.thinking.strip_thinking` is unconditionally applied to response content, so callers never see thinking tokens regardless of model or runtime quirks. The `microverse.llm.ollama_client.thinking_leak` counter increments any time the strip actually trims content — this is a regression signal for monitoring.
+Accepted artifacts are written under `harvest/inbox/`, and
+`harvest/manifest.jsonl` records accepted and rejected candidates for audit.
 
 ## Architecture
 
-The build is staged across seven phases. See `TODO.md` for the per-phase task ladder with machine-checkable acceptance commands; the more detailed implementation plan was authored locally during planning and lives outside the repo. Each phase merges as its own PR (see commit history); `PROMPT.md` is the persistent prompt used by the ralph-loop driver during the build.
+The runtime is intentionally small and local-first:
+
+- `microverse.run` wires the tick loop, scheduler, memory, metrics, harvester,
+  world clock, and watchdog.
+- `microverse.agents` contains the resident behaviors and artifact-ranking
+  logic.
+- `microverse.memory` stores episodic events in SQLite WAL and semantic recall
+  in SQLite FTS5.
+- `microverse.world` contains scheduling, clock events, and snapshot support.
+- `microverse.ops` contains metrics reporting and watchdog detectors.
+- `scripts/` contains operator tooling such as dashboard rendering and
+  kill-drill verification.
+
+All LLM calls go through the local Ollama client and use the model configured in
+`microverse.config.MODEL`.
+
+## Operations
+
+### Stop and resume
+
+Graceful shutdown runs final flush and close handlers:
+
+```bash
+kill -INT $(cat microverse.pid)
+# or
+kill -TERM $(cat microverse.pid)
+```
+
+To resume, start the process again with the same `MICROVERSE_DATA` and
+`MICROVERSE_HARVEST` locations.
+
+### Crash recovery
+
+SQLite WAL is the durability boundary. A `SIGKILL` may discard the in-flight
+tick, but committed events should remain intact.
+
+For a kill drill, capture the committed high-watermark before the kill:
+
+```bash
+W=$(sqlite3 data/episodic.sqlite 'SELECT COALESCE(MAX(id), 0) FROM events')
+kill -KILL $(cat microverse.pid)
+```
+
+Restart the run, then verify every pre-kill event survived:
+
+```bash
+uv run python scripts/verify_kill_drill.py \
+  --db data/episodic.sqlite \
+  --watermark "$W"
+```
+
+Expected output starts with `kill_drill_ok`.
+
+### Snapshots
+
+Snapshots are cold backups for catastrophic corruption rollback. WAL remains the
+primary recovery mechanism.
+
+Snapshots are taken automatically every 1000 ticks under `data/snapshots/`.
+Create one manually with:
+
+```bash
+uv run python -c "from microverse.world.snapshot import take_snapshot; print(take_snapshot('data', 'data/snapshots'))"
+```
+
+Restore a snapshot with:
+
+```bash
+uv run python -c "from microverse.world.snapshot import restore_snapshot; restore_snapshot('data/snapshots/<archive>.tar.gz', 'data')"
+```
+
+Restore replaces the target data directory.
+
+### Common recovery checks
+
+- If all agents appear paused, inspect `consecutive_fail`, `llm_timeout`, and
+  JSON fallback counters in `data/metrics.sqlite`.
+- If no artifacts are accepted, inspect `harvest/manifest.jsonl`; all-zero or
+  tied Trader scores intentionally accept nothing.
+- If lore drift is blocked repeatedly, inspect the current lore input/output and
+  the `lore_drift_block` metric.
+- If disk usage grows too much, trim old archives in `data/snapshots/`.
+
+## Development
+
+Run the standard local checks:
+
+```bash
+uv run ruff check
+uv run ruff format --check
+uv run pytest -q -m 'not integration'
+```
+
+Run integration tests only when Ollama is live and `gemma4:e4b` is available:
+
+```bash
+uv run pytest -q -m integration
+```
+
+Useful CLI help:
+
+```bash
+uv run python -m microverse.run --help
+uv run python -m microverse.ops.metrics --help
+uv run python scripts/render_dashboard.py --help
+```
+
+## Thinking-mode handling
+
+Ollama exposes `think` as a top-level chat/generate API field. This project
+calls the local model with thinking disabled where required, and applies
+`microverse.llm.thinking.strip_thinking` defensively to response content.
+
+For `gemma4:e4b`, the integration test verifies that `think=False` returns no
+thinking content. If a future model leaks thinking tokens into content, the
+client strips them and increments the `thinking_leak` counter.
 
 ## License
 
