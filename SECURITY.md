@@ -10,7 +10,7 @@ fixes.
 
 Do not open a public issue for a suspected vulnerability. Report it privately to
 the repository owner through GitHub's private vulnerability reporting flow if it
-is available, or by contacting the maintainer listed in `pyproject.toml`.
+is available, or by contacting the project authors listed in `pyproject.toml`.
 
 Please include:
 

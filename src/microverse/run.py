@@ -16,9 +16,10 @@ in :mod:`microverse.memory.episodic` guarantees no committed event is
 lost; the in-flight tick is simply discarded.
 
 Phase 2 wiring:
-  - Artisan + Trader registered in a ``WeightedScheduler`` (seeded if
-    ``--seed`` given). Trader has lower soul_tokens than Artisan so
-    judgment turns are spaced out.
+  - ``Artisan`` is the only agent registered in the ``WeightedScheduler``
+    (seeded if ``--seed`` given). ``Trader`` is constructed but
+    intentionally not scheduled; it ranks artifacts only when
+    ``Harvester.flush()`` calls its ``rank()``.
   - Harvester is constructed with the Trader so ``consider()`` buffers
     candidates and ``flush()`` applies p70 percentile selection. The
     tick loop calls ``flush()`` every ``HARVEST_FLUSH_EVERY`` ticks.

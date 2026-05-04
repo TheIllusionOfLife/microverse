@@ -18,8 +18,10 @@ be done on a dedicated machine window.
 
 ## What it does
 
-- Runs a tick-based world loop with agents such as Artisan, Trader, Elder, and
-  Stranger.
+- Runs a tick-based world loop where an Artisan creates artifacts each tick;
+  a Trader ranks buffered artifacts at harvest-flush time; an Elder
+  rewrites lore on demand with a Jaccard drift guard; and the Watchdog may
+  spawn a Stranger to break echo chambers.
 - Stores committed events in SQLite WAL-backed memory under `data/`.
 - Builds bounded context from recent events and FTS5 semantic memory.
 - Includes an Elder lore-compression component with a drift guard.
@@ -151,7 +153,9 @@ To resume, start the process again with the same `MICROVERSE_DATA` and
 SQLite WAL is the durability boundary. A `SIGKILL` may discard the in-flight
 tick, but committed events should remain intact.
 
-For a kill drill, capture the committed high-watermark before the kill:
+For a kill drill, capture the committed high-watermark before the kill.
+Use `MAX(id)` rather than `COUNT(*)`: after restart the process appends new
+events, so a raw count can mask a missing pre-kill tail.
 
 ```bash
 W=$(sqlite3 data/episodic.sqlite 'SELECT COALESCE(MAX(id), 0) FROM events')
