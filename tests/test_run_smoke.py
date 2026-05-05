@@ -191,6 +191,47 @@ def test_deadlock_break_only_fires_when_all_agents_paused():
     assert _all_agents_paused(m, agents) is True
 
 
+def test_run_exits_after_consecutive_deadlock_breaks(tmp_path: Path):
+    """A 17.9-hour soak ran for hours with cumulative llm_timeout=6372:
+    Ollama was intermittently unhealthy, every 3 fails paused the only
+    agent, the deadlock-break path reset and re-tried, and the loop
+    spun forever. Bound that loop. After ``MAX_CONSECUTIVE_DEADLOCK_BREAKS``
+    consecutive deadlock-break invocations *without an intervening
+    successful tick*, exit cleanly with a fatal-metric bump."""
+    import sqlite3
+
+    from microverse import config
+
+    def boom(**_kwargs: object) -> dict[str, object]:
+        raise TimeoutError("simulated ollama outage")
+
+    data_dir = tmp_path / "data"
+    harvest_dir = tmp_path / "harvest"
+
+    with (
+        patch("microverse.run.time.sleep", side_effect=lambda *_a, **_k: None),
+        patch("microverse.agents.artisan.chat", side_effect=boom),
+        patch.object(config, "MAX_CONSECUTIVE_DEADLOCK_BREAKS", 2),
+    ):
+        executed = run(
+            ticks=10_000,
+            seed=0,
+            tempo=0,
+            data_dir=data_dir,
+            harvest_dir=harvest_dir,
+        )
+
+    # Loop exited without committing anything (every think() raised).
+    assert executed == 0
+
+    # The fatal metric was bumped exactly once on exit.
+    with sqlite3.connect(str(data_dir / "metrics.sqlite")) as conn:
+        rows = conn.execute(
+            "SELECT MAX(value) FROM metrics WHERE name='deadlock_break_exit'"
+        ).fetchall()
+    assert rows == [(1,)], f"expected deadlock_break_exit=1, got {rows}"
+
+
 def test_run_recovers_from_all_paused_via_consecutive_fail_reset(tmp_path: Path):
     """Three consecutive parse failures pause the only agent. The tick
     loop must auto-rehab via reset(consecutive_fail) so the run can

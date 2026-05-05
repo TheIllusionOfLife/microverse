@@ -48,3 +48,12 @@ SAMPLING_FACTUAL: dict[str, float | int] = {
 
 # Default tick budget for a non-infinite microverse.run.
 MAX_TICKS_DEFAULT: int = 1_000_000
+
+# Circuit breaker on the deadlock-break path in run.py. Each invocation
+# without an intervening successful think() increments a counter; once
+# it reaches this value the loop exits with a deadlock_break_exit metric
+# bump rather than spinning forever. A 17.9h soak with intermittent
+# Ollama failures generated 6372 timeout bumps because no such bound
+# existed. 10 keeps a brief outage recoverable while bounding the worst
+# case to ~30-60 wasted think() calls before exit.
+MAX_CONSECUTIVE_DEADLOCK_BREAKS: int = 10
