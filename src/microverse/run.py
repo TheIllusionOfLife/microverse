@@ -39,11 +39,11 @@ import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
+from microverse import config
 from microverse.agents.artisan import Artisan
 from microverse.agents.base import Action, Agent, WorldContext
 from microverse.agents.harvester import ArtifactCandidate, Harvester
 from microverse.agents.trader import Trader
-from microverse import config
 from microverse.config import MAX_TICKS_DEFAULT
 from microverse.memory import build_context
 from microverse.memory.episodic import EpisodicMemory
@@ -198,14 +198,10 @@ def run(
                             if metrics.should_pause(a.name):
                                 metrics.reset("consecutive_fail", agent=a.name)
                         deadlock_breaks_since_success += 1
-                        if (
-                            deadlock_breaks_since_success
-                            >= config.MAX_CONSECUTIVE_DEADLOCK_BREAKS
-                        ):
+                        if deadlock_breaks_since_success >= config.MAX_CONSECUTIVE_DEADLOCK_BREAKS:
                             metrics.bump("deadlock_break_exit")
                             _logger.error(
-                                "all agents stuck after %d consecutive "
-                                "deadlock-breaks — exiting",
+                                "all agents stuck after %d consecutive deadlock-breaks — exiting",
                                 deadlock_breaks_since_success,
                             )
                             break
