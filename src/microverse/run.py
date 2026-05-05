@@ -44,7 +44,6 @@ from microverse.agents.artisan import Artisan
 from microverse.agents.base import Action, Agent, WorldContext
 from microverse.agents.harvester import ArtifactCandidate, Harvester
 from microverse.agents.trader import Trader
-from microverse.config import MAX_TICKS_DEFAULT
 from microverse.memory import build_context
 from microverse.memory.episodic import EpisodicMemory
 from microverse.memory.semantic import SemanticMemory
@@ -167,11 +166,12 @@ def run(
     signal.signal(signal.SIGINT, _on_signal)
     signal.signal(signal.SIGTERM, _on_signal)
 
-    max_ticks = ticks if ticks is not None else MAX_TICKS_DEFAULT
+    max_ticks = ticks if ticks is not None else config.MAX_TICKS_DEFAULT
     executed = 0
     consecutive_skips = 0
-    # Bounded by config.MAX_CONSECUTIVE_DEADLOCK_BREAKS — see run.py:230
-    # for the exit path. Reset on any successful think() at line 222.
+    # Bounded by config.MAX_CONSECUTIVE_DEADLOCK_BREAKS; the exit path
+    # below bumps deadlock_break_exit and breaks the loop. Reset to 0
+    # in the success branch right after metrics.reset(consecutive_fail).
     deadlock_breaks_since_success = 0
 
     def _safe(label: str, fn: Callable[[], object]) -> None:
