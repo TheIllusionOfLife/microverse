@@ -43,6 +43,7 @@ from microverse.agents.artisan import Artisan
 from microverse.agents.base import Action, Agent, WorldContext
 from microverse.agents.harvester import ArtifactCandidate, Harvester
 from microverse.agents.trader import Trader
+from microverse import config
 from microverse.config import MAX_TICKS_DEFAULT
 from microverse.memory import build_context
 from microverse.memory.episodic import EpisodicMemory
@@ -169,6 +170,9 @@ def run(
     max_ticks = ticks if ticks is not None else MAX_TICKS_DEFAULT
     executed = 0
     consecutive_skips = 0
+    # Bounded by config.MAX_CONSECUTIVE_DEADLOCK_BREAKS — see run.py:230
+    # for the exit path. Reset on any successful think() at line 222.
+    deadlock_breaks_since_success = 0
 
     def _safe(label: str, fn: Callable[[], object]) -> None:
         try:
@@ -193,6 +197,18 @@ def run(
                         for a in sched.agents:
                             if metrics.should_pause(a.name):
                                 metrics.reset("consecutive_fail", agent=a.name)
+                        deadlock_breaks_since_success += 1
+                        if (
+                            deadlock_breaks_since_success
+                            >= config.MAX_CONSECUTIVE_DEADLOCK_BREAKS
+                        ):
+                            metrics.bump("deadlock_break_exit")
+                            _logger.error(
+                                "all agents stuck after %d consecutive "
+                                "deadlock-breaks — exiting",
+                                deadlock_breaks_since_success,
+                            )
+                            break
                     consecutive_skips = 0
                 continue
             consecutive_skips = 0
@@ -215,6 +231,7 @@ def run(
                 time.sleep(min(max(tempo or 1.0, 1.0), 5.0))
                 continue
             metrics.reset("consecutive_fail", agent=agent.name)
+            deadlock_breaks_since_success = 0
             _commit_action(episodic, agent, action)
             _maybe_harvest(harvester, agent, action)
             executed += 1
