@@ -232,6 +232,48 @@ def test_run_exits_after_consecutive_deadlock_breaks(tmp_path: Path):
     assert rows == [(1,)], f"expected deadlock_break_exit=1, got {rows}"
 
 
+def test_run_survives_snapshot_disk_io_error(tmp_path: Path):
+    """A 24h soak crashed at hour 4 because sqlite3.OperationalError
+    ('disk I/O error') was raised from PRAGMA wal_checkpoint(TRUNCATE)
+    inside maybe_snapshot, but the snapshot site only caught
+    SnapshotBusyError. The OperationalError escaped, killed the loop,
+    and 451 trailing rest events were lost. The loop must absorb
+    arbitrary snapshot exceptions with a metric bump."""
+    import sqlite3
+
+    def raise_io(*_args: object, **_kwargs: object) -> None:
+        raise sqlite3.OperationalError("disk I/O error")
+
+    rest_only = {
+        "content": '{"thought": "x", "action": "rest", "target": null, "artifact": null}',
+        "thinking": "",
+        "raw": {},
+    }
+
+    with (
+        patch("microverse.run.time.sleep", side_effect=lambda *_a, **_k: None),
+        patch("microverse.agents.artisan.chat", return_value=rest_only),
+        patch("microverse.run.maybe_snapshot", side_effect=raise_io),
+    ):
+        executed = run(
+            ticks=3,
+            seed=0,
+            tempo=0,
+            data_dir=tmp_path / "data",
+            harvest_dir=tmp_path / "harvest",
+        )
+
+    assert executed == 3, "loop must complete despite snapshot I/O error"
+
+    with sqlite3.connect(str(tmp_path / "data" / "metrics.sqlite")) as conn:
+        rows = conn.execute(
+            "SELECT MAX(value) FROM metrics WHERE name='snapshot_fail'"
+        ).fetchall()
+    assert rows and rows[0][0] is not None and rows[0][0] >= 1, (
+        f"expected snapshot_fail bumped, got {rows}"
+    )
+
+
 def test_run_recovers_from_all_paused_via_consecutive_fail_reset(tmp_path: Path):
     """Three consecutive parse failures pause the only agent. The tick
     loop must auto-rehab via reset(consecutive_fail) so the run can
