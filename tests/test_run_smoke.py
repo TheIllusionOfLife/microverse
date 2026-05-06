@@ -266,12 +266,11 @@ def test_run_survives_snapshot_disk_io_error(tmp_path: Path):
     assert executed == 3, "loop must complete despite snapshot I/O error"
 
     with sqlite3.connect(str(tmp_path / "data" / "metrics.sqlite")) as conn:
-        rows = conn.execute(
+        max_val = conn.execute(
             "SELECT MAX(value) FROM metrics WHERE name='snapshot_fail'"
-        ).fetchall()
-    assert rows and rows[0][0] is not None and rows[0][0] >= 1, (
-        f"expected snapshot_fail bumped, got {rows}"
-    )
+        ).fetchone()[0]
+    assert max_val is not None, "snapshot_fail metric not persisted"
+    assert max_val >= 1, f"expected snapshot_fail >= 1, got {max_val}"
 
 
 def test_run_recovers_from_all_paused_via_consecutive_fail_reset(tmp_path: Path):
