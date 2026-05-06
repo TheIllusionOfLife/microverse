@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING
 from microverse.agents.base import WorldContext
 
 if TYPE_CHECKING:
-    from microverse.memory.episodic import EpisodicMemory
+    from microverse.memory.episodic import EpisodicMemory, Event
     from microverse.memory.semantic import SemanticMemory
 
 
@@ -39,6 +39,52 @@ def _format_episodic(actor: str, action: str, thought: str) -> str:
     if thought:
         return f"{actor} {action}: {thought}"
     return f"{actor} {action}"
+
+
+def _compress_rest_runs(events: list[Event]) -> list[str]:
+    """Collapse runs of >=2 consecutive same-actor rest events into a
+    single summary line so a long rest streak cannot poison
+    ``recent_episodic`` by repeating identical narratives. Preserves the
+    latest rest's thought (events arrive newest-first from
+    ``EpisodicMemory.since``) so body-state signal survives.
+
+    A single isolated rest is left verbatim; only runs of length >=2 are
+    compressed. Runs are broken by any non-rest event or a rest by a
+    different actor.
+    """
+    out: list[str] = []
+    run_actor: str | None = None
+    run_count = 0
+    run_thought = ""
+
+    def flush() -> None:
+        nonlocal run_actor, run_count, run_thought
+        if run_count >= 2 and run_actor:
+            line = f"{run_actor} rested {run_count} times"
+            if run_thought:
+                line += f". Latest: {run_thought}"
+            out.append(line)
+        elif run_count == 1 and run_actor:
+            out.append(_format_episodic(run_actor, "rest", run_thought))
+        run_actor = None
+        run_count = 0
+        run_thought = ""
+
+    for e in events:
+        thought = str(e.payload.get("thought") or "")
+        if e.action == "rest":
+            if run_actor == e.actor:
+                run_count += 1
+            else:
+                flush()
+                run_actor = e.actor
+                run_count = 1
+                run_thought = thought
+        else:
+            flush()
+            out.append(_format_episodic(e.actor, e.action, thought))
+    flush()
+    return out
 
 
 def _pack_under_budget(items: list[str], token_budget: int, joiner: str = "\n") -> tuple[str, ...]:
@@ -99,9 +145,7 @@ def build_context(
     """
     cutoff = time.time() - episodic_window_s
     events = episodic.since(cutoff, limit=episodic_lookback)
-    recent_lines = [
-        _format_episodic(e.actor, e.action, str(e.payload.get("thought") or "")) for e in events
-    ]
+    recent_lines = _compress_rest_runs(events)
     recent = _pack_under_budget(recent_lines, episodic_tok)
 
     lore_lines: list[str] = []
