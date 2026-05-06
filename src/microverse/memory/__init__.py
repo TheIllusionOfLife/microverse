@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING
 from microverse.agents.base import WorldContext
 
 if TYPE_CHECKING:
-    from microverse.memory.episodic import EpisodicMemory
+    from microverse.memory.episodic import EpisodicMemory, Event
     from microverse.memory.semantic import SemanticMemory
 
 
@@ -41,7 +41,7 @@ def _format_episodic(actor: str, action: str, thought: str) -> str:
     return f"{actor} {action}"
 
 
-def _compress_rest_runs(events: list) -> list[str]:
+def _compress_rest_runs(events: list[Event]) -> list[str]:
     """Collapse runs of >=2 consecutive same-actor rest events into a
     single summary line so a long rest streak cannot poison
     ``recent_episodic`` by repeating identical narratives. Preserves the

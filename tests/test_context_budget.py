@@ -234,6 +234,66 @@ def test_build_context_compression_run_broken_by_other_actor(tmp_path: Path) -> 
     assert counts == [5, 7], f"counts must match the two runs, got {counts}"
 
 
+def test_build_context_summary_captures_latest_thought(tmp_path: Path) -> None:
+    """The compression docstring promises the summary preserves the
+    latest rest's thought (newest-by-id). Append rests with distinct,
+    sequential thoughts so we can verify which one ends up in the
+    'Latest:' tail rather than relying on identical-thought tests
+    where the contract is unobservable.
+    """
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
+        for marker in ("first", "second", "third"):
+            ep.append(
+                actor="Aki",
+                action="rest",
+                target=None,
+                payload={"thought": f"the {marker} rest"},
+            )
+        out = build_context(world_base=WorldContext(), episodic=ep, semantic=se, topic="")
+
+    summary_lines = [line for line in out.recent_episodic if line.startswith("Aki rested ")]
+    assert len(summary_lines) == 1, f"expected one summary, got {summary_lines!r}"
+    summary = summary_lines[0]
+    assert "rested 3 times" in summary
+    assert "the third rest" in summary, (
+        f"summary must capture the newest rest's thought, got {summary!r}"
+    )
+    assert "the first rest" not in summary
+    assert "the second rest" not in summary
+
+
+def test_build_context_compression_separates_runs_by_actor(tmp_path: Path) -> None:
+    """Watchdog can spawn a Stranger mid-run, so a real production
+    scenario is `Aki rest * 3 / Stranger rest * 2 / Aki rest * 4`.
+    The actor change must break the run, producing three separate
+    summaries (or, when the middle run has length 1, leaving it
+    verbatim) rather than collapsing into one merged span keyed off
+    'rest action'.
+    """
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
+        for _ in range(3):
+            ep.append(actor="Aki", action="rest", target=None, payload={"thought": "Aki tired"})
+        for _ in range(2):
+            ep.append(actor="Mira", action="rest", target=None, payload={"thought": "Mira tired"})
+        for _ in range(4):
+            ep.append(
+                actor="Aki",
+                action="rest",
+                target=None,
+                payload={"thought": "Aki still tired"},
+            )
+        out = build_context(world_base=WorldContext(), episodic=ep, semantic=se, topic="")
+
+    aki_summaries = [line for line in out.recent_episodic if line.startswith("Aki rested ")]
+    mira_summaries = [line for line in out.recent_episodic if line.startswith("Mira rested ")]
+    assert len(aki_summaries) == 2, f"expected two Aki summaries, got {aki_summaries!r}"
+    assert len(mira_summaries) == 1, f"expected one Mira summary, got {mira_summaries!r}"
+
+    aki_counts = sorted(int(line.split()[2]) for line in aki_summaries)
+    assert aki_counts == [3, 4], f"Aki counts must match its two runs, got {aki_counts}"
+    assert "rested 2 times" in mira_summaries[0]
+
+
 def test_episodic_excerpts_capped_to_budget(tmp_path: Path):
     rng = random.Random(7)
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
