@@ -205,9 +205,7 @@ def test_build_context_keeps_isolated_rest_uncompressed(tmp_path: Path) -> None:
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
         ep.append(actor="Aki", action="craft", target=None, payload={"thought": "shaped a bowl"})
         ep.append(actor="Aki", action="rest", target=None, payload={"thought": "a brief pause"})
-        ep.append(
-            actor="Aki", action="craft", target=None, payload={"thought": "shaped another"}
-        )
+        ep.append(actor="Aki", action="craft", target=None, payload={"thought": "shaped another"})
         out = build_context(world_base=WorldContext(), episodic=ep, semantic=se, topic="")
 
     summary_lines = [line for line in out.recent_episodic if line.startswith("Aki rested ")]
@@ -223,9 +221,7 @@ def test_build_context_compression_run_broken_by_other_actor(tmp_path: Path) -> 
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
         for _ in range(5):
             ep.append(actor="Aki", action="rest", target=None, payload={"thought": "tired"})
-        ep.append(
-            actor="world", action="weather.drought", target=None, payload={"thought": ""}
-        )
+        ep.append(actor="world", action="weather.drought", target=None, payload={"thought": ""})
         for _ in range(7):
             ep.append(actor="Aki", action="rest", target=None, payload={"thought": "still tired"})
         out = build_context(world_base=WorldContext(), episodic=ep, semantic=se, topic="")
