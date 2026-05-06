@@ -261,9 +261,7 @@ def test_build_context_rest_summary_omits_thoughts(tmp_path: Path) -> None:
     summary_lines = [line for line in out.recent_episodic if line.startswith("Aki rested ")]
     assert len(summary_lines) == 1, f"expected one summary, got {summary_lines!r}"
     summary = summary_lines[0]
-    assert summary == "Aki rested 3 times", (
-        f"summary must be count-only, got {summary!r}"
-    )
+    assert summary == "Aki rested 3 times", f"summary must be count-only, got {summary!r}"
     assert "Latest" not in summary
     for marker in ("first", "second", "third"):
         assert f"the {marker} rest" not in summary
