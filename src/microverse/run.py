@@ -257,6 +257,16 @@ def run(
                 # will try again.
                 _logger.warning("snapshot skipped: WAL checkpoint busy")
                 metrics.bump("snapshot_skip_busy")
+            except Exception:
+                # Anything else (sqlite3.OperationalError "disk I/O
+                # error", a transient FS failure, OS-level truncate
+                # racing tar) must NOT kill the loop. WAL is the
+                # durability boundary; snapshots are cold backups, so
+                # missing one interval is acceptable. A 24h soak
+                # crashed here once when this branch only caught
+                # SnapshotBusyError.
+                _logger.exception("snapshot failed")
+                metrics.bump("snapshot_fail")
 
             sleep_s = tempo if tempo is not None else agent.tempo()
             if sleep_s > 0:
