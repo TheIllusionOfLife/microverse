@@ -146,6 +146,98 @@ def test_est_tokens_is_len_div_four():
     assert est_tokens("") == 0
 
 
+def test_build_context_compresses_consecutive_rest_runs(tmp_path: Path) -> None:
+    """The 24h soak (#29) saw Aki collapse into a 451-event rest streak
+    that poisoned ``recent_episodic`` with a wall of identical rest
+    narratives. PR #17's prompt nudge alone could not break this; the
+    fix is at the memory layer.
+
+    A run of >=2 consecutive same-actor rests must collapse to a single
+    summary line that preserves the latest rest's thought (so body
+    state is retained), keeping the rest of the slice budget for
+    non-rest context.
+    """
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
+        ep.append(
+            actor="Aki",
+            action="craft",
+            target=None,
+            payload={"thought": "I shaped the cedar.", "artifact": "cedar bowl"},
+        )
+        for _ in range(80):
+            ep.append(
+                actor="Aki",
+                action="rest",
+                target=None,
+                payload={"thought": "the mandate for rest is absolute"},
+            )
+        out = build_context(
+            world_base=WorldContext(),
+            episodic=ep,
+            semantic=se,
+            topic="",
+            episodic_tok=1500,
+        )
+
+    joined = "\n".join(out.recent_episodic)
+
+    summary_lines = [line for line in out.recent_episodic if line.startswith("Aki rested ")]
+    assert len(summary_lines) == 1, f"expected one rest summary, got {summary_lines!r}"
+    assert "rested 80 times" in summary_lines[0]
+
+    bare_rest = [line for line in out.recent_episodic if line.startswith("Aki rest:")]
+    assert len(bare_rest) <= 1, f"expected <=1 bare 'Aki rest:' line, got {bare_rest!r}"
+
+    craft_lines = [line for line in out.recent_episodic if line.startswith("Aki craft")]
+    assert craft_lines, "the older craft event must still surface"
+
+    mandate_repeats = joined.count("mandate for rest")
+    assert mandate_repeats <= 1, (
+        f"trap language must not repeat after compression, got {mandate_repeats}x"
+    )
+
+    assert est_tokens(joined) <= 1500
+
+
+def test_build_context_keeps_isolated_rest_uncompressed(tmp_path: Path) -> None:
+    """A single isolated rest must not be summarised; only runs of
+    >=2 consecutive rests get collapsed."""
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
+        ep.append(actor="Aki", action="craft", target=None, payload={"thought": "shaped a bowl"})
+        ep.append(actor="Aki", action="rest", target=None, payload={"thought": "a brief pause"})
+        ep.append(
+            actor="Aki", action="craft", target=None, payload={"thought": "shaped another"}
+        )
+        out = build_context(world_base=WorldContext(), episodic=ep, semantic=se, topic="")
+
+    summary_lines = [line for line in out.recent_episodic if line.startswith("Aki rested ")]
+    assert summary_lines == [], f"isolated rest must not be summarised, got {summary_lines!r}"
+
+    bare_rest = [line for line in out.recent_episodic if line.startswith("Aki rest:")]
+    assert len(bare_rest) == 1, f"isolated rest must appear verbatim, got {bare_rest!r}"
+
+
+def test_build_context_compression_run_broken_by_other_actor(tmp_path: Path) -> None:
+    """A non-Aki event (e.g. world weather) breaks a rest run, producing
+    two summaries flanking the interloper rather than one merged span."""
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
+        for _ in range(5):
+            ep.append(actor="Aki", action="rest", target=None, payload={"thought": "tired"})
+        ep.append(
+            actor="world", action="weather.drought", target=None, payload={"thought": ""}
+        )
+        for _ in range(7):
+            ep.append(actor="Aki", action="rest", target=None, payload={"thought": "still tired"})
+        out = build_context(world_base=WorldContext(), episodic=ep, semantic=se, topic="")
+
+    summary_lines = [line for line in out.recent_episodic if line.startswith("Aki rested ")]
+    assert len(summary_lines) == 2, (
+        f"expected two summaries flanking weather, got {summary_lines!r}"
+    )
+    counts = sorted(int(line.split()[2]) for line in summary_lines)
+    assert counts == [5, 7], f"counts must match the two runs, got {counts}"
+
+
 def test_episodic_excerpts_capped_to_budget(tmp_path: Path):
     rng = random.Random(7)
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
