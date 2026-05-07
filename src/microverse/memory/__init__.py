@@ -41,21 +41,28 @@ def _format_episodic(actor: str, action: str, thought: str) -> str:
     return f"{actor} {action}"
 
 
+REST_SUMMARY_SUPPRESS_AT: int = 10
+
+
 def _compress_rest_runs(events: list[Event]) -> list[str]:
     """Collapse runs of >=2 consecutive same-actor rest events into a
     single count-only summary line so a long rest streak cannot poison
-    ``recent_episodic``.
+    ``recent_episodic``. Runs of length >= ``REST_SUMMARY_SUPPRESS_AT``
+    emit *nothing* — beyond that threshold the count itself becomes
+    enough signal for the LLM to infer fatigue and continue resting.
 
     A single isolated rest is left verbatim (its thought is real recent
-    context, not a run); only runs of length >=2 are compressed. Runs
-    are broken by any non-rest event or a rest by a different actor.
+    context, not a run). Runs of 2..(threshold-1) render as a count-only
+    line. Runs of >= threshold are dropped from the slice entirely.
+    Runs are broken by any non-rest event or a rest by a different
+    actor.
 
-    The summary is intentionally count-only ("Aki rested 80 times"). An
-    earlier Layer C draft preserved the latest rest's thought, but
-    soak-24h-3 hour-1 showed the LLM keeps constructing an "exhausted
-    artisan" self-narrative when fatigue thoughts are fed forward — even
-    one summary line is enough seed for the next tick's reasoning. The
-    count alone conveys magnitude without amplifying the narrative.
+    Layer history:
+      - Layer C: render runs as one summary with "Latest: <thought>".
+      - Layer D: drop the thought; summary became count-only.
+      - Layer E.1 (this layer): suppress entirely above the threshold,
+        because even "Aki rested 57 times" was enough fatigue signal in
+        soak-wiring-resoak-3 (post-Layer-D, seed 38, 43% rest).
     """
     out: list[str] = []
     run_actor: str | None = None
@@ -64,7 +71,11 @@ def _compress_rest_runs(events: list[Event]) -> list[str]:
 
     def flush() -> None:
         nonlocal run_actor, run_count, run_thought
-        if run_count >= 2 and run_actor:
+        if run_count >= REST_SUMMARY_SUPPRESS_AT and run_actor:
+            # Drop the entire run from the slice. The count alone still
+            # carries fatigue signal — see soak-wiring-resoak-3.
+            pass
+        elif run_count >= 2 and run_actor:
             out.append(f"{run_actor} rested {run_count} times")
         elif run_count == 1 and run_actor:
             out.append(_format_episodic(run_actor, "rest", run_thought))

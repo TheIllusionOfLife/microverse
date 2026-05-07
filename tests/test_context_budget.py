@@ -183,14 +183,18 @@ def test_build_context_compresses_consecutive_rest_runs(tmp_path: Path) -> None:
 
     joined = "\n".join(out.recent_episodic)
 
+    # Layer E.1: 80 >= REST_SUMMARY_SUPPRESS_AT (=10), so the run is
+    # suppressed entirely — no summary line at all. Layer C/D had a
+    # count-only summary here; that was tightened further when
+    # soak-wiring-resoak-3 showed even one count line was enough
+    # fatigue signal for the LLM.
     summary_lines = [line for line in out.recent_episodic if line.startswith("Aki rested ")]
-    assert len(summary_lines) == 1, f"expected one rest summary, got {summary_lines!r}"
-    assert summary_lines[0] == "Aki rested 80 times", (
-        f"summary must be count-only after Layer D, got {summary_lines[0]!r}"
+    assert summary_lines == [], (
+        f"runs of 80 must be suppressed entirely after Layer E.1, got {summary_lines!r}"
     )
 
     bare_rest = [line for line in out.recent_episodic if line.startswith("Aki rest:")]
-    assert len(bare_rest) <= 1, f"expected <=1 bare 'Aki rest:' line, got {bare_rest!r}"
+    assert bare_rest == [], f"no 'Aki rest:' lines either, got {bare_rest!r}"
 
     craft_lines = [line for line in out.recent_episodic if line.startswith("Aki craft")]
     assert craft_lines, "the older craft event must still surface"
