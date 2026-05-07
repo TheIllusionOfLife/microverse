@@ -153,9 +153,11 @@ def test_build_context_compresses_consecutive_rest_runs(tmp_path: Path) -> None:
     fix is at the memory layer.
 
     A run of >=2 consecutive same-actor rests must collapse to a single
-    summary line that preserves the latest rest's thought (so body
-    state is retained), keeping the rest of the slice budget for
-    non-rest context.
+    summary line carrying ONLY the count, no thought text. PR #19
+    initially preserved the latest rest's thought, but soak-24h-3 hour-1
+    showed Aki keeps constructing a coherent ``exhausted artisan`` self-
+    narrative when the latest fatigue thought is fed forward — even one
+    summary line is enough seed for the loop. Layer D drops the thought.
     """
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
         ep.append(
@@ -183,7 +185,9 @@ def test_build_context_compresses_consecutive_rest_runs(tmp_path: Path) -> None:
 
     summary_lines = [line for line in out.recent_episodic if line.startswith("Aki rested ")]
     assert len(summary_lines) == 1, f"expected one rest summary, got {summary_lines!r}"
-    assert "rested 80 times" in summary_lines[0]
+    assert summary_lines[0] == "Aki rested 80 times", (
+        f"summary must be count-only after Layer D, got {summary_lines[0]!r}"
+    )
 
     bare_rest = [line for line in out.recent_episodic if line.startswith("Aki rest:")]
     assert len(bare_rest) <= 1, f"expected <=1 bare 'Aki rest:' line, got {bare_rest!r}"
@@ -192,8 +196,8 @@ def test_build_context_compresses_consecutive_rest_runs(tmp_path: Path) -> None:
     assert craft_lines, "the older craft event must still surface"
 
     mandate_repeats = joined.count("mandate for rest")
-    assert mandate_repeats <= 1, (
-        f"trap language must not repeat after compression, got {mandate_repeats}x"
+    assert mandate_repeats == 0, (
+        f"trap language must NOT survive into compressed slice, got {mandate_repeats}x"
     )
 
     assert est_tokens(joined) <= 1500
@@ -234,12 +238,15 @@ def test_build_context_compression_run_broken_by_other_actor(tmp_path: Path) -> 
     assert counts == [5, 7], f"counts must match the two runs, got {counts}"
 
 
-def test_build_context_summary_captures_latest_thought(tmp_path: Path) -> None:
-    """The compression docstring promises the summary preserves the
-    latest rest's thought (newest-by-id). Append rests with distinct,
-    sequential thoughts so we can verify which one ends up in the
-    'Latest:' tail rather than relying on identical-thought tests
-    where the contract is unobservable.
+def test_build_context_rest_summary_omits_thoughts(tmp_path: Path) -> None:
+    """Layer D inversion of the earlier "captures latest thought" test.
+
+    Hour-1 of the post-Layer-C 24h soak (seed 38) showed the LLM
+    constructing a coherent "exhausted artisan" narrative even when
+    100+ rests were collapsed to one summary line: the ``Latest:``
+    thought in that summary kept seeding the next tick's reasoning
+    with fatigue language. The fix is to drop the thought entirely
+    from compressed summaries — the count alone signals magnitude.
     """
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
         for marker in ("first", "second", "third"):
@@ -254,12 +261,10 @@ def test_build_context_summary_captures_latest_thought(tmp_path: Path) -> None:
     summary_lines = [line for line in out.recent_episodic if line.startswith("Aki rested ")]
     assert len(summary_lines) == 1, f"expected one summary, got {summary_lines!r}"
     summary = summary_lines[0]
-    assert "rested 3 times" in summary
-    assert "the third rest" in summary, (
-        f"summary must capture the newest rest's thought, got {summary!r}"
-    )
-    assert "the first rest" not in summary
-    assert "the second rest" not in summary
+    assert summary == "Aki rested 3 times", f"summary must be count-only, got {summary!r}"
+    assert "Latest" not in summary
+    for marker in ("first", "second", "third"):
+        assert f"the {marker} rest" not in summary
 
 
 def test_build_context_compression_separates_runs_by_actor(tmp_path: Path) -> None:
