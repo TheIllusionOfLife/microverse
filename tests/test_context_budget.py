@@ -232,7 +232,10 @@ def test_build_context_suppresses_rest_summary_at_threshold(tmp_path: Path) -> N
     crafts_9 = [line for line in out_9.recent_episodic if line.startswith("Aki craft")]
     assert len(crafts_9) == 2, f"surrounding crafts must survive, got {crafts_9!r}"
 
-    with EpisodicMemory(tmp_path / "ep2.sqlite") as ep, SemanticMemory(tmp_path / "se2.sqlite") as se:
+    with (
+        EpisodicMemory(tmp_path / "ep2.sqlite") as ep,
+        SemanticMemory(tmp_path / "se2.sqlite") as se,
+    ):
         # threshold case: 10 rests -> suppressed entirely
         ep.append(actor="Aki", action="craft", target=None, payload={"thought": "made A"})
         for _ in range(10):

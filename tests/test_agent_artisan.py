@@ -73,8 +73,7 @@ def test_artisan_think_falls_back_on_garbage_response(metrics: Metrics):
 def _intentional_rest_chat(thought: str = "I will rest a moment to gather myself."):
     return {
         "content": (
-            f'{{"thought": "{thought}", "action": "rest", '
-            '"target": null, "artifact": null}}'
+            f'{{"thought": "{thought}", "action": "rest", "target": null, "artifact": null}}'
         ),
         "thinking": "",
         "raw": {},
@@ -92,7 +91,7 @@ def test_artisan_preserves_streak_of_three_intentional_rests(metrics: Metrics):
     assert all(r.action == ActionKind.REST for r in results), (
         f"first three rests must pass through, got {[r.action for r in results]!r}"
     )
-    assert metrics.get("artisan_rest_rate_limited") == 0
+    assert metrics.get("artisan_rest_rate_limited", agent="Aki") == 0
 
 
 def test_artisan_rate_limits_fourth_intentional_rest(metrics: Metrics):
@@ -105,7 +104,7 @@ def test_artisan_rate_limits_fourth_intentional_rest(metrics: Metrics):
         # Three pass through, fourth gets coerced.
         for _ in range(3):
             a.think(WorldContext())
-        assert metrics.get("artisan_rest_rate_limited") == 0
+        assert metrics.get("artisan_rest_rate_limited", agent="Aki") == 0
         coerced = a.think(WorldContext())
 
     assert coerced.action != ActionKind.REST, (
@@ -114,7 +113,7 @@ def test_artisan_rate_limits_fourth_intentional_rest(metrics: Metrics):
     assert coerced.action == ActionKind.STUDY, (
         f"with no peers, coerce target is study, got {coerced.action!r}"
     )
-    assert metrics.get("artisan_rest_rate_limited") == 1
+    assert metrics.get("artisan_rest_rate_limited", agent="Aki") == 1
 
 
 def test_artisan_rate_limit_coerces_to_speak_when_peers_present(metrics: Metrics):
@@ -161,7 +160,7 @@ def test_artisan_rate_limit_resets_on_non_rest(metrics: Metrics):
         ActionKind.REST,
         ActionKind.REST,
     ], f"streak resets after craft, got {actions!r}"
-    assert metrics.get("artisan_rest_rate_limited") == 0
+    assert metrics.get("artisan_rest_rate_limited", agent="Aki") == 0
 
 
 def test_artisan_rate_limit_skips_parse_fallback_rests(metrics: Metrics):
@@ -179,5 +178,5 @@ def test_artisan_rate_limit_skips_parse_fallback_rests(metrics: Metrics):
     assert all(r.action == ActionKind.REST for r in results), (
         f"parse-fallback rests must pass through, got {[r.action for r in results]!r}"
     )
-    assert metrics.get("artisan_rest_rate_limited") == 0
+    assert metrics.get("artisan_rest_rate_limited", agent="Aki") == 0
     assert metrics.get("json_fallback_rest") == 5
