@@ -10,6 +10,13 @@ After ``ARTISAN_REST_STREAK_LIMIT`` rests in a row, the next intentional
 rest is coerced to speak (if peers exist) or study. Parse-fallback
 rests are excluded — they must propagate so the watchdog can see the
 real JSON-failure signal.
+
+Layer F.2: a post-LLM coercion for craft actions whose ``artifact``
+field is null or whitespace. Empty-artifact crafts are coerced to
+``study`` with a neutral replacement thought so the silent-woodworker
+narrative observed in soak-24h-4 cannot propagate through
+``recent_episodic``. Runs BEFORE the rest rate-limiter — empty-craft
+is an active tick, not rest-avoidance.
 """
 
 from __future__ import annotations
@@ -28,6 +35,17 @@ from microverse.ops.metrics import Metrics
 from microverse.prompts import render
 
 _PERSONA_TEMPLATE = "persona_artisan.j2"
+
+# Replacement thought for Layer F.2 empty-craft coercion. Crucially
+# neutral: it does NOT mention silence/fatigue/etc. — feeding the
+# original "every fiber demands silence" thought back into
+# ``recent_episodic`` is what sustained the trap (the LLM read its own
+# narrative and continued it). The replacement names a productive
+# fallback (study) so the next-tick context reads as recovery, not
+# repetition.
+_EMPTY_CRAFT_REPLACEMENT_THOUGHT = (
+    "The work needs a concrete form, so I study materials before making it."
+)
 
 
 class Artisan(Agent):
@@ -64,7 +82,38 @@ class Artisan(Agent):
             timeout_s=LLM_TIMEOUT_S,  # explicit so a hung model can't freeze the tick loop
         )
         action = parse_action(result["content"], metrics=self._metrics, agent=self.name)
+        # F.2 must run BEFORE the rest rate-limiter: empty-craft is an
+        # active tick that should reset the rest streak, not pass
+        # through it as rest.
+        action = self._maybe_coerce_empty_craft(action)
         return self._maybe_rate_limit(action, world)
+
+    def _maybe_coerce_empty_craft(self, action: Action) -> Action:
+        """Layer F.2: if the LLM picks ``craft`` without populating
+        ``artifact`` (None, empty, or whitespace), coerce to ``study``
+        with a neutral replacement thought.
+
+        The original thought is intentionally DROPPED — preserving it
+        would feed the silent-woodworker narrative back into
+        ``recent_episodic`` via ``_format_episodic`` and reinforce the
+        trap. Bumps ``artisan_empty_craft_coerced`` (per-agent metric)
+        so runaway firing is observable.
+
+        Note: ``Action`` has ``str_strip_whitespace=True``, so a
+        whitespace-only artifact arrives here normalised to ``""`` —
+        the truthy check covers both None and stripped-empty.
+        """
+        if action.action != ActionKind.CRAFT:
+            return action
+        if action.artifact:
+            return action
+        self._metrics.bump("artisan_empty_craft_coerced", agent=self.name)
+        return Action(
+            thought=_EMPTY_CRAFT_REPLACEMENT_THOUGHT,
+            action=ActionKind.STUDY,
+            target=None,
+            artifact=None,
+        )
 
     def _maybe_rate_limit(self, action: Action, world: WorldContext) -> Action:
         """Coerce the action when the LLM picks rest too many times in

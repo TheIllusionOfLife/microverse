@@ -38,9 +38,6 @@ def test_artisan_prompt_requires_artifact_for_craft():
     assert "Hard rules:" in rendered
     hard_rules = rendered.split("Hard rules:", 1)[1]
     rule_present = any(
-        "craft" in line.lower() and "artifact" in line.lower()
-        for line in hard_rules.splitlines()
+        "craft" in line.lower() and "artifact" in line.lower() for line in hard_rules.splitlines()
     )
-    assert rule_present, (
-        f"missing craft+artifact hard rule in Hard rules section: {hard_rules!r}"
-    )
+    assert rule_present, f"missing craft+artifact hard rule in Hard rules section: {hard_rules!r}"
