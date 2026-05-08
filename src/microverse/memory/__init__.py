@@ -21,6 +21,7 @@ import time
 from typing import TYPE_CHECKING
 
 from microverse.agents.base import WorldContext
+from microverse.config import REST_SUMMARY_SUPPRESS_AT
 
 if TYPE_CHECKING:
     from microverse.memory.episodic import EpisodicMemory, Event
@@ -39,9 +40,6 @@ def _format_episodic(actor: str, action: str, thought: str) -> str:
     if thought:
         return f"{actor} {action}: {thought}"
     return f"{actor} {action}"
-
-
-REST_SUMMARY_SUPPRESS_AT: int = 10
 
 
 def _compress_rest_runs(events: list[Event]) -> list[str]:

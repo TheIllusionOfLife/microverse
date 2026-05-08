@@ -163,6 +163,30 @@ def test_artisan_rate_limit_resets_on_non_rest(metrics: Metrics):
     assert metrics.get("artisan_rest_rate_limited", agent="Aki") == 0
 
 
+def test_artisan_rate_limit_skips_empty_thought_rest(metrics: Metrics):
+    """Layer E.2 trade-off: the rate-limiter classifies "intentional
+    rest" as ``action == REST and bool(thought)``. A legitimate LLM rest
+    with a deliberately-empty thought would slip past the limiter — in
+    practice the persona prompt asks for a thought on every action so
+    this case is rare. We pin the trade-off here so a future change to
+    the heuristic surfaces as a deliberate test update.
+    """
+    canned = {
+        "content": '{"thought": "", "action": "rest", "target": null, "artifact": null}',
+        "thinking": "",
+        "raw": {},
+    }
+    with patch("microverse.agents.artisan.chat", return_value=canned):
+        a = Artisan(name="Aki", metrics=metrics)
+        results = [a.think(WorldContext()) for _ in range(5)]
+
+    assert all(r.action == ActionKind.REST for r in results), (
+        f"empty-thought rests must pass through (treated as fallback-shaped),"
+        f" got {[r.action for r in results]!r}"
+    )
+    assert metrics.get("artisan_rest_rate_limited", agent="Aki") == 0
+
+
 def test_artisan_rate_limit_skips_parse_fallback_rests(metrics: Metrics):
     """Parse-fallback rests (empty thought from a malformed LLM
     response) must NOT count toward the rate-limit. Otherwise a broken

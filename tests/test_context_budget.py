@@ -243,7 +243,7 @@ def test_build_context_suppresses_rest_summary_at_threshold(tmp_path: Path) -> N
         ep.append(actor="Aki", action="craft", target=None, payload={"thought": "made B"})
         out_10 = build_context(world_base=WorldContext(), episodic=ep, semantic=se, topic="")
 
-    summary_10 = [line for line in out_10.recent_episodic if "rested" in line]
+    summary_10 = [line for line in out_10.recent_episodic if line.startswith("Aki rested ")]
     bare_rest_10 = [line for line in out_10.recent_episodic if line.startswith("Aki rest:")]
     assert summary_10 == [], f"10-rest run must be suppressed entirely, got {summary_10!r}"
     assert bare_rest_10 == [], f"no 'Aki rest:' lines either, got {bare_rest_10!r}"
