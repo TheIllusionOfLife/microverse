@@ -25,3 +25,19 @@ def test_artisan_prompt_does_not_default_to_rest():
     assert "Hard rules:" in rendered
     hard_rules = rendered.split("Hard rules:", 1)[1]
     assert "rest" not in hard_rules.lower()
+
+
+def test_artisan_prompt_requires_artifact_for_craft():
+    """Layer F.1: post-Layer-E 24h soak (data/soak-24h-4, seed 38)
+    showed Aki picking craft with artifact=null for hours at a time
+    (1581 null vs 678 non-null over the run). The persona must contain
+    a Hard rule pinning the contract so the LLM stops treating null
+    as artistically intentional.
+    """
+    rendered = render("persona_artisan.j2", world=WorldContext(), name="Aki")
+    assert "Hard rules:" in rendered
+    hard_rules = rendered.split("Hard rules:", 1)[1]
+    rule_present = any(
+        "craft" in line.lower() and "artifact" in line.lower() for line in hard_rules.splitlines()
+    )
+    assert rule_present, f"missing craft+artifact hard rule in Hard rules section: {hard_rules!r}"
