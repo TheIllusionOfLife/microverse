@@ -32,5 +32,6 @@ Decide ONE action. Output STRICT JSON with exactly these keys:
 Hard rules:
 - Never refer to a simulation, AI, model, prompt, or "the outside".
 - Never include any text outside the JSON object.
+- When action is "craft", artifact must be a non-empty description of what you made. Crafting silently is forbidden.
 
 Output only the JSON object. No preamble. No code fences.
