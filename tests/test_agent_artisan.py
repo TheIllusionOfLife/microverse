@@ -163,6 +163,88 @@ def test_artisan_rate_limit_resets_on_non_rest(metrics: Metrics):
     assert metrics.get("artisan_rest_rate_limited", agent="Aki") == 0
 
 
+def _craft_chat(thought: str = "I will shape the wood.", artifact: str | None = None):
+    """Build an Ollama-style chat response with action=craft. ``artifact``
+    of None renders as JSON ``null``; non-None renders as a quoted string."""
+    artifact_json = "null" if artifact is None else f'"{artifact}"'
+    return {
+        "content": (
+            f'{{"thought": "{thought}", "action": "craft", '
+            f'"target": null, "artifact": {artifact_json}}}'
+        ),
+        "thinking": "",
+        "raw": {},
+    }
+
+
+def test_artisan_passes_through_craft_with_artifact(metrics: Metrics):
+    """Layer F.2: a craft with a real artifact is unaffected."""
+    canned = _craft_chat(artifact="a wooden bowl")
+    with patch("microverse.agents.artisan.chat", return_value=canned):
+        a = Artisan(name="Aki", metrics=metrics)
+        result = a.think(WorldContext())
+    assert result.action == ActionKind.CRAFT
+    assert result.artifact == "a wooden bowl"
+    assert metrics.get("artisan_empty_craft_coerced", agent="Aki") == 0
+
+
+def test_artisan_coerces_empty_craft_to_study(metrics: Metrics):
+    """Layer F.2: craft + artifact=null gets coerced to study, the
+    empty-craft metric bumps, and the original 'silent' thought is
+    DROPPED rather than preserved (per Codex insight: feeding the
+    fatigue-or-silent narrative back into recent_episodic is what
+    sustained the trap)."""
+    canned = _craft_chat(thought="Every fiber demands silence", artifact=None)
+    with patch("microverse.agents.artisan.chat", return_value=canned):
+        a = Artisan(name="Aki", metrics=metrics)
+        result = a.think(WorldContext())
+    assert result.action == ActionKind.STUDY
+    assert "silent" not in result.thought.lower()
+    assert "demands" not in result.thought.lower()
+    assert metrics.get("artisan_empty_craft_coerced", agent="Aki") == 1
+
+
+def test_artisan_coerces_whitespace_craft_to_study(metrics: Metrics):
+    """Pydantic ``str_strip_whitespace=True`` normalises ' ' to '' so
+    the coercion fires the same way as None."""
+    canned = _craft_chat(artifact="   ")
+    with patch("microverse.agents.artisan.chat", return_value=canned):
+        a = Artisan(name="Aki", metrics=metrics)
+        result = a.think(WorldContext())
+    assert result.action == ActionKind.STUDY
+    assert metrics.get("artisan_empty_craft_coerced", agent="Aki") == 1
+
+
+def test_artisan_empty_craft_does_not_trigger_rest_limiter(metrics: Metrics):
+    """Empty-craft is an active tick, not avoidance. Coercion must
+    NOT bump artisan_rest_rate_limited and must reset the rest streak,
+    so a trailing rest after coercion is the 1st in a new streak."""
+    rest_chat = _intentional_rest_chat()
+    empty_craft = _craft_chat(artifact=None)
+    responses = [rest_chat, rest_chat, rest_chat, empty_craft, rest_chat]
+    with patch("microverse.agents.artisan.chat", side_effect=responses):
+        a = Artisan(name="Aki", metrics=metrics)
+        for _ in responses:
+            a.think(WorldContext())
+    assert metrics.get("artisan_rest_rate_limited", agent="Aki") == 0
+    assert metrics.get("artisan_empty_craft_coerced", agent="Aki") == 1
+
+
+def test_artisan_empty_craft_uses_neutral_replacement_thought(metrics: Metrics):
+    """Codex Layer F insight: the replacement thought must break the
+    silent-woodworker narrative continuity rather than preserve it."""
+    canned = _craft_chat(thought="Every fiber demands silence", artifact=None)
+    with patch("microverse.agents.artisan.chat", return_value=canned):
+        a = Artisan(name="Aki", metrics=metrics)
+        result = a.think(WorldContext())
+    assert "demands silence" not in result.thought
+    assert "silent" not in result.thought.lower()
+    # Replacement thought references something productive the agent
+    # falls back to: studying materials.
+    lower = result.thought.lower()
+    assert "study" in lower or "materials" in lower
+
+
 def test_artisan_rate_limit_skips_empty_thought_rest(metrics: Metrics):
     """Layer E.2 trade-off: the rate-limiter classifies "intentional
     rest" as ``action == REST and bool(thought)``. A legitimate LLM rest
