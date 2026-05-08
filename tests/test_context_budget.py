@@ -183,14 +183,18 @@ def test_build_context_compresses_consecutive_rest_runs(tmp_path: Path) -> None:
 
     joined = "\n".join(out.recent_episodic)
 
+    # Layer E.1: 80 >= REST_SUMMARY_SUPPRESS_AT (=10), so the run is
+    # suppressed entirely — no summary line at all. Layer C/D had a
+    # count-only summary here; that was tightened further when
+    # soak-wiring-resoak-3 showed even one count line was enough
+    # fatigue signal for the LLM.
     summary_lines = [line for line in out.recent_episodic if line.startswith("Aki rested ")]
-    assert len(summary_lines) == 1, f"expected one rest summary, got {summary_lines!r}"
-    assert summary_lines[0] == "Aki rested 80 times", (
-        f"summary must be count-only after Layer D, got {summary_lines[0]!r}"
+    assert summary_lines == [], (
+        f"runs of 80 must be suppressed entirely after Layer E.1, got {summary_lines!r}"
     )
 
     bare_rest = [line for line in out.recent_episodic if line.startswith("Aki rest:")]
-    assert len(bare_rest) <= 1, f"expected <=1 bare 'Aki rest:' line, got {bare_rest!r}"
+    assert bare_rest == [], f"no 'Aki rest:' lines either, got {bare_rest!r}"
 
     craft_lines = [line for line in out.recent_episodic if line.startswith("Aki craft")]
     assert craft_lines, "the older craft event must still surface"
@@ -201,6 +205,50 @@ def test_build_context_compresses_consecutive_rest_runs(tmp_path: Path) -> None:
     )
 
     assert est_tokens(joined) <= 1500
+
+
+def test_build_context_suppresses_rest_summary_at_threshold(tmp_path: Path) -> None:
+    """Layer E.1: count alone is enough signal for the LLM to infer
+    fatigue. The post-Layer-D 45-min wiring re-soak (seed 38) hit 43%
+    rest with longest run = 57; the summary "Aki rested 57 times"
+    is itself a fatigue signal even without the latest thought.
+
+    Threshold: runs of N >= 10 emit nothing. 2..9 still show count-only
+    (small streaks are real signal). 1 stays verbatim. Any non-rest
+    events surrounding the suppressed run must still surface.
+    """
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
+        # boundary case: exactly 9 rests -> still summarised
+        ep.append(actor="Aki", action="craft", target=None, payload={"thought": "made A"})
+        for _ in range(9):
+            ep.append(actor="Aki", action="rest", target=None, payload={"thought": "tired"})
+        ep.append(actor="Aki", action="craft", target=None, payload={"thought": "made B"})
+        out_9 = build_context(world_base=WorldContext(), episodic=ep, semantic=se, topic="")
+
+    summary_9 = [line for line in out_9.recent_episodic if line.startswith("Aki rested ")]
+    assert summary_9 == ["Aki rested 9 times"], (
+        f"9-rest run must still summarise (count-only), got {summary_9!r}"
+    )
+    crafts_9 = [line for line in out_9.recent_episodic if line.startswith("Aki craft")]
+    assert len(crafts_9) == 2, f"surrounding crafts must survive, got {crafts_9!r}"
+
+    with (
+        EpisodicMemory(tmp_path / "ep2.sqlite") as ep,
+        SemanticMemory(tmp_path / "se2.sqlite") as se,
+    ):
+        # threshold case: 10 rests -> suppressed entirely
+        ep.append(actor="Aki", action="craft", target=None, payload={"thought": "made A"})
+        for _ in range(10):
+            ep.append(actor="Aki", action="rest", target=None, payload={"thought": "tired"})
+        ep.append(actor="Aki", action="craft", target=None, payload={"thought": "made B"})
+        out_10 = build_context(world_base=WorldContext(), episodic=ep, semantic=se, topic="")
+
+    summary_10 = [line for line in out_10.recent_episodic if line.startswith("Aki rested ")]
+    bare_rest_10 = [line for line in out_10.recent_episodic if line.startswith("Aki rest:")]
+    assert summary_10 == [], f"10-rest run must be suppressed entirely, got {summary_10!r}"
+    assert bare_rest_10 == [], f"no 'Aki rest:' lines either, got {bare_rest_10!r}"
+    crafts_10 = [line for line in out_10.recent_episodic if line.startswith("Aki craft")]
+    assert len(crafts_10) == 2, f"surrounding crafts must survive suppression, got {crafts_10!r}"
 
 
 def test_build_context_keeps_isolated_rest_uncompressed(tmp_path: Path) -> None:
