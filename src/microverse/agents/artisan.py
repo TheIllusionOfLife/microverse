@@ -108,11 +108,16 @@ class Artisan(Agent):
         if action.artifact:
             return action
         self._metrics.bump("artisan_empty_craft_coerced", agent=self.name)
-        return Action(
-            thought=_EMPTY_CRAFT_REPLACEMENT_THOUGHT,
-            action=ActionKind.STUDY,
-            target=None,
-            artifact=None,
+        # ``model_copy(update=...)`` over direct ``Action(...)`` so a
+        # future field added to ``Action`` is preserved by default;
+        # forgetting to mention it here would silently drop it.
+        return action.model_copy(
+            update={
+                "thought": _EMPTY_CRAFT_REPLACEMENT_THOUGHT,
+                "action": ActionKind.STUDY,
+                "target": None,
+                "artifact": None,
+            }
         )
 
     def _maybe_rate_limit(self, action: Action, world: WorldContext) -> Action:
