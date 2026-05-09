@@ -76,6 +76,53 @@ def _all_agents_paused(metrics: Metrics, agents: Sequence[Agent]) -> bool:
     return all(metrics.should_pause(a.name) for a in agents)
 
 
+def _compute_peers(
+    scheduler: WeightedScheduler,
+    episodic: EpisodicMemory,
+    agent: Agent,
+    lookback: int = 200,
+) -> tuple[str, ...]:
+    """Compute the peer set for an agent's per-tick ``WorldContext``.
+
+    Layer-G slice 2 (R2.a): the prior code constructed
+    ``WorldContext()`` with no peers, so the persona rendered "You
+    have not spoken with anyone today" every tick — reinforcing the
+    solitary-narrator frame the silent-craftsperson attractor lives
+    inside.
+
+    Two sources, deduped, in roster-then-history order:
+      1. Currently-registered scheduler agents minus self (always-on
+         residency — peers exist whether or not they have spoken).
+      2. Recent speak partners in episodic within ``lookback`` events
+         (so a Stranger immigrant who has addressed self, or a
+         self-spoken target who has since departed, still counts as
+         an eligible engagement target).
+
+    ``actor == "world"`` is excluded — weather is not a peer.
+    """
+    peers: list[str] = []
+    seen: set[str] = {agent.name, "world"}
+
+    for a in scheduler.agents:
+        if a.name not in seen:
+            peers.append(a.name)
+            seen.add(a.name)
+
+    for e in episodic.last(lookback):
+        if e.action != "speak":
+            continue
+        candidate: str | None = None
+        if e.actor == agent.name and e.target:
+            candidate = e.target
+        elif e.target == agent.name and e.actor:
+            candidate = e.actor
+        if candidate and candidate not in seen:
+            peers.append(candidate)
+            seen.add(candidate)
+
+    return tuple(peers)
+
+
 def _derive_topic(episodic: EpisodicMemory, agent: Agent) -> str:
     """Pick a scene-topic for FTS5 lore retrieval.
 
@@ -212,8 +259,9 @@ def run(
             # may spawn Strangers mid-run and a cached topic from the
             # initial agent would mis-tag their lore retrieval.
             topic = _derive_topic(episodic, agent)
+            peers = _compute_peers(sched, episodic, agent)
             world = build_context(
-                world_base=WorldContext(),
+                world_base=WorldContext(peers_today=peers),
                 episodic=episodic,
                 semantic=semantic,
                 topic=topic,
