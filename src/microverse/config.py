@@ -72,3 +72,12 @@ REST_SUMMARY_SUPPRESS_AT: int = 10
 # artisan can rest a few times in a row legitimately, but four-in-a-row
 # is the empirical trap signature from soak-24h-3.
 ARTISAN_REST_STREAK_LIMIT: int = 3
+
+# Layer-G slice 3 (R2.b): engagement gate. If an agent produces no
+# `speak` with a non-null target across this many of its own actions,
+# the next tick injects an engagement hint + required_target into
+# WorldContext and Artisan coerces if the LLM disobeys. K=20 is a
+# generous floor (peer interaction every ~20 personal ticks); under
+# the post-Layer-F soak Aki silently crafted hundreds of ticks in a
+# row, so 20 is plenty of head-room without being intrusive.
+PEER_ENGAGEMENT_INTERVAL: int = 20

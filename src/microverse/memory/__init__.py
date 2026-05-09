@@ -201,4 +201,6 @@ def build_context(
         peers_today=world_base.peers_today,
         recent_episodic=recent,
         lore_excerpt=lore,
+        engagement_hint=world_base.engagement_hint,
+        required_target=world_base.required_target,
     )

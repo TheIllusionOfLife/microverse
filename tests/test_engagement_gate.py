@@ -62,9 +62,7 @@ def test_engagement_no_target_when_recent_targeted_speak(tmp_path: Path) -> None
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
         ep.append(actor="Aki", action="speak", target="Bo", payload={})
         _seed_silent_history(ep, "Aki", 5)
-        target = _maybe_engagement_target(
-            ep, agent_name="Aki", peers=("Bo",), rng=rng, interval=20
-        )
+        target = _maybe_engagement_target(ep, agent_name="Aki", peers=("Bo",), rng=rng, interval=20)
     assert target is None, f"recent targeted speak must reset gate, got {target!r}"
 
 
@@ -83,9 +81,7 @@ def test_engagement_warmup_under_K_actions(tmp_path: Path) -> None:
     rng = random.Random(0)
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
         _seed_silent_history(ep, "Aki", 5)
-        target = _maybe_engagement_target(
-            ep, agent_name="Aki", peers=("Bo",), rng=rng, interval=20
-        )
+        target = _maybe_engagement_target(ep, agent_name="Aki", peers=("Bo",), rng=rng, interval=20)
     assert target is None, f"warmup must not fire gate, got {target!r}"
 
 
@@ -97,9 +93,7 @@ def test_engagement_other_agents_actions_do_not_count(tmp_path: Path) -> None:
         for _ in range(30):
             ep.append(actor="Bo", action="speak", target="Cy", payload={})
         _seed_silent_history(ep, "Aki", 20)
-        target = _maybe_engagement_target(
-            ep, agent_name="Aki", peers=("Bo",), rng=rng, interval=20
-        )
+        target = _maybe_engagement_target(ep, agent_name="Aki", peers=("Bo",), rng=rng, interval=20)
     assert target == "Bo", f"other agents' speaks must not count, got {target!r}"
 
 
@@ -110,9 +104,7 @@ def test_engagement_untargeted_speak_does_not_reset(tmp_path: Path) -> None:
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
         ep.append(actor="Aki", action="speak", target=None, payload={})
         _seed_silent_history(ep, "Aki", 19)
-        target = _maybe_engagement_target(
-            ep, agent_name="Aki", peers=("Bo",), rng=rng, interval=20
-        )
+        target = _maybe_engagement_target(ep, agent_name="Aki", peers=("Bo",), rng=rng, interval=20)
     assert target == "Bo", f"untargeted speak must not reset, got {target!r}"
 
 

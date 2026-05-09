@@ -22,6 +22,9 @@ Lore that feels relevant right now:
 {% endfor -%}
 {%- endif %}
 
+{% if world.engagement_hint -%}
+{{ world.engagement_hint }}
+{% endif %}
 # Your task this tick
 Decide ONE action. Output STRICT JSON with exactly these keys:
 - "thought": a short reflection (no more than 60 words)

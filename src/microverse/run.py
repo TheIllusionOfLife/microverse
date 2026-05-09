@@ -123,6 +123,52 @@ def _compute_peers(
     return tuple(peers)
 
 
+def _maybe_engagement_target(
+    episodic: EpisodicMemory,
+    *,
+    agent_name: str,
+    peers: tuple[str, ...],
+    rng: random.Random,
+    interval: int,
+) -> str | None:
+    """Pick a peer the agent must address this tick, or None.
+
+    Layer-G slice 3 (R2.b): the engagement gate. The post-Layer-F 24h
+    soak showed Aki silently crafting hundreds of ticks in a row with
+    no targeted speaks at all — Layer F bound the artifact channel
+    but the LLM rerouted into pure asocial production. The gate is
+    the missing balancing loop.
+
+    Walks ``episodic`` newest-first counting ONLY the agent's own
+    actions. If any of its last ``interval`` actions was a speak with
+    a non-null target, the gate is reset (return None). If the agent
+    has fewer than ``interval`` total actions, it is in warmup and
+    the gate does not fire. Otherwise picks a peer from ``peers`` via
+    ``rng`` and returns it.
+
+    The lookback into episodic is ``interval * 4`` events to find
+    enough of the agent's own actions even when other agents are
+    mixing in. Cap is intentional — a stale long-departed targeted
+    speak from before the 4*K window does not save the agent from
+    the gate.
+    """
+    if not peers:
+        return None
+    own_seen = 0
+    lookback = max(interval * 4, 100)
+    for e in episodic.last(lookback):
+        if e.actor != agent_name:
+            continue
+        own_seen += 1
+        if e.action == "speak" and e.target:
+            return None
+        if own_seen >= interval:
+            break
+    if own_seen < interval:
+        return None
+    return rng.choice(peers)
+
+
 def _derive_topic(episodic: EpisodicMemory, agent: Agent) -> str:
     """Pick a scene-topic for FTS5 lore retrieval.
 
@@ -260,8 +306,24 @@ def run(
             # initial agent would mis-tag their lore retrieval.
             topic = _derive_topic(episodic, agent)
             peers = _compute_peers(sched, episodic, agent)
+            required_target = _maybe_engagement_target(
+                episodic,
+                agent_name=agent.name,
+                peers=peers,
+                rng=rng,
+                interval=config.PEER_ENGAGEMENT_INTERVAL,
+            )
+            engagement_hint = (
+                f"You must address {required_target} this tick." if required_target else ""
+            )
+            if required_target:
+                metrics.bump("engagement_gate_fired", agent=agent.name)
             world = build_context(
-                world_base=WorldContext(peers_today=peers),
+                world_base=WorldContext(
+                    peers_today=peers,
+                    engagement_hint=engagement_hint,
+                    required_target=required_target,
+                ),
                 episodic=episodic,
                 semantic=semantic,
                 topic=topic,

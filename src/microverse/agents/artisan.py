@@ -47,6 +47,15 @@ _EMPTY_CRAFT_REPLACEMENT_THOUGHT = (
     "The work needs a concrete form, so I study materials before making it."
 )
 
+# Layer-G slice 3 (R2.b): replacement thought for the engagement-gate
+# coercion. Like F.2 it is deliberately *neutral and external-facing*:
+# the introspective rationalisation the LLM produced for the disobeyed
+# action would otherwise enter audit-only state but the action's own
+# logged-but-not-fed-back semantics make this defence-in-depth: a
+# future change that re-enables thought feedback should not allow the
+# disobeyed monologue to seed the next tick.
+_ENGAGEMENT_REPLACEMENT_THOUGHT = "I turn from my work to greet a neighbor."
+
 
 class Artisan(Agent):
     role = "artisan"
@@ -86,7 +95,31 @@ class Artisan(Agent):
         # active tick that should reset the rest streak, not pass
         # through it as rest.
         action = self._maybe_coerce_empty_craft(action)
-        return self._maybe_rate_limit(action, world)
+        action = self._maybe_rate_limit(action, world)
+        # Engagement gate runs LAST so it overrides any earlier coercion
+        # (e.g. the rest rate-limiter picking a different peer).
+        return self._maybe_enforce_engagement(action, world)
+
+    def _maybe_enforce_engagement(self, action: Action, world: WorldContext) -> Action:
+        """Layer-G slice 3 (R2.b): if the runtime set ``required_target``
+        on this tick's ``WorldContext`` and the LLM did not produce a
+        ``speak`` to that exact peer, coerce. Drops the original thought
+        so a disobeyed-rationalisation cannot enter audit-or-future
+        feedback as a justification for ignoring the gate.
+        """
+        if not world.required_target:
+            return action
+        if action.action == ActionKind.SPEAK and action.target == world.required_target:
+            return action
+        self._metrics.bump("engagement_gate_coerced", agent=self.name)
+        return action.model_copy(
+            update={
+                "thought": _ENGAGEMENT_REPLACEMENT_THOUGHT,
+                "action": ActionKind.SPEAK,
+                "target": world.required_target,
+                "artifact": None,
+            }
+        )
 
     def _maybe_coerce_empty_craft(self, action: Action) -> Action:
         """Layer F.2: if the LLM picks ``craft`` without populating
