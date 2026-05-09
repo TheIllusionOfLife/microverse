@@ -66,6 +66,16 @@ def _format_episodic_event(e: Event) -> str:
 
     if actor == "world":
         return f"[world] {action}"
+    if actor == "harvest" and action == "rated":
+        # Alt-B exogenous feedback: surface the Trader's verdict so the
+        # next-tick context shows what is actually being valued, not
+        # the agent's own narrative-about-its-narrative.
+        rated_actor = str(payload.get("actor") or "")
+        kind = str(payload.get("kind") or "artifact")
+        score_raw = payload.get("score")
+        score_str = f"{float(score_raw):.2f}" if isinstance(score_raw, int | float) else "?"
+        accepted_tag = "accepted" if payload.get("accepted") else "rejected"
+        return f"[harvest] Trader rated {rated_actor}'s {kind} {score_str} ({accepted_tag})"
     if action == "craft":
         artifact = str(payload.get("artifact") or "").replace("\n", " ").strip()
         if artifact:

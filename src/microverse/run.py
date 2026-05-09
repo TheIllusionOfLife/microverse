@@ -256,7 +256,7 @@ def run(
     metrics = Metrics(data_dir / "metrics.sqlite", auto_flush_every=10)
 
     trader = Trader(name="Bo", soul_tokens=30)
-    harvester = Harvester(harvest_dir, trader=trader, percentile=70)
+    harvester = Harvester(harvest_dir, trader=trader, percentile=70, episodic=episodic)
 
     sched = WeightedScheduler(rng=rng)
     for agent in _build_roster(metrics, solo=solo):

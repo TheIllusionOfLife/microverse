@@ -36,9 +36,7 @@ class _StubTrader:
     def rank(self, candidates: list[ArtifactCandidate]) -> list[Score]:
         out: list[Score] = []
         for i, _ in enumerate(candidates):
-            out.append(
-                Score(artifact_id=i, score=self._scores[i], rationale=f"stub-{i}")
-            )
+            out.append(Score(artifact_id=i, score=self._scores[i], rationale=f"stub-{i}"))
         return out
 
 
@@ -69,7 +67,7 @@ def test_flush_event_payload_carries_actor_kind_score_accepted(tmp_path: Path) -
         harvester = Harvester(tmp_path / "harvest", trader=trader, percentile=70, episodic=ep)
         harvester.consider(_candidate("Aki", "a small wooden box"))
         harvester.flush()
-        rated = [e for e in ep.last(50) if e.actor == "harvest"][0]
+        rated = next(e for e in ep.last(50) if e.actor == "harvest")
     payload = rated.payload
     assert payload.get("actor") == "Aki", f"creator must be in payload.actor, got {payload!r}"
     assert payload.get("kind") == "craft"
