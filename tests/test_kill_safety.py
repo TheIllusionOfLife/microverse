@@ -54,7 +54,7 @@ def fake_chat(**_kwargs):
     }}
 
 with patch("microverse.agents.artisan.chat", side_effect=fake_chat):
-    run(ticks=100, tempo=0, data_dir={str(data_dir)!r}, harvest_dir={str(harvest_dir)!r})
+    run(ticks=100, tempo=0, data_dir={str(data_dir)!r}, harvest_dir={str(harvest_dir)!r}, solo=True)
 """
     proc = subprocess.run(
         [sys.executable, "-c", script],
@@ -105,7 +105,7 @@ def fake_chat(**_kwargs):
     }}
 
 with patch("microverse.agents.artisan.chat", side_effect=fake_chat):
-    run(ticks=100, tempo=0, data_dir={str(data_dir)!r}, harvest_dir={str(harvest_dir)!r})
+    run(ticks=100, tempo=0, data_dir={str(data_dir)!r}, harvest_dir={str(harvest_dir)!r}, solo=True)
 """
     proc = subprocess.run(
         [sys.executable, "-c", pre_kill],
@@ -137,7 +137,7 @@ def fake_chat(**_kwargs):
     }}
 
 with patch("microverse.agents.artisan.chat", side_effect=fake_chat):
-    run(ticks=2, tempo=0, data_dir={str(data_dir)!r}, harvest_dir={str(harvest_dir)!r})
+    run(ticks=2, tempo=0, data_dir={str(data_dir)!r}, harvest_dir={str(harvest_dir)!r}, solo=True)
 """
     proc2 = subprocess.run(
         [sys.executable, "-c", post_kill],

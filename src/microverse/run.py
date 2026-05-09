@@ -43,6 +43,7 @@ from microverse import config
 from microverse.agents.artisan import Artisan
 from microverse.agents.base import Action, Agent, WorldContext
 from microverse.agents.harvester import ArtifactCandidate, Harvester
+from microverse.agents.scholar import Scholar
 from microverse.agents.trader import Trader
 from microverse.memory import build_context
 from microverse.memory.episodic import EpisodicMemory
@@ -62,6 +63,23 @@ SNAPSHOT_EVERY = 1000  # cold backups; WAL handles real durability
 # Phase 4a cadences.
 WATCHDOG_EVERY = 25  # ticks between watchdog sweeps
 WORLD_CLOCK_MEAN_INTERVAL = 100  # mean ticks between weather events
+
+
+def _build_roster(metrics: Metrics, *, solo: bool = False) -> list[Agent]:
+    """Build the default tick-loop roster.
+
+    Layer-G slice 4 (R2.c): default = Aki (Artisan, soul_tokens=100) +
+    a Scholar resident (soul_tokens=70). The Scholar's lower weight
+    keeps Aki the primary creator; the Scholar provides peer presence
+    and observational output so the engagement gate (slice 3) has a
+    real partner. ``solo=True`` reproduces the legacy single-Artisan
+    regime for regression soaks.
+    """
+    aki = Artisan(name="Aki", metrics=metrics, soul_tokens=100)
+    if solo:
+        return [aki]
+    cy = Scholar(name="Cy", metrics=metrics, soul_tokens=70)
+    return [aki, cy]
 
 
 def _all_agents_paused(metrics: Metrics, agents: Sequence[Agent]) -> bool:
@@ -216,6 +234,7 @@ def run(
     tempo: float | None = None,
     data_dir: str | Path | None = None,
     harvest_dir: str | Path | None = None,
+    solo: bool = False,
 ) -> int:
     """Run the tick loop. Returns the number of ticks executed."""
     rng = random.Random(seed) if seed is not None else random.Random()
@@ -240,7 +259,8 @@ def run(
     harvester = Harvester(harvest_dir, trader=trader, percentile=70)
 
     sched = WeightedScheduler(rng=rng)
-    sched.register(Artisan(name="Aki", metrics=metrics, soul_tokens=100))
+    for agent in _build_roster(metrics, solo=solo):
+        sched.register(agent)
     # Trader scheduling is internal — it ranks the buffer at flush time,
     # not as a tick action. We don't register it in the scheduler.
 
@@ -410,12 +430,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Override per-agent sleep (seconds). Use 0 for no sleep (tests).",
     )
+    p.add_argument(
+        "--solo",
+        action="store_true",
+        help="Run with the legacy single-Artisan roster (no Scholar resident).",
+    )
     return p.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
-    return run(ticks=args.ticks, seed=args.seed, tempo=args.tempo)
+    return run(ticks=args.ticks, seed=args.seed, tempo=args.tempo, solo=args.solo)
 
 
 if __name__ == "__main__":
