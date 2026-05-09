@@ -120,14 +120,14 @@ def test_build_context_drops_episodic_older_than_7_days(tmp_path: Path):
             actor="aki",
             action="craft",
             target=None,
-            payload={"thought": "yesterday I made a bowl"},
+            payload={"thought": "irrelevant", "artifact": "fresh-marker bowl"},
             ts=now - 86400,
         )
         ep.append(
             actor="aki",
             action="craft",
             target=None,
-            payload={"thought": "ten days ago I forgot what I made"},
+            payload={"thought": "irrelevant", "artifact": "stale-marker bowl"},
             ts=now - 10 * 86400,
         )
         out = build_context(
@@ -137,8 +137,10 @@ def test_build_context_drops_episodic_older_than_7_days(tmp_path: Path):
             topic="bowl",
         )
     joined = " ".join(out.recent_episodic)
-    assert "yesterday" in joined
-    assert "ten days ago" not in joined
+    # Layer-G: thoughts no longer surface, but the artifact excerpt does.
+    # Use an artifact-side marker to verify the 7-day window cut-off.
+    assert "fresh-marker" in joined
+    assert "stale-marker" not in joined
 
 
 def test_est_tokens_is_len_div_four():
@@ -253,7 +255,8 @@ def test_build_context_suppresses_rest_summary_at_threshold(tmp_path: Path) -> N
 
 def test_build_context_keeps_isolated_rest_uncompressed(tmp_path: Path) -> None:
     """A single isolated rest must not be summarised; only runs of
-    >=2 consecutive rests get collapsed."""
+    >=2 consecutive rests get collapsed. Layer-G: bare rest renders
+    as ``"Aki rest"`` (no colon, no thought)."""
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
         ep.append(actor="Aki", action="craft", target=None, payload={"thought": "shaped a bowl"})
         ep.append(actor="Aki", action="rest", target=None, payload={"thought": "a brief pause"})
@@ -263,8 +266,8 @@ def test_build_context_keeps_isolated_rest_uncompressed(tmp_path: Path) -> None:
     summary_lines = [line for line in out.recent_episodic if line.startswith("Aki rested ")]
     assert summary_lines == [], f"isolated rest must not be summarised, got {summary_lines!r}"
 
-    bare_rest = [line for line in out.recent_episodic if line.startswith("Aki rest:")]
-    assert len(bare_rest) == 1, f"isolated rest must appear verbatim, got {bare_rest!r}"
+    bare_rest = [line for line in out.recent_episodic if line == "Aki rest"]
+    assert len(bare_rest) == 1, f"isolated rest must appear bare, got {out.recent_episodic!r}"
 
 
 def test_build_context_compression_run_broken_by_other_actor(tmp_path: Path) -> None:

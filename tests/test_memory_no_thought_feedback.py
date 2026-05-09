@@ -157,9 +157,7 @@ def test_compress_action_runs_collapses_speak_streak(tmp_path: Path) -> None:
 
     # 5 < 10 (the suppress threshold) — still summarised, not dropped.
     summary_lines = [line for line in out.recent_episodic if "spoke" in line and "5 times" in line]
-    assert summary_lines, (
-        f"expected a 'spoke ... 5 times' summary, got {out.recent_episodic!r}"
-    )
+    assert summary_lines, f"expected a 'spoke ... 5 times' summary, got {out.recent_episodic!r}"
     # Per-event thoughts must NOT survive into the slice.
     joined = "\n".join(out.recent_episodic)
     assert "speak number" not in joined, f"per-event thoughts leaked into slice, got {joined!r}"
@@ -178,10 +176,10 @@ def test_compress_action_runs_collapses_study_streak(tmp_path: Path) -> None:
             )
         out = build_context(world_base=WorldContext(), episodic=ep, semantic=se, topic="")
 
-    summary_lines = [line for line in out.recent_episodic if "studied" in line and "4 times" in line]
-    assert summary_lines, (
-        f"expected a 'studied ... 4 times' summary, got {out.recent_episodic!r}"
-    )
+    summary_lines = [
+        line for line in out.recent_episodic if "studied" in line and "4 times" in line
+    ]
+    assert summary_lines, f"expected a 'studied ... 4 times' summary, got {out.recent_episodic!r}"
 
 
 def test_compress_action_runs_suppresses_above_threshold(tmp_path: Path) -> None:
@@ -206,9 +204,7 @@ def test_compress_action_runs_suppresses_above_threshold(tmp_path: Path) -> None
         out = build_context(world_base=WorldContext(), episodic=ep, semantic=se, topic="")
 
     speak_lines = [line for line in out.recent_episodic if "spoke" in line]
-    assert speak_lines == [], (
-        f"speak run >= 10 must be suppressed entirely, got {speak_lines!r}"
-    )
+    assert speak_lines == [], f"speak run >= 10 must be suppressed entirely, got {speak_lines!r}"
     craft_lines = [line for line in out.recent_episodic if line.startswith("Aki crafted:")]
     assert craft_lines, "anchor craft must still surface"
 
@@ -238,9 +234,7 @@ def test_compress_action_runs_preserves_rest_behavior(tmp_path: Path) -> None:
         f"80-rest run must be suppressed entirely (Layer E.1), got {rest_summaries!r}"
     )
     bare_rest = [line for line in out.recent_episodic if line.startswith("Aki rest")]
-    assert bare_rest == [], (
-        f"no bare 'Aki rest' lines either — full suppression, got {bare_rest!r}"
-    )
+    assert bare_rest == [], f"no bare 'Aki rest' lines either — full suppression, got {bare_rest!r}"
     joined = "\n".join(out.recent_episodic)
     assert "mandate for rest" not in joined, "trap thought must not survive"
 
