@@ -7,7 +7,7 @@ here, what they made, and what mattered most.
 
 # Recent events worth weaving in
 {% for e in (events or []) -%}
-- {{ e.actor | default("someone", true) }} {{ e.action | default("acted", true) }}: {{ (e.payload or {}).get("thought", "") }}
+- {{ e.actor | default("someone", true) }} {{ e.action | default("acted", true) }}{% if e.target %} to {{ e.target }}{% endif %}
 {% endfor %}
 
 # Rules

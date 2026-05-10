@@ -190,16 +190,22 @@ def _maybe_engagement_target(
 def _derive_topic(episodic: EpisodicMemory, agent: Agent) -> str:
     """Pick a scene-topic for FTS5 lore retrieval.
 
-    Strategy: use the most recent ``weather.*`` event's kind as a topic
-    word (so during a drought, the agent's lore_excerpt prefers
-    drought-tagged lore). If no weather has happened yet, fall back to
-    the agent's role plus the agent's name so lore retrieval is at
-    least seeded with something.
+    Path-3 / Slice 6 (Codex review HIGH): the topic is a function of
+    *world state*, not of the receiving agent. The prior fallback
+    ``f"{agent.role} {agent.name}"`` seeded FTS5 with the agent's own
+    name, pattern-matching lore tagged with that name and
+    re-introducing self-history through the lore channel.
+
+    Strategy now: use the most recent ``weather.*`` kind as the topic
+    when present; otherwise return an empty topic (callers /
+    ``build_context`` skip the FTS5 query when topic is blank). The
+    agent's name and role never reach FTS5.
     """
+    del agent  # signature kept for forward-compat; agent identity must not leak into lore.
     for e in episodic.last(50):
         if e.actor == "world" and e.action.startswith("weather."):
-            return f"{e.action.removeprefix('weather.')} {agent.role}"
-    return f"{agent.role} {agent.name}"
+            return e.action.removeprefix("weather.")
+    return ""
 
 
 def _build_per_tick_world_base(
@@ -406,6 +412,7 @@ def run(
                 episodic=episodic,
                 semantic=semantic,
                 topic=topic,
+                receiver_name=agent.name,
             )
             try:
                 action = agent.think(world)

@@ -25,7 +25,7 @@ def test_compression_template_does_not_render_thought() -> None:
         actor = "Aki"
         action = "craft"
         target = None
-        payload = {"thought": distinctive_thought, "artifact": "a small bowl"}
+        payload = {"thought": distinctive_thought, "artifact": "a small bowl"}  # noqa: RUF012
 
     out = render(
         "compression.j2",
@@ -48,7 +48,7 @@ def test_compression_template_renders_factual_surface() -> None:
         actor = "Aki"
         action = "craft"
         target = None
-        payload = {"thought": "irrelevant introspection", "artifact": "x"}
+        payload = {"thought": "irrelevant introspection", "artifact": "x"}  # noqa: RUF012
 
     out = render(
         "compression.j2",
@@ -69,7 +69,7 @@ def test_compression_template_handles_missing_payload() -> None:
         actor = "world"
         action = "weather.storm"
         target = None
-        payload: dict = {}
+        payload: dict = {}  # noqa: RUF012
 
     out = render(
         "compression.j2",

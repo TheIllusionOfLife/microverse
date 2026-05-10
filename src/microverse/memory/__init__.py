@@ -194,6 +194,7 @@ def build_context(
     topic: str = "",
     lore_tok: int = 600,
     lore_k: int = 3,
+    receiver_name: str | None = None,
 ) -> WorldContext:
     """Assemble the per-tick context from semantic memory + the
     pre-populated bounded fields on ``world_base``.
@@ -205,10 +206,14 @@ def build_context(
     using per-agent watermarks). The only thing this function adds is
     the ``lore_excerpt`` keyed off the scene topic.
 
-    ``episodic`` and the watermark-driven helpers stay decoupled so
-    callers (and tests) can populate ``world_base`` deterministically
-    while ``build_context`` handles the FTS5 retrieval bookkeeping.
-    The argument is retained in the signature for forward-compat
+    Slice 6 (Codex review HIGH): when ``receiver_name`` is provided,
+    every lore line containing that name as a whole word is dropped.
+    This closes the lore-channel autobiographical leak — Elder lore
+    can still mention agents by name (community knowledge stays
+    visible to OTHER readers); the receiving agent simply doesn't see
+    lore about themselves.
+
+    ``episodic`` is retained in the signature for forward-compat
     (other future memory layers may need it) but is currently
     unused.
     """
@@ -220,6 +225,11 @@ def build_context(
             if not text:
                 text = _payload_digest(hit.payload)
             lore_lines.append(f"- ({hit.doc_id}) {text}")
+
+    if receiver_name:
+        name_pattern = re.compile(rf"\b{re.escape(receiver_name)}\b")
+        lore_lines = [line for line in lore_lines if not name_pattern.search(line)]
+
     lore = _pack_under_budget(lore_lines, lore_tok)
 
     return WorldContext(

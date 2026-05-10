@@ -44,9 +44,7 @@ def test_lore_with_receiver_name_is_redacted(tmp_path: Path) -> None:
             receiver_name="Aki",
         )
     joined = "\n".join(out.lore_excerpt)
-    assert "Aki" not in joined, (
-        f"receiver name must be redacted from lore_excerpt, got:\n{joined}"
-    )
+    assert "Aki" not in joined, f"receiver name must be redacted from lore_excerpt, got:\n{joined}"
     # Other lore (the storm one, no Aki reference) should still
     # surface — redaction is targeted, not blanket.
     assert "storm" in joined, f"unrelated lore must still surface, got:\n{joined}"
@@ -76,9 +74,7 @@ def test_lore_redaction_is_whole_word(tmp_path: Path) -> None:
     as the peer_inbox name filter.
     """
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
-        _seed_lore(
-            se, doc_id="akihiko", text="Akihiko built a kiln nearby in the cedar grove"
-        )
+        _seed_lore(se, doc_id="akihiko", text="Akihiko built a kiln nearby in the cedar grove")
         out = build_context(
             world_base=WorldContext(),
             episodic=ep,
