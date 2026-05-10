@@ -137,23 +137,56 @@ def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
 
 
 @dataclass(frozen=True, slots=True)
+class PeerSpeech:
+    """A single speak event another agent addressed to *this* agent
+    since *this* agent's last own-tick. Carried by
+    ``WorldContext.peer_inbox`` so the receiver can respond on the
+    very next tick — the only multi-tick continuity we surface.
+
+    Both fields are required: the value of the inbox is precisely
+    that ``who said it`` and ``what they said`` are both present.
+    The utterance is truncated at a word boundary to ≤80 chars by
+    the slice-2 builder; cross-agent narrative laundering is
+    bounded by dropping any utterance containing the receiver's
+    name as a whole word.
+    """
+
+    speaker: str
+    utterance: str
+
+
+@dataclass(frozen=True, slots=True)
 class WorldContext:
     """Snapshot of world state passed into ``Agent.think``.
 
-    Phase 3a fills ``recent_episodic`` (last-7-days events the agent
-    witnessed) and ``lore_excerpt`` (top-k FTS5 hits keyed off the
-    current scene topic). ``microverse.memory.build_context`` is the
-    canonical assembler.
+    Path-3 stateless-tick contract: this is *all* the agent sees on
+    a tick. There is no ``recent_episodic`` of self-or-peer actions —
+    seven prior layers each fixed one autobiographical channel and
+    the LLM rerouted to the next. Path-3 removes the substrate.
 
-    Layer-G slice 3 adds ``engagement_hint`` / ``required_target``: an
-    exogenous nudge the runtime sets BEFORE ``Agent.think`` when the
-    agent has not produced a targeted speak in K of its own actions.
-    Both empty/None when the gate is not firing.
+    Fields:
+      * ``season`` / ``weather``: world-clock state (always present).
+      * ``peers_today``: distinct names of other agents present
+        (registered + recent speak partners). Just names, not
+        actions.
+      * ``peer_inbox``: speaks-to-self by other agents since the
+        receiver's last own-tick. One-shot, drained on next own-tick
+        by the slice-3 wiring in ``run.py``.
+      * ``world_events``: factual world events
+        (``[world] weather.storm``, etc.) since the receiver's last
+        own-tick. NEVER any agent action.
+      * ``lore_excerpt``: FTS5 hits keyed off season+weather (slice
+        6 enforces no agent name in the topic seed).
+      * ``engagement_hint`` / ``required_target``: Layer-G exogenous
+        nudge when the agent has gone too long without a targeted
+        speak. Empty/None when the gate is not firing.
     """
 
     season: str = "spring"
     weather: str = "clear"
     peers_today: tuple[str, ...] = ()
+    peer_inbox: tuple[PeerSpeech, ...] = ()
+    world_events: tuple[str, ...] = ()
     recent_episodic: tuple[str, ...] = ()
     lore_excerpt: tuple[str, ...] = ()
     engagement_hint: str = ""
