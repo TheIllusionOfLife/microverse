@@ -1,8 +1,17 @@
 """Context-assembly budget tests for ``microverse.memory.build_context``.
 
-Phase 3a contract: prompts must fit comfortably inside ``gemma4:e4b``'s
-window. ``build_context`` assembles working + episodic_recent +
-lore_excerpt under a hard 4096-token budget (``len(text) // 4`` heuristic).
+Path-3 stateless-tick contract: prompts must fit comfortably inside
+``gemma4:e4b``'s window. ``build_context`` assembles working +
+``peer_inbox`` + ``world_events`` + ``lore_excerpt`` under a hard
+4096-token budget (``len(text) // 4`` heuristic).
+
+Slice-2 rewrite (Codex review HIGH on slice ordering): the prior
+file pinned the ``recent_episodic`` contract that Slice 5 removes
+(rest-run compression, suppress-above-threshold, etc.). Those tests
+are deleted here so the suite stays GREEN through Slices 2-4 and
+the dead contract does not need a graveyard of skipped tests.
+``recent_episodic`` is still populated by ``build_context`` until
+Slice 5 lands, but is no longer the file under test.
 """
 
 from __future__ import annotations
@@ -15,7 +24,7 @@ from pathlib import Path
 import pytest
 
 from microverse.agents.artisan import Artisan
-from microverse.agents.base import WorldContext
+from microverse.agents.base import PeerSpeech, WorldContext
 from microverse.memory import build_context, est_tokens
 from microverse.memory.episodic import EpisodicMemory
 from microverse.memory.semantic import SemanticMemory
@@ -28,7 +37,6 @@ def _rand_text(rng: random.Random, n: int) -> str:
 def _seed_episodic(mem: EpisodicMemory, rng: random.Random, n: int) -> None:
     base = time.time()
     for i in range(n):
-        # Spread across the last 30 days; build_context only keeps last 7.
         ts = base - rng.randint(0, 30 * 86400)
         mem.append(
             actor=rng.choice(("aki", "bo", "cy")),
@@ -43,8 +51,6 @@ def _seed_semantic(mem: SemanticMemory, rng: random.Random, n: int) -> None:
     topics = ("forest", "river", "harvest", "stone", "wood")
     for i in range(n):
         topic = rng.choice(topics)
-        # Ensure the topic word actually appears in the indexed text so
-        # FTS5 can match it; pad with random letters to vary length.
         body = f"{topic} {_rand_text(rng, rng.randint(60, 300))}"
         mem.index(
             doc_id=f"doc-{i}",
@@ -53,55 +59,51 @@ def _seed_semantic(mem: SemanticMemory, rng: random.Random, n: int) -> None:
         )
 
 
-def test_build_context_returns_world_context_with_excerpts(tmp_path: Path):
+def test_build_context_returns_world_context_preserving_base_fields(
+    tmp_path: Path,
+) -> None:
+    """``build_context`` returns a WorldContext where ``season``,
+    ``weather``, ``peers_today``, ``engagement_hint``,
+    ``required_target``, ``peer_inbox``, and ``world_events`` from
+    ``world_base`` are preserved verbatim. Only ``lore_excerpt`` is
+    sourced from ``semantic`` inside ``build_context`` itself (and,
+    until Slice 5, ``recent_episodic`` from ``episodic``).
+    """
     rng = random.Random(0)
+    inbox = (PeerSpeech(speaker="Bo", utterance="have you seen the river?"),)
+    world_events = ("[world] weather.storm",)
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
-        _seed_episodic(ep, rng, 30)
-        _seed_semantic(se, rng, 12)
+        _seed_episodic(ep, rng, 10)
+        _seed_semantic(se, rng, 8)
         out = build_context(
-            world_base=WorldContext(season="summer", weather="clear"),
+            world_base=WorldContext(
+                season="summer",
+                weather="clear",
+                peers_today=("Bo", "Cy"),
+                peer_inbox=inbox,
+                world_events=world_events,
+                engagement_hint="You must address Bo this tick.",
+                required_target="Bo",
+            ),
             episodic=ep,
             semantic=se,
             topic="forest harvest",
         )
-
-    # Base fields preserved.
     assert out.season == "summer"
     assert out.weather == "clear"
-    # New populated fields.
-    assert isinstance(out.recent_episodic, tuple)
+    assert out.peers_today == ("Bo", "Cy")
+    assert out.peer_inbox == inbox
+    assert out.world_events == world_events
+    assert out.engagement_hint == "You must address Bo this tick."
+    assert out.required_target == "Bo"
     assert isinstance(out.lore_excerpt, tuple)
-    assert len(out.recent_episodic) > 0
-    assert len(out.lore_excerpt) > 0
 
 
-@pytest.mark.parametrize("seed", range(20))  # 20 seeds, deterministic
-def test_rendered_prompt_under_4096_tokens(tmp_path: Path, seed: int):
-    """Across many random worlds, the Artisan's rendered prompt must
-    stay under 4096 tokens (== ~16k chars at our 4-char/token heuristic).
+def test_build_context_with_empty_stores_returns_empty_lore(tmp_path: Path) -> None:
+    """Cold start: no events, no lore. ``lore_excerpt`` is an empty
+    tuple; the new bounded fields default to empty too because
+    ``world_base`` carries no inbox / events.
     """
-    rng = random.Random(seed)
-    with (
-        EpisodicMemory(tmp_path / f"ep-{seed}.sqlite") as ep,
-        SemanticMemory(tmp_path / f"se-{seed}.sqlite") as se,
-    ):
-        _seed_episodic(ep, rng, rng.randint(20, 80))
-        _seed_semantic(se, rng, rng.randint(5, 25))
-
-        world = build_context(
-            world_base=WorldContext(season="autumn", weather="rain"),
-            episodic=ep,
-            semantic=se,
-            topic="harvest river",
-        )
-
-    artisan = Artisan(name="Aki")
-    prompt = artisan.render_prompt(world)
-    tokens = est_tokens(prompt)
-    assert tokens <= 4096, f"prompt budget blown: {tokens} tokens (seed={seed})"
-
-
-def test_build_context_with_empty_stores_returns_empty_excerpts(tmp_path: Path):
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
         out = build_context(
             world_base=WorldContext(),
@@ -109,269 +111,73 @@ def test_build_context_with_empty_stores_returns_empty_excerpts(tmp_path: Path):
             semantic=se,
             topic="anything",
         )
-    assert out.recent_episodic == ()
     assert out.lore_excerpt == ()
+    assert out.peer_inbox == ()
+    assert out.world_events == ()
 
 
-def test_build_context_drops_episodic_older_than_7_days(tmp_path: Path):
-    with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
-        now = time.time()
-        ep.append(
-            actor="aki",
-            action="craft",
-            target=None,
-            payload={"thought": "irrelevant", "artifact": "fresh-marker bowl"},
-            ts=now - 86400,
-        )
-        ep.append(
-            actor="aki",
-            action="craft",
-            target=None,
-            payload={"thought": "irrelevant", "artifact": "stale-marker bowl"},
-            ts=now - 10 * 86400,
-        )
-        out = build_context(
-            world_base=WorldContext(),
-            episodic=ep,
-            semantic=se,
-            topic="bowl",
-        )
-    joined = " ".join(out.recent_episodic)
-    # Layer-G: thoughts no longer surface, but the artifact excerpt does.
-    # Use an artifact-side marker to verify the 7-day window cut-off.
-    assert "fresh-marker" in joined
-    assert "stale-marker" not in joined
-
-
-def test_est_tokens_is_len_div_four():
-    assert est_tokens("hello world") == len("hello world") // 4
-    assert est_tokens("") == 0
-
-
-def test_build_context_compresses_consecutive_rest_runs(tmp_path: Path) -> None:
-    """The 24h soak (#29) saw Aki collapse into a 451-event rest streak
-    that poisoned ``recent_episodic`` with a wall of identical rest
-    narratives. PR #17's prompt nudge alone could not break this; the
-    fix is at the memory layer.
-
-    A run of >=2 consecutive same-actor rests must collapse to a single
-    summary line carrying ONLY the count, no thought text. PR #19
-    initially preserved the latest rest's thought, but soak-24h-3 hour-1
-    showed Aki keeps constructing a coherent ``exhausted artisan`` self-
-    narrative when the latest fatigue thought is fed forward — even one
-    summary line is enough seed for the loop. Layer D drops the thought.
+def test_build_context_preserves_inbox_unchanged(tmp_path: Path) -> None:
+    """``build_context`` MUST NOT mutate ``peer_inbox`` or
+    ``world_events`` from ``world_base``. The pure-helper builders
+    (`_build_peer_inbox`, `_build_world_events`) are called from
+    ``run.py``, not from ``build_context``; their output rides
+    through the world_base channel.
     """
+    inbox = (
+        PeerSpeech(speaker="Bo", utterance="storm coming"),
+        PeerSpeech(speaker="Cy", utterance="bring the lantern"),
+    )
+    events = ("[world] weather.storm", "[world] stranger.arrived")
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
-        ep.append(
-            actor="Aki",
-            action="craft",
-            target=None,
-            payload={"thought": "I shaped the cedar.", "artifact": "cedar bowl"},
-        )
-        for _ in range(80):
-            ep.append(
-                actor="Aki",
-                action="rest",
-                target=None,
-                payload={"thought": "the mandate for rest is absolute"},
-            )
         out = build_context(
-            world_base=WorldContext(),
+            world_base=WorldContext(peer_inbox=inbox, world_events=events),
             episodic=ep,
             semantic=se,
             topic="",
-            episodic_tok=1500,
         )
-
-    joined = "\n".join(out.recent_episodic)
-
-    # Layer E.1: 80 >= REST_SUMMARY_SUPPRESS_AT (=10), so the run is
-    # suppressed entirely — no summary line at all. Layer C/D had a
-    # count-only summary here; that was tightened further when
-    # soak-wiring-resoak-3 showed even one count line was enough
-    # fatigue signal for the LLM.
-    summary_lines = [line for line in out.recent_episodic if line.startswith("Aki rested ")]
-    assert summary_lines == [], (
-        f"runs of 80 must be suppressed entirely after Layer E.1, got {summary_lines!r}"
-    )
-
-    bare_rest = [line for line in out.recent_episodic if line.startswith("Aki rest:")]
-    assert bare_rest == [], f"no 'Aki rest:' lines either, got {bare_rest!r}"
-
-    craft_lines = [line for line in out.recent_episodic if line.startswith("Aki craft")]
-    assert craft_lines, "the older craft event must still surface"
-
-    mandate_repeats = joined.count("mandate for rest")
-    assert mandate_repeats == 0, (
-        f"trap language must NOT survive into compressed slice, got {mandate_repeats}x"
-    )
-
-    assert est_tokens(joined) <= 1500
+    assert out.peer_inbox == inbox, "inbox round-trip must preserve order and content"
+    assert out.world_events == events, "world_events round-trip must preserve order"
 
 
-def test_build_context_suppresses_rest_summary_at_threshold(tmp_path: Path) -> None:
-    """Layer E.1: count alone is enough signal for the LLM to infer
-    fatigue. The post-Layer-D 45-min wiring re-soak (seed 38) hit 43%
-    rest with longest run = 57; the summary "Aki rested 57 times"
-    is itself a fatigue signal even without the latest thought.
-
-    Threshold: runs of N >= 10 emit nothing. 2..9 still show count-only
-    (small streaks are real signal). 1 stays verbatim. Any non-rest
-    events surrounding the suppressed run must still surface.
+@pytest.mark.parametrize("seed", range(20))
+def test_rendered_prompt_under_4096_tokens(tmp_path: Path, seed: int) -> None:
+    """Across many random worlds, the Artisan's rendered prompt must
+    stay under 4096 tokens (~16k chars at 4 chars/token). The new
+    bounded fields plus lore must not blow this budget even when
+    every channel is populated.
     """
-    with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
-        # boundary case: exactly 9 rests -> still summarised
-        ep.append(actor="Aki", action="craft", target=None, payload={"thought": "made A"})
-        for _ in range(9):
-            ep.append(actor="Aki", action="rest", target=None, payload={"thought": "tired"})
-        ep.append(actor="Aki", action="craft", target=None, payload={"thought": "made B"})
-        out_9 = build_context(world_base=WorldContext(), episodic=ep, semantic=se, topic="")
-
-    summary_9 = [line for line in out_9.recent_episodic if line.startswith("Aki rested ")]
-    assert summary_9 == ["Aki rested 9 times"], (
-        f"9-rest run must still summarise (count-only), got {summary_9!r}"
+    rng = random.Random(seed)
+    inbox = tuple(
+        PeerSpeech(speaker=f"Peer{i}", utterance=_rand_text(rng, 80))
+        for i in range(rng.randint(0, 4))
     )
-    crafts_9 = [line for line in out_9.recent_episodic if line.startswith("Aki craft")]
-    assert len(crafts_9) == 2, f"surrounding crafts must survive, got {crafts_9!r}"
-
+    events = tuple(
+        f"[world] weather.{rng.choice(('storm', 'clear', 'fog', 'rain'))}"
+        for _ in range(rng.randint(0, 3))
+    )
     with (
-        EpisodicMemory(tmp_path / "ep2.sqlite") as ep,
-        SemanticMemory(tmp_path / "se2.sqlite") as se,
+        EpisodicMemory(tmp_path / f"ep-{seed}.sqlite") as ep,
+        SemanticMemory(tmp_path / f"se-{seed}.sqlite") as se,
     ):
-        # threshold case: 10 rests -> suppressed entirely
-        ep.append(actor="Aki", action="craft", target=None, payload={"thought": "made A"})
-        for _ in range(10):
-            ep.append(actor="Aki", action="rest", target=None, payload={"thought": "tired"})
-        ep.append(actor="Aki", action="craft", target=None, payload={"thought": "made B"})
-        out_10 = build_context(world_base=WorldContext(), episodic=ep, semantic=se, topic="")
-
-    summary_10 = [line for line in out_10.recent_episodic if line.startswith("Aki rested ")]
-    bare_rest_10 = [line for line in out_10.recent_episodic if line.startswith("Aki rest:")]
-    assert summary_10 == [], f"10-rest run must be suppressed entirely, got {summary_10!r}"
-    assert bare_rest_10 == [], f"no 'Aki rest:' lines either, got {bare_rest_10!r}"
-    crafts_10 = [line for line in out_10.recent_episodic if line.startswith("Aki craft")]
-    assert len(crafts_10) == 2, f"surrounding crafts must survive suppression, got {crafts_10!r}"
-
-
-def test_build_context_keeps_isolated_rest_uncompressed(tmp_path: Path) -> None:
-    """A single isolated rest must not be summarised; only runs of
-    >=2 consecutive rests get collapsed. Layer-G: bare rest renders
-    as ``"Aki rested"`` (past tense, no thought)."""
-    with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
-        ep.append(actor="Aki", action="craft", target=None, payload={"thought": "shaped a bowl"})
-        ep.append(actor="Aki", action="rest", target=None, payload={"thought": "a brief pause"})
-        ep.append(actor="Aki", action="craft", target=None, payload={"thought": "shaped another"})
-        out = build_context(world_base=WorldContext(), episodic=ep, semantic=se, topic="")
-
-    summary_lines = [line for line in out.recent_episodic if line.startswith("Aki rested ")]
-    assert summary_lines == [], f"isolated rest must not be summarised, got {summary_lines!r}"
-
-    bare_rest = [line for line in out.recent_episodic if line == "Aki rested"]
-    assert len(bare_rest) == 1, f"isolated rest must appear bare, got {out.recent_episodic!r}"
-
-
-def test_build_context_compression_run_broken_by_other_actor(tmp_path: Path) -> None:
-    """A non-Aki event (e.g. world weather) breaks a rest run, producing
-    two summaries flanking the interloper rather than one merged span."""
-    with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
-        for _ in range(5):
-            ep.append(actor="Aki", action="rest", target=None, payload={"thought": "tired"})
-        ep.append(actor="world", action="weather.drought", target=None, payload={"thought": ""})
-        for _ in range(7):
-            ep.append(actor="Aki", action="rest", target=None, payload={"thought": "still tired"})
-        out = build_context(world_base=WorldContext(), episodic=ep, semantic=se, topic="")
-
-    summary_lines = [line for line in out.recent_episodic if line.startswith("Aki rested ")]
-    assert len(summary_lines) == 2, (
-        f"expected two summaries flanking weather, got {summary_lines!r}"
-    )
-    counts = sorted(int(line.split()[2]) for line in summary_lines)
-    assert counts == [5, 7], f"counts must match the two runs, got {counts}"
-
-
-def test_build_context_rest_summary_omits_thoughts(tmp_path: Path) -> None:
-    """Layer D inversion of the earlier "captures latest thought" test.
-
-    Hour-1 of the post-Layer-C 24h soak (seed 38) showed the LLM
-    constructing a coherent "exhausted artisan" narrative even when
-    100+ rests were collapsed to one summary line: the ``Latest:``
-    thought in that summary kept seeding the next tick's reasoning
-    with fatigue language. The fix is to drop the thought entirely
-    from compressed summaries — the count alone signals magnitude.
-    """
-    with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
-        for marker in ("first", "second", "third"):
-            ep.append(
-                actor="Aki",
-                action="rest",
-                target=None,
-                payload={"thought": f"the {marker} rest"},
-            )
-        out = build_context(world_base=WorldContext(), episodic=ep, semantic=se, topic="")
-
-    summary_lines = [line for line in out.recent_episodic if line.startswith("Aki rested ")]
-    assert len(summary_lines) == 1, f"expected one summary, got {summary_lines!r}"
-    summary = summary_lines[0]
-    assert summary == "Aki rested 3 times", f"summary must be count-only, got {summary!r}"
-    assert "Latest" not in summary
-    for marker in ("first", "second", "third"):
-        assert f"the {marker} rest" not in summary
-
-
-def test_build_context_compression_separates_runs_by_actor(tmp_path: Path) -> None:
-    """Watchdog can spawn a Stranger mid-run, so a real production
-    scenario is `Aki rest * 3 / Stranger rest * 2 / Aki rest * 4`.
-    The actor change must break the run, producing three separate
-    summaries (or, when the middle run has length 1, leaving it
-    verbatim) rather than collapsing into one merged span keyed off
-    'rest action'.
-    """
-    with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
-        for _ in range(3):
-            ep.append(actor="Aki", action="rest", target=None, payload={"thought": "Aki tired"})
-        for _ in range(2):
-            ep.append(actor="Mira", action="rest", target=None, payload={"thought": "Mira tired"})
-        for _ in range(4):
-            ep.append(
-                actor="Aki",
-                action="rest",
-                target=None,
-                payload={"thought": "Aki still tired"},
-            )
-        out = build_context(world_base=WorldContext(), episodic=ep, semantic=se, topic="")
-
-    aki_summaries = [line for line in out.recent_episodic if line.startswith("Aki rested ")]
-    mira_summaries = [line for line in out.recent_episodic if line.startswith("Mira rested ")]
-    assert len(aki_summaries) == 2, f"expected two Aki summaries, got {aki_summaries!r}"
-    assert len(mira_summaries) == 1, f"expected one Mira summary, got {mira_summaries!r}"
-
-    aki_counts = sorted(int(line.split()[2]) for line in aki_summaries)
-    assert aki_counts == [3, 4], f"Aki counts must match its two runs, got {aki_counts}"
-    assert "rested 2 times" in mira_summaries[0]
-
-
-def test_episodic_excerpts_capped_to_budget(tmp_path: Path):
-    rng = random.Random(7)
-    with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
-        # Pile 200 fresh events, each ~250 chars of payload thought.
-        base = time.time()
-        for i in range(200):
-            ep.append(
-                actor="aki",
-                action="craft",
-                target=None,
-                payload={"thought": _rand_text(rng, 250), "n": i},
-                ts=base - i,
-            )
-        out = build_context(
-            world_base=WorldContext(),
+        _seed_episodic(ep, rng, rng.randint(20, 80))
+        _seed_semantic(se, rng, rng.randint(5, 25))
+        world = build_context(
+            world_base=WorldContext(
+                season="autumn",
+                weather="rain",
+                peer_inbox=inbox,
+                world_events=events,
+            ),
             episodic=ep,
             semantic=se,
-            topic="craft",
-            episodic_tok=1500,
-            lore_tok=600,
+            topic="harvest river",
         )
-    # Each episodic line is the formatted "actor: thought" string. The
-    # cumulative len // 4 must be <= 1500.
-    cumulative = est_tokens("\n".join(out.recent_episodic))
-    assert cumulative <= 1500
+    artisan = Artisan(name="Aki")
+    prompt = artisan.render_prompt(world)
+    tokens = est_tokens(prompt)
+    assert tokens <= 4096, f"prompt budget blown: {tokens} tokens (seed={seed})"
+
+
+def test_est_tokens_is_len_div_four() -> None:
+    assert est_tokens("hello world") == len("hello world") // 4
+    assert est_tokens("") == 0

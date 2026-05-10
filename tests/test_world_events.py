@@ -11,10 +11,13 @@ slice pins the field's existence and shape; slice 2 adds the
 from __future__ import annotations
 
 import dataclasses
+from pathlib import Path
 
 import pytest
 
 from microverse.agents.base import WorldContext
+from microverse.memory import _build_world_events
+from microverse.memory.episodic import EpisodicMemory
 
 
 def test_world_context_default_world_events_is_empty_tuple() -> None:
@@ -59,3 +62,79 @@ def test_world_context_accepts_both_new_fields_together() -> None:
     )
     assert len(world.peer_inbox) == 1
     assert len(world.world_events) == 1
+
+
+# ---------------------------------------------------------------------------
+# Slice 2: ``_build_world_events`` helper.
+#
+# Filters the episodic log for ``actor == "world"`` events since a
+# watermark and renders them as ``"[world] <action>"`` strings.
+# Crucially this is the ONLY surface for world-state-change visibility
+# in the Path-3 stateless tick: agents don't read self-history, so
+# weather and arrival events must come through here.
+# ---------------------------------------------------------------------------
+
+
+def _seed_world_event(ep: EpisodicMemory, *, action: str, ts: float) -> None:
+    ep.append(actor="world", action=action, target=None, payload={}, ts=ts)
+
+
+def _seed_agent_event(
+    ep: EpisodicMemory, *, actor: str, action: str, ts: float
+) -> None:
+    ep.append(
+        actor=actor,
+        action=action,
+        target=None,
+        payload={"thought": "x"},
+        ts=ts,
+    )
+
+
+def test_build_world_events_filters_by_world_actor(tmp_path: Path) -> None:
+    """Only events with ``actor == "world"`` surface; agent actions
+    are excluded even when their action string happens to look
+    weather-like (defence-in-depth).
+    """
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
+        _seed_world_event(ep, action="weather.storm", ts=100.0)
+        _seed_agent_event(ep, actor="Aki", action="craft", ts=105.0)
+        _seed_agent_event(ep, actor="Bo", action="weather.storm", ts=108.0)
+        events = _build_world_events(ep, since_ts=0.0)
+    assert events == ("[world] weather.storm",), (
+        f"only actor=='world' events surface, got {events!r}"
+    )
+
+
+def test_build_world_events_filters_by_since_ts(tmp_path: Path) -> None:
+    """Stale world events (before since_ts) must NOT surface — the
+    helper's contract is "world events the agent has not yet seen".
+    """
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
+        _seed_world_event(ep, action="weather.drought", ts=50.0)
+        _seed_world_event(ep, action="weather.storm", ts=110.0)
+        events = _build_world_events(ep, since_ts=100.0)
+    assert events == ("[world] weather.storm",), f"stale world event must drop, got {events!r}"
+
+
+def test_build_world_events_returns_chronological_order(tmp_path: Path) -> None:
+    """Multiple world events render oldest-first so the prompt reads
+    in causal order (storm → drought clears, etc.).
+    """
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
+        _seed_world_event(ep, action="weather.storm", ts=100.0)
+        _seed_world_event(ep, action="weather.clear", ts=110.0)
+        _seed_world_event(ep, action="stranger.arrived", ts=120.0)
+        events = _build_world_events(ep, since_ts=0.0)
+    assert events == (
+        "[world] weather.storm",
+        "[world] weather.clear",
+        "[world] stranger.arrived",
+    ), f"world events must be chronological, got {events!r}"
+
+
+def test_build_world_events_empty_when_no_world_events(tmp_path: Path) -> None:
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
+        _seed_agent_event(ep, actor="Aki", action="craft", ts=100.0)
+        events = _build_world_events(ep, since_ts=0.0)
+    assert events == ()
