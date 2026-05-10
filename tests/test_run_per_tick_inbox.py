@@ -20,11 +20,8 @@ across multiple ticks.
 
 from __future__ import annotations
 
-import time
 from pathlib import Path
 from unittest.mock import patch
-
-import pytest
 
 from microverse.agents.artisan import Artisan
 from microverse.agents.base import Agent, PeerSpeech
@@ -157,61 +154,83 @@ def _craft_chat() -> dict:
     }
 
 
-@pytest.mark.usefixtures("metrics")
-def test_run_advances_watermark_per_agent(tmp_path: Path) -> None:
-    """Across two ticks for the same agent, the watermark advances
-    so peer events committed BEFORE the first tick are NOT visible
-    on the second tick. This is the one-shot drain.
+def _speak_to_aki_chat() -> dict:
+    # Utterance must NOT contain "Aki" as a whole word — the
+    # peer_inbox name-filter would otherwise drop it. The integration
+    # surface here is the runtime watermark, not the filter.
+    return {
+        "content": (
+            '{"thought": "the river is rising rapidly", "action": "speak", '
+            '"target": "Aki", "artifact": null}'
+        ),
+        "thinking": "",
+        "raw": {},
+    }
+
+
+def test_run_threads_watermark_so_peer_speeches_drain(tmp_path: Path) -> None:
+    """Integration: across multiple ticks of the default Aki+Cy
+    roster, Cy speaks to Aki every Cy-tick. The runtime's
+    ``last_tick_ts`` watermark must advance per-agent so an Aki
+    tick after a Cy speak shows the speak in inbox, while a later
+    Aki tick (after the watermark has advanced past that speak)
+    does NOT re-show it. This pins that ``run.py`` is using the
+    helper correctly with per-agent watermarks, not a single
+    global one.
     """
-    captured_worlds: list[tuple[str, tuple[PeerSpeech, ...]]] = []
+    captured: list[tuple[str, tuple[PeerSpeech, ...]]] = []
 
     real_artisan_think = Artisan.think
     real_scholar_think = Scholar.think
 
-    def _capture_artisan_think(self: Artisan, world):
-        captured_worlds.append((self.name, world.peer_inbox))
+    def _capture_artisan(self: Artisan, world):
+        captured.append((self.name, world.peer_inbox))
         return real_artisan_think(self, world)
 
-    def _capture_scholar_think(self: Scholar, world):
-        captured_worlds.append((self.name, world.peer_inbox))
+    def _capture_scholar(self: Scholar, world):
+        captured.append((self.name, world.peer_inbox))
         return real_scholar_think(self, world)
 
-    canned = _craft_chat()
+    aki_chat = _craft_chat()
+    cy_chat = _speak_to_aki_chat()
     with (
-        patch("microverse.agents.artisan.chat", return_value=canned),
-        patch("microverse.agents.scholar.chat", return_value=canned),
-        patch.object(Artisan, "think", _capture_artisan_think),
-        patch.object(Scholar, "think", _capture_scholar_think),
+        patch("microverse.agents.artisan.chat", return_value=aki_chat),
+        patch("microverse.agents.scholar.chat", return_value=cy_chat),
+        patch.object(Artisan, "think", _capture_artisan),
+        patch.object(Scholar, "think", _capture_scholar),
     ):
-        # Pre-seed a peer-to-Aki speak BEFORE the run starts; with
-        # the run-start watermark at runtime, this should be visible
-        # on Aki's first tick but drained from her view on the
-        # second tick.
         from microverse.run import run
 
         data_dir = tmp_path / "data"
         harvest_dir = tmp_path / "harvest"
         data_dir.mkdir()
         harvest_dir.mkdir()
-        ep_path = data_dir / "episodic.sqlite"
-        with EpisodicMemory(ep_path) as ep:
-            _seed_speak(ep, actor="Cy", target="Aki", thought="hello", ts=time.time() - 1.0)
+        # Many ticks so we get multiple Aki ticks with at least one
+        # Cy tick in between, demonstrating both visibility and drain.
+        run(ticks=10, tempo=0, data_dir=data_dir, harvest_dir=harvest_dir)
 
-        # Run two ticks; with default Aki+Cy roster, both tick.
-        run(ticks=2, tempo=0, data_dir=data_dir, harvest_dir=harvest_dir)
+    aki_views = [inbox for name, inbox in captured if name == "Aki"]
+    # With the weighted scheduler favouring Aki (soul_tokens=100) and
+    # Cy (70), Aki should get at least 4 of 10 ticks.
+    assert len(aki_views) >= 2, f"need >=2 Aki ticks for this test, got {len(aki_views)}"
 
-    # On the FIRST Aki tick the inbox should have the pre-seeded
-    # "hello" from Cy. On the SECOND Aki tick the watermark has
-    # advanced past that speak, so the inbox is empty (assuming Cy
-    # did not speak to Aki in between — Cy crafted in the canned
-    # response).
-    aki_views = [inbox for name, inbox in captured_worlds if name == "Aki"]
-    assert len(aki_views) >= 1
-    first_aki = aki_views[0]
-    speakers = [s.speaker for s in first_aki]
-    assert "Cy" in speakers, f"Aki's first tick must see the pre-seeded hello, got {first_aki!r}"
-    if len(aki_views) >= 2:
-        second_aki = aki_views[1]
-        assert all(s.utterance != "hello" for s in second_aki), (
-            f"Aki's second tick must NOT re-see the drained 'hello', got {second_aki!r}"
-        )
+    # At least one Aki view must contain Cy's speak (visibility).
+    assert any(any(s.speaker == "Cy" for s in view) for view in aki_views), (
+        f"Aki must see Cy's speak on at least one tick, got {aki_views!r}"
+    )
+    # At least one Aki view AFTER seeing Cy must have an empty inbox
+    # (drain semantics) — a fresh Aki tick with no Cy tick between
+    # must not re-see prior speaks.
+    saw_cy = False
+    drained_after_seeing = False
+    for view in aki_views:
+        speakers = {s.speaker for s in view}
+        if "Cy" in speakers:
+            saw_cy = True
+            continue
+        if saw_cy and not speakers:
+            drained_after_seeing = True
+            break
+    assert drained_after_seeing, (
+        f"after Aki sees Cy, a later tick with no new Cy speak must drain, got {aki_views!r}"
+    )

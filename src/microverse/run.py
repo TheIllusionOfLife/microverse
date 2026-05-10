@@ -45,7 +45,7 @@ from microverse.agents.base import Action, Agent, WorldContext
 from microverse.agents.harvester import ArtifactCandidate, Harvester
 from microverse.agents.scholar import Scholar
 from microverse.agents.trader import Trader
-from microverse.memory import build_context
+from microverse.memory import _build_peer_inbox, _build_world_events, build_context
 from microverse.memory.episodic import EpisodicMemory
 from microverse.memory.semantic import SemanticMemory
 from microverse.ops.metrics import Metrics
@@ -202,6 +202,42 @@ def _derive_topic(episodic: EpisodicMemory, agent: Agent) -> str:
     return f"{agent.role} {agent.name}"
 
 
+def _build_per_tick_world_base(
+    *,
+    episodic: EpisodicMemory,
+    agent: Agent,
+    peers: tuple[str, ...],
+    last_tick_ts: float,
+    engagement_hint: str = "",
+    required_target: str | None = None,
+    metrics: Metrics | None = None,
+) -> WorldContext:
+    """Assemble the per-tick ``world_base`` for ``build_context``.
+
+    Path-3 stateless-tick contract: each tick builds a fresh
+    ``WorldContext`` carrying only the bounded peer + world view
+    since the agent's last own-tick. Self-history never enters the
+    prompt; the LLM gets ``persona + season + weather + peers_today
+    + peer_inbox + world_events + engagement nudge``.
+
+    The ``last_tick_ts`` watermark is sourced from a per-agent dict
+    in ``run()`` so the inbox/world view drains across ticks
+    (one-shot semantics).
+    """
+    return WorldContext(
+        peers_today=peers,
+        peer_inbox=_build_peer_inbox(
+            episodic,
+            agent_name=agent.name,
+            since_ts=last_tick_ts,
+            metrics=metrics,
+        ),
+        world_events=_build_world_events(episodic, since_ts=last_tick_ts),
+        engagement_hint=engagement_hint,
+        required_target=required_target,
+    )
+
+
 def _commit_action(episodic: EpisodicMemory, agent: Agent, action: Action) -> int:
     return episodic.append(
         actor=agent.name,
@@ -287,6 +323,20 @@ def run(
     # in the success branch right after metrics.reset(consecutive_fail).
     deadlock_breaks_since_success = 0
 
+    # Path-3 watermark: per-agent ``ts`` of the last own-tick. The
+    # peer_inbox / world_events helpers filter on ``ts >= last_tick_ts``
+    # so each agent sees only events that happened since they last
+    # ran. Cold-start watermark is the run start time; events
+    # committed BEFORE the run is launched (e.g. from a prior soak's
+    # episodic SQLite) are NOT replayed into the prompt — the
+    # episodic log is for durability and audit, not autobiographical
+    # feedback. Watermarks are in-memory only; on restart every
+    # agent's view starts fresh from the new launch time.
+    last_tick_ts: dict[str, float] = {}
+    run_start_ts = time.time()
+    for agent in sched.agents:
+        last_tick_ts[agent.name] = run_start_ts
+
     def _safe(label: str, fn: Callable[[], object]) -> None:
         try:
             fn()
@@ -338,12 +388,21 @@ def run(
             )
             if required_target:
                 metrics.bump("engagement_gate_fired", agent=agent.name)
+            # Path-3: pull the agent's watermark; mid-run Strangers are
+            # not pre-registered, so default to ``run_start_ts`` for
+            # them on first sight (their inbox starts empty).
+            agent_last_ts = last_tick_ts.setdefault(agent.name, run_start_ts)
+            world_base = _build_per_tick_world_base(
+                episodic=episodic,
+                agent=agent,
+                peers=peers,
+                last_tick_ts=agent_last_ts,
+                engagement_hint=engagement_hint,
+                required_target=required_target,
+                metrics=metrics,
+            )
             world = build_context(
-                world_base=WorldContext(
-                    peers_today=peers,
-                    engagement_hint=engagement_hint,
-                    required_target=required_target,
-                ),
+                world_base=world_base,
                 episodic=episodic,
                 semantic=semantic,
                 topic=topic,
@@ -360,6 +419,11 @@ def run(
             deadlock_breaks_since_success = 0
             _commit_action(episodic, agent, action)
             _maybe_harvest(harvester, agent, action)
+            # Path-3: advance the agent's watermark so the NEXT call
+            # to ``_build_per_tick_world_base`` for this agent drains
+            # the events it has now seen. ``time.time()`` matches the
+            # ``EpisodicMemory.append`` default-ts contract.
+            last_tick_ts[agent.name] = time.time()
             executed += 1
 
             # World clock + watchdog: cheap, run every tick / every Nth.
