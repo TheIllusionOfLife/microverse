@@ -67,7 +67,7 @@ def test_flush_event_payload_carries_actor_kind_score_accepted(tmp_path: Path) -
         harvester = Harvester(tmp_path / "harvest", trader=trader, percentile=70, episodic=ep)
         harvester.consider(_candidate("Aki", "a small wooden box"))
         harvester.flush()
-        rated = next(e for e in ep.last(50) if e.actor == "harvest")
+        rated = next(e for e in ep.last(50) if e.actor == "harvest" and e.action == "rated")
     payload = rated.payload
     assert payload.get("actor") == "Aki", f"creator must be in payload.actor, got {payload!r}"
     assert payload.get("kind") == "craft"
@@ -85,7 +85,7 @@ def test_flush_marks_rejected_candidates_as_not_accepted(tmp_path: Path) -> None
         harvester.consider(_candidate("Cy", "a precise field note"))
         harvester.flush()
         rated = sorted(
-            (e for e in ep.last(50) if e.actor == "harvest"),
+            (e for e in ep.last(50) if e.actor == "harvest" and e.action == "rated"),
             key=lambda e: e.payload.get("score") or 0.0,
         )
     assert rated[0].payload.get("accepted") is False

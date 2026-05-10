@@ -168,3 +168,43 @@ def test_stagnation_detected_when_no_recent_artifacts(tmp_path: Path, metrics: M
             stagnation_floor=1,
         ).check()
     assert metrics.get("watchdog_stagnation") >= 1
+
+
+def test_check_excludes_harvest_events_from_agent_scope(tmp_path: Path, metrics: Metrics):
+    """Layer-G Alt-B emits ``actor='harvest', action='rated'`` events
+    in batches (one per ranked candidate during ``Harvester.flush()``).
+    These are exogenous feedback, not agent actions — the watchdog
+    must not flag a flush burst as runaway, stagnation, or
+    echo-chamber, and must not spawn a Stranger from it.
+    """
+    sched = WeightedScheduler()
+    sched.register(_StubAgent("aki"))
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
+        # Six harvest 'rated' events back-to-back: a Trader-flush burst.
+        for i in range(6):
+            ep.append(
+                actor="harvest",
+                action="rated",
+                target=None,
+                payload={
+                    "actor": "aki",
+                    "kind": "craft",
+                    "score": 0.5 + i / 100,
+                    "accepted": True,
+                },
+            )
+        Watchdog(
+            metrics=metrics,
+            episodic=ep,
+            scheduler=sched,
+            runaway_max_consecutive=4,
+            diversity_floor=0.35,
+        ).check()
+    assert metrics.get("watchdog_runaway", agent="harvest") == 0, (
+        "harvest events must not contribute to runaway detection"
+    )
+    assert metrics.get("watchdog_echo_chamber") == 0, (
+        "harvest 'rated' batches must not trigger echo chamber"
+    )
+    strangers = [a for a in sched.agents if getattr(a, "role", None) == "stranger"]
+    assert strangers == [], "no Stranger spawn from a harvest flush burst"

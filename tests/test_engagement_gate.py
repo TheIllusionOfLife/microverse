@@ -197,3 +197,62 @@ def test_artisan_speaks_to_wrong_target_gets_coerced(metrics: Metrics) -> None:
     assert result.action == ActionKind.SPEAK
     assert result.target == "Bo", f"must coerce target to required_target, got {result.target!r}"
     assert metrics.get("engagement_gate_coerced", agent="Aki") == 1
+
+
+def test_engagement_gate_does_not_coerce_parse_fallback_rest(metrics: Metrics) -> None:
+    """When ``parse_action`` returns the safety fallback REST (empty
+    thought, no target, no artifact) for malformed JSON or a meta-
+    leak block, the engagement gate must NOT coerce it into a SPEAK.
+    Coercing would silently disguise a JSON / meta-leak failure as
+    social behavior, masking the very signal the watchdog needs to
+    detect runaway parse failures or immersion breaks. Mirrors the
+    rate-limiter's intentional-rest heuristic (REST + non-empty
+    thought) for consistency.
+    """
+    # Bare-string content forces the strict + repair pass to fail and
+    # bottom out at the fallback REST shape.
+    canned = {"content": "this is not json at all", "thinking": "", "raw": {}}
+    world = WorldContext(
+        peers_today=("Bo",),
+        engagement_hint="You must address Bo this tick.",
+        required_target="Bo",
+    )
+    with patch("microverse.agents.artisan.chat", return_value=canned):
+        a = Artisan(name="Aki", metrics=metrics)
+        result = a.think(world)
+    assert result.action == ActionKind.REST, (
+        f"parse-fallback REST must propagate, got {result.action!r}"
+    )
+    assert metrics.get("engagement_gate_coerced", agent="Aki") == 0, (
+        "no coercion bump for fallback REST"
+    )
+    assert metrics.get("json_fallback_rest") >= 1, (
+        "the JSON-failure signal must reach metrics unobscured"
+    )
+
+
+def test_engagement_gate_does_not_coerce_meta_leak_fallback_rest(metrics: Metrics) -> None:
+    """Same protection for the meta-leak path: a thought containing
+    in-world meta-references is replaced with a fallback REST. That
+    REST must propagate so ``meta_leak_block`` is the visible signal,
+    not coerced into a SPEAK that hides the immersion break.
+    """
+    canned = {
+        "content": (
+            '{"thought": "I am an AI in this simulation", '
+            '"action": "craft", "target": null, "artifact": "a thing"}'
+        ),
+        "thinking": "",
+        "raw": {},
+    }
+    world = WorldContext(
+        peers_today=("Bo",),
+        engagement_hint="You must address Bo this tick.",
+        required_target="Bo",
+    )
+    with patch("microverse.agents.artisan.chat", return_value=canned):
+        a = Artisan(name="Aki", metrics=metrics)
+        result = a.think(world)
+    assert result.action == ActionKind.REST, "meta-leak block must short-circuit to REST"
+    assert metrics.get("engagement_gate_coerced", agent="Aki") == 0
+    assert metrics.get("meta_leak_block", agent="Aki") >= 1
