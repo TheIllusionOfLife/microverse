@@ -9,9 +9,15 @@ Peers present today: {{ world.peers_today | join(", ") }}.
 {%- else -%}
 There are no other peers present today.
 {%- endif %}
-{% if world.recent_episodic -%}
-Recent things you observed:
-{% for line in world.recent_episodic -%}
+{% if world.peer_inbox -%}
+Messages addressed to you this tick:
+{% for msg in world.peer_inbox -%}
+  - {{ msg.speaker }}: {{ msg.utterance }}
+{% endfor -%}
+{%- endif %}
+{% if world.world_events -%}
+World events since you were last active:
+{% for line in world.world_events -%}
   - {{ line }}
 {% endfor -%}
 {%- endif %}

@@ -58,14 +58,6 @@ MAX_TICKS_DEFAULT: int = 1_000_000
 # case to ~30-60 wasted think() calls before exit.
 MAX_CONSECUTIVE_DEADLOCK_BREAKS: int = 10
 
-# Layer E.1: in build_context, runs of consecutive same-actor rest
-# events of length >= this threshold are dropped from recent_episodic
-# entirely. Smaller runs (2..N-1) still summarise as a count-only line.
-# Above this size the count itself ("Aki rested 57 times") becomes a
-# fatigue signal the LLM uses to keep choosing rest — see
-# data/wiring-resoak-3 (post-Layer-D, seed 38).
-REST_SUMMARY_SUPPRESS_AT: int = 10
-
 # Layer E.2: hard post-LLM rate-limit in Artisan. After this many
 # consecutive intentional rests, the next intentional rest is coerced
 # to speak (if peers exist) or study. Three is conservative — a real

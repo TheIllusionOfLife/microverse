@@ -45,7 +45,7 @@ from microverse.agents.base import Action, Agent, WorldContext
 from microverse.agents.harvester import ArtifactCandidate, Harvester
 from microverse.agents.scholar import Scholar
 from microverse.agents.trader import Trader
-from microverse.memory import build_context
+from microverse.memory import _build_peer_inbox, _build_world_events, build_context
 from microverse.memory.episodic import EpisodicMemory
 from microverse.memory.semantic import SemanticMemory
 from microverse.ops.metrics import Metrics
@@ -126,17 +126,21 @@ def _compute_peers(
             peers.append(a.name)
             seen.add(a.name)
 
+    # Path-3 (Codex review HIGH): only ``e.target == agent.name`` is
+    # a permissible peer source. The prior ``e.actor == agent.name``
+    # branch (peers I have spoken TO before) embedded the agent's own
+    # speak history into the peers list — even names-only is
+    # autobiographical leak. A peer who has addressed self is
+    # demonstrably present; a peer self has addressed once and never
+    # heard back is just self-history.
     for e in episodic.last(lookback):
         if e.action != "speak":
             continue
-        candidate: str | None = None
-        if e.actor == agent.name and e.target:
-            candidate = e.target
-        elif e.target == agent.name and e.actor:
-            candidate = e.actor
-        if candidate and candidate not in seen:
-            peers.append(candidate)
-            seen.add(candidate)
+        if e.target != agent.name or not e.actor:
+            continue
+        if e.actor not in seen:
+            peers.append(e.actor)
+            seen.add(e.actor)
 
     return tuple(peers)
 
@@ -187,19 +191,91 @@ def _maybe_engagement_target(
     return rng.choice(peers)
 
 
-def _derive_topic(episodic: EpisodicMemory, agent: Agent) -> str:
-    """Pick a scene-topic for FTS5 lore retrieval.
-
-    Strategy: use the most recent ``weather.*`` event's kind as a topic
-    word (so during a drought, the agent's lore_excerpt prefers
-    drought-tagged lore). If no weather has happened yet, fall back to
-    the agent's role plus the agent's name so lore retrieval is at
-    least seeded with something.
+def _last_weather_kind(episodic: EpisodicMemory) -> str | None:
+    """Return the kind of the most recent ``weather.*`` event, or
+    ``None`` if no such event has been written yet. Shared by
+    ``_derive_topic`` (FTS5 seed) and ``_derive_weather`` (display
+    string in ``WorldContext``); each picks its own fallback.
     """
     for e in episodic.last(50):
         if e.actor == "world" and e.action.startswith("weather."):
-            return f"{e.action.removeprefix('weather.')} {agent.role}"
-    return f"{agent.role} {agent.name}"
+            return e.action.removeprefix("weather.")
+    return None
+
+
+def _derive_topic(episodic: EpisodicMemory, agent: Agent) -> str:
+    """Pick a scene-topic for FTS5 lore retrieval.
+
+    Path-3 / Slice 6 (Codex review HIGH): the topic is a function of
+    *world state*, not of the receiving agent. The prior fallback
+    ``f"{agent.role} {agent.name}"`` seeded FTS5 with the agent's own
+    name, pattern-matching lore tagged with that name and
+    re-introducing self-history through the lore channel.
+
+    Strategy now: use the most recent ``weather.*`` kind as the topic
+    when present; otherwise return an empty topic (callers /
+    ``build_context`` skip the FTS5 query when topic is blank). The
+    agent's name and role never reach FTS5.
+    """
+    del agent  # signature kept for forward-compat; agent identity must not leak into lore.
+    return _last_weather_kind(episodic) or ""
+
+
+def _derive_weather(episodic: EpisodicMemory) -> str:
+    """Current display weather for ``WorldContext.weather``.
+
+    Path-3 (CodeRabbit review HIGH): the prior code never populated
+    ``WorldContext.weather``, so persona templates always rendered
+    the static default ``"clear"`` — defeating the world_events
+    visibility the Path-3 contract promises. The current weather is
+    a function of the most recent ``weather.*`` event in the
+    episodic log. Falls back to ``"clear"`` when no weather event
+    has been written (cold start / fresh data dir).
+    """
+    return _last_weather_kind(episodic) or "clear"
+
+
+def _build_per_tick_world_base(
+    *,
+    episodic: EpisodicMemory,
+    agent: Agent,
+    peers: tuple[str, ...],
+    last_tick_ts: float,
+    engagement_hint: str = "",
+    required_target: str | None = None,
+    metrics: Metrics | None = None,
+) -> WorldContext:
+    """Assemble the per-tick ``world_base`` for ``build_context``.
+
+    Path-3 stateless-tick contract: each tick builds a fresh
+    ``WorldContext`` carrying only the bounded peer + world view
+    since the agent's last own-tick. Self-history never enters the
+    prompt; the LLM gets ``persona + weather + peers_today
+    + peer_inbox + world_events + engagement nudge``.
+
+    ``WorldContext.season`` is intentionally NOT populated here:
+    v0.1 does not model a calendar. The field carries its static
+    default and persona templates render it as a flavor stub. The
+    contract is documented on ``WorldContext`` itself; reserved as
+    a v0.2 hook.
+
+    The ``last_tick_ts`` watermark is sourced from a per-agent dict
+    in ``run()`` so the inbox/world view drains across ticks
+    (one-shot semantics).
+    """
+    return WorldContext(
+        weather=_derive_weather(episodic),
+        peers_today=peers,
+        peer_inbox=_build_peer_inbox(
+            episodic,
+            agent_name=agent.name,
+            since_ts=last_tick_ts,
+            metrics=metrics,
+        ),
+        world_events=_build_world_events(episodic, since_ts=last_tick_ts),
+        engagement_hint=engagement_hint,
+        required_target=required_target,
+    )
 
 
 def _commit_action(episodic: EpisodicMemory, agent: Agent, action: Action) -> int:
@@ -256,7 +332,7 @@ def run(
     metrics = Metrics(data_dir / "metrics.sqlite", auto_flush_every=10)
 
     trader = Trader(name="Bo", soul_tokens=30)
-    harvester = Harvester(harvest_dir, trader=trader, percentile=70, episodic=episodic)
+    harvester = Harvester(harvest_dir, trader=trader, percentile=70)
 
     sched = WeightedScheduler(rng=rng)
     for agent in _build_roster(metrics, solo=solo):
@@ -286,6 +362,19 @@ def run(
     # below bumps deadlock_break_exit and breaks the loop. Reset to 0
     # in the success branch right after metrics.reset(consecutive_fail).
     deadlock_breaks_since_success = 0
+
+    # Path-3 watermark: per-agent ``ts`` of the last own-tick. The
+    # peer_inbox / world_events helpers filter on ``ts > last_tick_ts``
+    # (strict; ``setdefault`` below seeds the agent's first-seen
+    # tick) so each agent sees only events that happened since they
+    # last ran. Watermarks are in-memory only; on restart every
+    # agent's view starts fresh from the new launch time. Mid-run
+    # arrivals (e.g. Strangers spawned by Watchdog) are seeded at
+    # their first encounter via ``setdefault(agent.name, time.time())``
+    # below — they do NOT inherit the run-start watermark, which
+    # would have leaked all world events since process launch into
+    # their first inbox.
+    last_tick_ts: dict[str, float] = {}
 
     def _safe(label: str, fn: Callable[[], object]) -> None:
         try:
@@ -338,15 +427,26 @@ def run(
             )
             if required_target:
                 metrics.bump("engagement_gate_fired", agent=agent.name)
+            # Path-3: pull the agent's watermark. ``setdefault`` seeds
+            # first-encounter to ``time.time()`` so a mid-run Stranger
+            # does not see all weather/world events since process
+            # start on their first tick.
+            agent_last_ts = last_tick_ts.setdefault(agent.name, time.time())
+            world_base = _build_per_tick_world_base(
+                episodic=episodic,
+                agent=agent,
+                peers=peers,
+                last_tick_ts=agent_last_ts,
+                engagement_hint=engagement_hint,
+                required_target=required_target,
+                metrics=metrics,
+            )
             world = build_context(
-                world_base=WorldContext(
-                    peers_today=peers,
-                    engagement_hint=engagement_hint,
-                    required_target=required_target,
-                ),
+                world_base=world_base,
                 episodic=episodic,
                 semantic=semantic,
                 topic=topic,
+                receiver_name=agent.name,
             )
             try:
                 action = agent.think(world)
@@ -360,6 +460,11 @@ def run(
             deadlock_breaks_since_success = 0
             _commit_action(episodic, agent, action)
             _maybe_harvest(harvester, agent, action)
+            # Path-3: advance the agent's watermark so the NEXT call
+            # to ``_build_per_tick_world_base`` for this agent drains
+            # the events it has now seen. ``time.time()`` matches the
+            # ``EpisodicMemory.append`` default-ts contract.
+            last_tick_ts[agent.name] = time.time()
             executed += 1
 
             # World clock + watchdog: cheap, run every tick / every Nth.

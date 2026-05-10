@@ -1,11 +1,19 @@
-"""Memory layer assembly: combine episodic + semantic into a single
-``WorldContext`` for the agent's ``think()`` call.
+"""Memory layer assembly: combine peer + world view + lore into a
+single ``WorldContext`` for the agent's ``think()`` call.
 
-Token-budget contract (Phase 3a):
+Path-3 stateless-tick contract (Slice 5): the agent's per-tick prompt
+sees only persona + world state + peer presence + exogenous nudges.
+Self-history is structurally absent — the autobiographical channel
+that sustained seven prior layers' attractor is gone, not narrowed.
+
+Token-budget contract:
   - working memory (the persona template + base world fields):
     ~1500 tokens, owned by the persona — we don't enforce here.
-  - ``recent_episodic`` (last-7-days events, packed in reverse order):
-    ≤ ``episodic_tok`` (default 1500).
+  - ``peer_inbox`` (most-recent-tick speaks-to-self, ≤80-char
+    utterances): bounded by ``_PEER_UTTERANCE_MAX`` per item; the
+    helper truncates upstream of the budget.
+  - ``world_events`` (only ``actor=='world'`` events since the
+    receiver's last own-tick): assembled by ``_build_world_events``.
   - ``lore_excerpt`` (top FTS5 hits keyed off the scene topic):
     ≤ ``lore_tok`` (default 600).
 
@@ -17,18 +25,15 @@ single-model loop where we control prompt shape.
 
 from __future__ import annotations
 
-import time
+import re
 from typing import TYPE_CHECKING
 
-from microverse.agents.base import WorldContext
-from microverse.config import REST_SUMMARY_SUPPRESS_AT
+from microverse.agents.base import PeerSpeech, WorldContext
 
 if TYPE_CHECKING:
-    from microverse.memory.episodic import EpisodicMemory, Event
+    from microverse.memory.episodic import EpisodicMemory
     from microverse.memory.semantic import SemanticMemory
-
-
-SEVEN_DAYS_S: float = 7 * 24 * 3600.0
+    from microverse.ops.metrics import Metrics
 
 
 def est_tokens(text: str) -> int:
@@ -36,120 +41,125 @@ def est_tokens(text: str) -> int:
     return len(text) // 4
 
 
-_ARTIFACT_EXCERPT_MAX = 120
+# ---------------------------------------------------------------------------
+# Path-3 builders for the bounded peer + world view that replaces the
+# autobiographical ``recent_episodic`` channel.
+#
+# These helpers are pure: they read the episodic log, filter on actor /
+# target / since_ts, and return tuples for assembly into the per-tick
+# ``WorldContext``. The runtime in ``run.py`` calls them once per agent
+# per tick with the agent's own ``_last_tick_ts`` watermark; the result
+# rides through ``world_base`` into ``build_context`` and out to the
+# persona renderer.
+# ---------------------------------------------------------------------------
 
-_ACTION_PAST_TENSE: dict[str, str] = {
-    "rest": "rested",
-    "speak": "spoke",
-    "study": "studied",
-    "craft": "crafted",
-    "travel": "traveled",
-}
+
+_PEER_UTTERANCE_MAX = 80
 
 
-def _format_episodic_event(e: Event) -> str:
-    """Render a single episodic event for inclusion in next-prompt
-    ``recent_episodic``. Layer G structural contract: the agent's
-    ``thought`` is NEVER rendered — the autobiographical feedback
-    edge that sustained the prior six layers' failure family. Only
-    factual surface (action, target, artifact-excerpt, ``[world]`` /
-    ``[harvest]`` tags) flows into the next prompt.
-
-    The thought is still emitted by the LLM, persisted into episodic
-    for audit, and consumed by current-tick logic; this function is
-    the boundary that prevents it from re-feeding the loop.
+def _truncate_at_word_boundary(text: str, *, ceiling: int = _PEER_UTTERANCE_MAX) -> str:
+    """Cap ``text`` at ``ceiling`` chars, retreating to the last space
+    so the prompt never carries a mid-word fragment. Returns the
+    bounded prefix + ellipsis when the input exceeds the ceiling;
+    otherwise returns the input verbatim.
     """
-    actor = e.actor
-    action = e.action
-    payload = e.payload or {}
-    target = e.target
-
-    if actor == "world":
-        return f"[world] {action}"
-    if actor == "harvest" and action == "rated":
-        # Alt-B exogenous feedback: surface the Trader's verdict so the
-        # next-tick context shows what is actually being valued, not
-        # the agent's own narrative-about-its-narrative.
-        rated_actor = str(payload.get("actor") or "")
-        kind = str(payload.get("kind") or "artifact")
-        score_raw = payload.get("score")
-        score_str = f"{float(score_raw):.2f}" if isinstance(score_raw, int | float) else "?"
-        accepted_tag = "accepted" if payload.get("accepted") else "rejected"
-        return f"[harvest] Trader rated {rated_actor}'s {kind} {score_str} ({accepted_tag})"
-    if action == "craft":
-        artifact = str(payload.get("artifact") or "").replace("\n", " ").strip()
-        if artifact:
-            if len(artifact) > _ARTIFACT_EXCERPT_MAX:
-                artifact = artifact[:_ARTIFACT_EXCERPT_MAX] + "…"
-            return f"{actor} crafted: {artifact}"
-        return f"{actor} craft"
-    if action == "speak":
-        return f"{actor} spoke to {target}" if target else f"{actor} spoke aloud"
-    # Use past-tense for the bare-action fallback so single events read
-    # in the same voice as the count summaries emitted by
-    # ``_compress_action_runs``. Unknown actions pass through verbatim.
-    return f"{actor} {_ACTION_PAST_TENSE.get(action, action)}"
+    if len(text) <= ceiling:
+        return text
+    head = text[:ceiling]
+    cut = head.rsplit(" ", 1)[0] if " " in head else head
+    return cut.rstrip() + "…"
 
 
-def _compress_action_runs(events: list[Event]) -> list[str]:
-    """Collapse runs of >=2 consecutive same-actor + same-action events
-    into a single count-only summary so no streak shape can become a
-    same-channel signal in the next prompt. Generalises the Layer
-    C/D/E.1 rest-run mechanism to ALL actions, closing speak / study /
-    travel / craft as alternative expressions of the same crystallised
-    persona.
+def _build_peer_inbox(
+    episodic: EpisodicMemory,
+    *,
+    agent_name: str,
+    since_ts: float,
+    metrics: Metrics | None = None,
+) -> tuple[PeerSpeech, ...]:
+    """Build the per-tick inbox of speaks-to-self by other agents
+    since the receiver's last own-tick.
 
-    A run of length >= ``REST_SUMMARY_SUPPRESS_AT`` is dropped entirely
-    (Layer E.1 logic preserved and extended). Runs of 2..(threshold-1)
-    render as ``f"{actor} {past_tense} {N} times"``. A length-1 run
-    falls back to ``_format_episodic_event`` (which already drops the
-    thought). Runs are broken by any change of actor or action.
+    Filters applied (in order):
+      1. ``ts > since_ts`` — drop stale speaks. The watermark is
+         exclusive: an event with ``ts == since_ts`` is the agent's
+         own commit (or coincident with it), so it is already drained.
+      2. ``action == "speak"`` — only speak events qualify.
+      3. ``target == agent_name`` — only speaks-to-self.
+      4. ``actor != agent_name`` — defence-in-depth against
+         autobiographical leak via own speeches.
+      5. Empty utterance after strip — drop (renders as
+         ``"- Bo: "`` noise).
+      6. Receiver-name whole-word match (case-insensitive) in the
+         utterance — DROP the entire PeerSpeech (Codex review HIGH
+         on cross-agent narrative laundering). Substring matches like
+         ``Akihiko`` for receiver ``Aki`` do not trip this filter.
 
-    Exception: ``actor='harvest'`` events bypass the run mechanism and
-    surface individually. A ``Harvester.flush()`` of N ranked candidates
-    emits N consecutive ``actor='harvest', action='rated'`` events, and
-    the per-event payload (score, accepted, creator, kind) IS the value
-    of the Alt-B feedback signal. Collapsing them to ``"harvest rated N
-    times"`` or suppressing them above threshold would erase the only
-    exogenous voice telling the LLM what is actually being valued.
-    Each harvest event flushes any pending agent run cleanly so it does
-    not bridge or extend the surrounding streaks.
+    The utterance is sourced from ``payload.get("thought")`` because
+    the existing ``Action`` schema has no separate utterance field.
+    This means the speaker's narrative voice rides through; the
+    structural mitigations above bound the leak.
+
+    Uses ``EpisodicMemory.since`` so a hot run with > 200 events
+    between ticks does not silently drop fresh addressed speeches.
+
+    Returns chronologically ordered (oldest-first) PeerSpeech tuples.
     """
-    out: list[str] = []
-    run_actor: str | None = None
-    run_action: str | None = None
-    run_events: list[Event] = []
-
-    def flush() -> None:
-        nonlocal run_actor, run_action, run_events
-        n = len(run_events)
-        if n >= REST_SUMMARY_SUPPRESS_AT and run_actor and run_action:
-            # Drop entirely — the count alone is enough signal for the
-            # LLM to continue the streak (Layer E.1 finding, generalised).
-            pass
-        elif n >= 2 and run_actor and run_action:
-            verb = _ACTION_PAST_TENSE.get(run_action, run_action)
-            out.append(f"{run_actor} {verb} {n} times")
-        elif n == 1 and run_events:
-            out.append(_format_episodic_event(run_events[0]))
-        run_actor = None
-        run_action = None
-        run_events = []
-
-    for e in events:
-        if e.actor == "harvest":
-            flush()
-            out.append(_format_episodic_event(e))
+    rows = episodic.since(since_ts)
+    name_pattern = re.compile(rf"\b{re.escape(agent_name)}\b", re.IGNORECASE)
+    out: list[PeerSpeech] = []
+    for e in rows:
+        if e.ts <= since_ts:
             continue
-        if run_actor == e.actor and run_action == e.action:
-            run_events.append(e)
-        else:
-            flush()
-            run_actor = e.actor
-            run_action = e.action
-            run_events = [e]
-    flush()
-    return out
+        if e.action != "speak":
+            continue
+        if e.target != agent_name:
+            continue
+        if e.actor == agent_name:
+            continue
+        utterance = str((e.payload or {}).get("thought") or "").strip()
+        if not utterance:
+            continue
+        if name_pattern.search(utterance):
+            if metrics is not None:
+                metrics.bump("peer_inbox_dropped", agent=agent_name)
+            continue
+        out.append(
+            PeerSpeech(
+                speaker=e.actor,
+                utterance=_truncate_at_word_boundary(utterance),
+            )
+        )
+    out.reverse()  # episodic.since is newest-first; flip to chronological
+    return tuple(out)
+
+
+def _build_world_events(
+    episodic: EpisodicMemory,
+    *,
+    since_ts: float,
+) -> tuple[str, ...]:
+    """Build the per-tick view of world events (weather, season,
+    arrivals) since ``since_ts``. NEVER any agent action — the
+    ``actor == "world"`` filter is exclusive.
+
+    Watermark is exclusive (``ts > since_ts``) so an event coincident
+    with the agent's own tick boundary cannot replay. Uses
+    ``EpisodicMemory.since`` so a hot run does not silently drop
+    fresh world events past the lookback cap.
+
+    Returns chronologically ordered ``"[world] {action}"`` strings.
+    """
+    rows = episodic.since(since_ts)
+    out: list[str] = []
+    for e in rows:
+        if e.ts <= since_ts:
+            continue
+        if e.actor != "world":
+            continue
+        out.append(f"[world] {e.action}")
+    out.reverse()
+    return tuple(out)
 
 
 def _pack_under_budget(items: list[str], token_budget: int, joiner: str = "\n") -> tuple[str, ...]:
@@ -194,25 +204,32 @@ def build_context(
     episodic: EpisodicMemory,
     semantic: SemanticMemory,
     topic: str = "",
-    episodic_tok: int = 1500,
     lore_tok: int = 600,
-    episodic_window_s: float = SEVEN_DAYS_S,
-    episodic_lookback: int = 2000,
     lore_k: int = 3,
+    receiver_name: str | None = None,
 ) -> WorldContext:
-    """Assemble the per-tick context from episodic + semantic memory.
+    """Assemble the per-tick context from semantic memory + the
+    pre-populated bounded fields on ``world_base``.
 
-    Episodic events are pulled via ``episodic.since(cutoff, limit=...)``
-    so the 7-day window covers every event in that window (capped at
-    ``episodic_lookback`` rows for memory ceiling). The packer then
-    drops trailing items until the joined string fits under
-    ``episodic_tok``.
+    Path-3 stateless-tick contract: the autobiographical
+    ``recent_episodic`` channel is gone. Self-history never enters
+    the prompt. ``peer_inbox`` and ``world_events`` ride through from
+    ``world_base`` (populated by ``run.py:_build_per_tick_world_base``
+    using per-agent watermarks). The only thing this function adds is
+    the ``lore_excerpt`` keyed off the scene topic.
+
+    Slice 6 (Codex review HIGH): when ``receiver_name`` is provided,
+    every lore line containing that name as a whole word is dropped.
+    This closes the lore-channel autobiographical leak — Elder lore
+    can still mention agents by name (community knowledge stays
+    visible to OTHER readers); the receiving agent simply doesn't see
+    lore about themselves.
+
+    ``episodic`` is retained in the signature for forward-compat
+    (other future memory layers may need it) but is currently
+    unused.
     """
-    cutoff = time.time() - episodic_window_s
-    events = episodic.since(cutoff, limit=episodic_lookback)
-    recent_lines = _compress_action_runs(events)
-    recent = _pack_under_budget(recent_lines, episodic_tok)
-
+    del episodic  # forward-compat placeholder; see docstring.
     lore_lines: list[str] = []
     if topic.strip():
         for hit in semantic.top_k(topic, k=lore_k):
@@ -220,13 +237,19 @@ def build_context(
             if not text:
                 text = _payload_digest(hit.payload)
             lore_lines.append(f"- ({hit.doc_id}) {text}")
+
+    if receiver_name:
+        name_pattern = re.compile(rf"\b{re.escape(receiver_name)}\b", re.IGNORECASE)
+        lore_lines = [line for line in lore_lines if not name_pattern.search(line)]
+
     lore = _pack_under_budget(lore_lines, lore_tok)
 
     return WorldContext(
         season=world_base.season,
         weather=world_base.weather,
         peers_today=world_base.peers_today,
-        recent_episodic=recent,
+        peer_inbox=world_base.peer_inbox,
+        world_events=world_base.world_events,
         lore_excerpt=lore,
         engagement_hint=world_base.engagement_hint,
         required_target=world_base.required_target,
