@@ -13,10 +13,15 @@ real JSON-failure signal.
 
 Layer F.2: a post-LLM coercion for craft actions whose ``artifact``
 field is null or whitespace. Empty-artifact crafts are coerced to
-``study`` with a neutral replacement thought so the silent-woodworker
-narrative observed in soak-24h-4 cannot propagate through
-``recent_episodic``. Runs BEFORE the rest rate-limiter — empty-craft
-is an active tick, not rest-avoidance.
+``study`` with a neutral replacement thought. Runs BEFORE the rest
+rate-limiter — empty-craft is an active tick, not rest-avoidance.
+
+Path-3 note: the agent's own thoughts and actions are persisted in
+the episodic log for audit, watchdog, and harvest, but they NO
+LONGER feed back into the next prompt. The "narrative laundering"
+mitigations below remain useful as defence-in-depth (a future
+re-introduction of any self-history channel must not be able to
+re-acquire the silent-woodworker attractor through stored thoughts).
 """
 
 from __future__ import annotations
@@ -37,12 +42,10 @@ from microverse.prompts import render
 _PERSONA_TEMPLATE = "persona_artisan.j2"
 
 # Replacement thought for Layer F.2 empty-craft coercion. Crucially
-# neutral: it does NOT mention silence/fatigue/etc. — feeding the
-# original "every fiber demands silence" thought back into
-# ``recent_episodic`` is what sustained the trap (the LLM read its own
-# narrative and continued it). The replacement names a productive
-# fallback (study) so the next-tick context reads as recovery, not
-# repetition.
+# neutral: it does NOT mention silence/fatigue/etc. Path-3 already
+# strips self-history from prompts, so this is now defence-in-depth
+# — the audit log records the coercion event, but no re-routing of
+# the original thought can sustain the trap.
 _EMPTY_CRAFT_REPLACEMENT_THOUGHT = (
     "The work needs a concrete form, so I study materials before making it."
 )
@@ -138,11 +141,12 @@ class Artisan(Agent):
         ``artifact`` (None, empty, or whitespace), coerce to ``study``
         with a neutral replacement thought.
 
-        The original thought is intentionally DROPPED — preserving it
-        would feed the silent-woodworker narrative back into
-        ``recent_episodic`` via ``_format_episodic`` and reinforce the
-        trap. Bumps ``artisan_empty_craft_coerced`` (per-agent metric)
-        so runaway firing is observable.
+        The original thought is intentionally DROPPED. Under Path-3
+        self-history no longer feeds back into prompts, so this is
+        now belt-and-suspenders: the audit log records the coercion
+        but cannot re-introduce the silent-woodworker narrative.
+        Bumps ``artisan_empty_craft_coerced`` (per-agent metric) so
+        runaway firing is observable.
 
         Note: ``Action`` has ``str_strip_whitespace=True``, so a
         whitespace-only artifact arrives here normalised to ``""`` —

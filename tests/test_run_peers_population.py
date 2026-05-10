@@ -5,9 +5,12 @@
 then rendered the no-peers branch every tick, reinforcing the
 solitary-narrator frame that the silent-craftsperson attractor
 lives inside. The helper unifies registered agents (always present)
-with recently-active speak partners from episodic (so a mid-run
-Stranger immigrant who has already addressed Aki shows up even if
-she hasn't spoken back).
+with recently-active speak partners from episodic.
+
+Path-3 (Codex review HIGH on PR #24): only peers who have addressed
+SELF surface from the episodic source — the prior "peers self has
+addressed" branch was removed because even a names-only carry-over
+of the receiver's own speak history is autobiographical leakage.
 """
 
 from __future__ import annotations
@@ -71,16 +74,23 @@ def test_compute_peers_includes_recent_speak_partner_from_episodic(tmp_path: Pat
     assert "traveler" in peers
 
 
-def test_compute_peers_includes_addressee_when_self_spoke(tmp_path: Path) -> None:
-    """If Aki spoke to a target, that target is a recent peer too —
-    even if not registered. Symmetry with the actor-side check."""
+def test_compute_peers_excludes_self_addressed_targets(tmp_path: Path) -> None:
+    """Path-3 (Codex review HIGH): if Aki spoke to a one-shot visitor
+    who never spoke back, that visitor must NOT surface as a peer —
+    "people I have spoken to before" is autobiographical state. The
+    target-side branch (peers who have addressed SELF) is the only
+    permitted episodic source; the actor-side symmetry was deliberately
+    removed.
+    """
     sched = WeightedScheduler()
     aki = Artisan(name="Aki")
     sched.register(aki)
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
         ep.append(actor="Aki", action="speak", target="visitor-7", payload={})
         peers = _compute_peers(sched, ep, aki)
-    assert "visitor-7" in peers
+    assert "visitor-7" not in peers, (
+        f"self-addressed targets must not leak into peers_today, got {peers!r}"
+    )
 
 
 def test_compute_peers_skips_world_actor(tmp_path: Path) -> None:

@@ -165,10 +165,15 @@ class WorldContext:
     the LLM rerouted to the next. Path-3 removes the substrate.
 
     Fields:
-      * ``season`` / ``weather``: world-clock state (always present).
+      * ``season``: calendar position. Currently a static ``"spring"``
+        stub — v0.1 does not model a calendar. Reserved for v0.2.
+      * ``weather``: most recent ``weather.*`` event kind (or
+        ``"clear"`` if none yet), populated per-tick by
+        ``run._derive_weather``. Defaults to ``"clear"`` for tests
+        that construct ``WorldContext`` directly.
       * ``peers_today``: distinct names of other agents present
-        (registered + recent speak partners). Just names, not
-        actions.
+        (registered roster + peers who have addressed self). Names
+        only, never actions.
       * ``peer_inbox``: speaks-to-self by other agents since the
         receiver's last own-tick. One-shot, drained on next own-tick
         by the slice-3 wiring in ``run.py``.

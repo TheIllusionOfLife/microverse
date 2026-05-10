@@ -37,13 +37,16 @@ def test_derive_topic_does_not_include_agent_name(tmp_path: Path) -> None:
     assert "Aki" not in topic, f"agent name must not seed FTS5 topic, got {topic!r}"
 
 
-def test_derive_topic_no_weather_uses_season_or_neutral(tmp_path: Path) -> None:
+def test_derive_topic_no_weather_returns_blank_seed(tmp_path: Path) -> None:
     """With no weather events at all, the fallback must NOT use the
-    agent's role+name (the previous Layer-G behaviour). Instead the
-    topic should be a neutral / season-derived seed.
+    agent's role+name (the previous Layer-G behaviour). Path-3
+    chooses an empty seed so ``build_context`` skips the FTS5 lore
+    query entirely (no name-based pattern match can re-introduce
+    self-history through the lore channel).
     """
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
         topic = _derive_topic(ep, Artisan(name="Aki"))
+    assert topic == "", f"empty topic disables FTS5 retrieval, got {topic!r}"
     assert "Aki" not in topic, f"agent name must not appear in fallback, got {topic!r}"
     assert "artisan" not in topic.lower(), f"agent role must not appear, got {topic!r}"
 

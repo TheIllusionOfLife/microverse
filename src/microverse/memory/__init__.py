@@ -76,34 +76,40 @@ def _build_peer_inbox(
     agent_name: str,
     since_ts: float,
     metrics: Metrics | None = None,
-    lookback: int = 200,
 ) -> tuple[PeerSpeech, ...]:
     """Build the per-tick inbox of speaks-to-self by other agents
     since the receiver's last own-tick.
 
     Filters applied (in order):
-      1. ``ts >= since_ts`` — drop stale speaks.
+      1. ``ts > since_ts`` — drop stale speaks. The watermark is
+         exclusive: an event with ``ts == since_ts`` is the agent's
+         own commit (or coincident with it), so it is already drained.
       2. ``action == "speak"`` — only speak events qualify.
       3. ``target == agent_name`` — only speaks-to-self.
       4. ``actor != agent_name`` — defence-in-depth against
          autobiographical leak via own speeches.
-      5. Receiver-name whole-word match in the utterance — DROP the
-         entire PeerSpeech (Codex review HIGH on cross-agent narrative
-         laundering). Substring matches like ``Akihiko`` for receiver
-         ``Aki`` do not trip this filter.
+      5. Empty utterance after strip — drop (renders as
+         ``"- Bo: "`` noise).
+      6. Receiver-name whole-word match (case-insensitive) in the
+         utterance — DROP the entire PeerSpeech (Codex review HIGH
+         on cross-agent narrative laundering). Substring matches like
+         ``Akihiko`` for receiver ``Aki`` do not trip this filter.
 
     The utterance is sourced from ``payload.get("thought")`` because
     the existing ``Action`` schema has no separate utterance field.
     This means the speaker's narrative voice rides through; the
     structural mitigations above bound the leak.
 
+    Uses ``EpisodicMemory.since`` so a hot run with > 200 events
+    between ticks does not silently drop fresh addressed speeches.
+
     Returns chronologically ordered (oldest-first) PeerSpeech tuples.
     """
-    rows = episodic.last(lookback)
-    name_pattern = re.compile(rf"\b{re.escape(agent_name)}\b")
+    rows = episodic.since(since_ts)
+    name_pattern = re.compile(rf"\b{re.escape(agent_name)}\b", re.IGNORECASE)
     out: list[PeerSpeech] = []
     for e in rows:
-        if e.ts < since_ts:
+        if e.ts <= since_ts:
             continue
         if e.action != "speak":
             continue
@@ -111,7 +117,9 @@ def _build_peer_inbox(
             continue
         if e.actor == agent_name:
             continue
-        utterance = str((e.payload or {}).get("thought") or "")
+        utterance = str((e.payload or {}).get("thought") or "").strip()
+        if not utterance:
+            continue
         if name_pattern.search(utterance):
             if metrics is not None:
                 metrics.bump("peer_inbox_dropped", agent=agent_name)
@@ -122,7 +130,7 @@ def _build_peer_inbox(
                 utterance=_truncate_at_word_boundary(utterance),
             )
         )
-    out.reverse()  # episodic.last is newest-first; flip to chronological
+    out.reverse()  # episodic.since is newest-first; flip to chronological
     return tuple(out)
 
 
@@ -130,18 +138,22 @@ def _build_world_events(
     episodic: EpisodicMemory,
     *,
     since_ts: float,
-    lookback: int = 200,
 ) -> tuple[str, ...]:
     """Build the per-tick view of world events (weather, season,
     arrivals) since ``since_ts``. NEVER any agent action — the
     ``actor == "world"`` filter is exclusive.
 
+    Watermark is exclusive (``ts > since_ts``) so an event coincident
+    with the agent's own tick boundary cannot replay. Uses
+    ``EpisodicMemory.since`` so a hot run does not silently drop
+    fresh world events past the lookback cap.
+
     Returns chronologically ordered ``"[world] {action}"`` strings.
     """
-    rows = episodic.last(lookback)
+    rows = episodic.since(since_ts)
     out: list[str] = []
     for e in rows:
-        if e.ts < since_ts:
+        if e.ts <= since_ts:
             continue
         if e.actor != "world":
             continue
@@ -227,7 +239,7 @@ def build_context(
             lore_lines.append(f"- ({hit.doc_id}) {text}")
 
     if receiver_name:
-        name_pattern = re.compile(rf"\b{re.escape(receiver_name)}\b")
+        name_pattern = re.compile(rf"\b{re.escape(receiver_name)}\b", re.IGNORECASE)
         lore_lines = [line for line in lore_lines if not name_pattern.search(line)]
 
     lore = _pack_under_budget(lore_lines, lore_tok)
