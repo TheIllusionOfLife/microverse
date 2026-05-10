@@ -250,8 +250,14 @@ def _build_per_tick_world_base(
     Path-3 stateless-tick contract: each tick builds a fresh
     ``WorldContext`` carrying only the bounded peer + world view
     since the agent's last own-tick. Self-history never enters the
-    prompt; the LLM gets ``persona + season + weather + peers_today
+    prompt; the LLM gets ``persona + weather + peers_today
     + peer_inbox + world_events + engagement nudge``.
+
+    ``WorldContext.season`` is intentionally NOT populated here:
+    v0.1 does not model a calendar. The field carries its static
+    default and persona templates render it as a flavor stub. The
+    contract is documented on ``WorldContext`` itself; reserved as
+    a v0.2 hook.
 
     The ``last_tick_ts`` watermark is sourced from a per-agent dict
     in ``run()`` so the inbox/world view drains across ticks
