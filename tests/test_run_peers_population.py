@@ -2,12 +2,12 @@
 
 `run.py:215` previously constructed an empty `WorldContext()` so
 `peers_today` was structurally always empty — the persona template
-then rendered "You have not spoken with anyone today" every tick,
-reinforcing the solitary-narrator frame that the silent-craftsperson
-attractor lives inside. The helper unifies registered agents (always
-present) with recently-active speak partners from episodic (so a
-mid-run Stranger immigrant who has already addressed Aki shows up
-even if she hasn't spoken back).
+then rendered the no-peers branch every tick, reinforcing the
+solitary-narrator frame that the silent-craftsperson attractor
+lives inside. The helper unifies registered agents (always present)
+with recently-active speak partners from episodic (so a mid-run
+Stranger immigrant who has already addressed Aki shows up even if
+she hasn't spoken back).
 """
 
 from __future__ import annotations

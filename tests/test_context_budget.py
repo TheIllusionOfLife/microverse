@@ -256,7 +256,7 @@ def test_build_context_suppresses_rest_summary_at_threshold(tmp_path: Path) -> N
 def test_build_context_keeps_isolated_rest_uncompressed(tmp_path: Path) -> None:
     """A single isolated rest must not be summarised; only runs of
     >=2 consecutive rests get collapsed. Layer-G: bare rest renders
-    as ``"Aki rest"`` (no colon, no thought)."""
+    as ``"Aki rested"`` (past tense, no thought)."""
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
         ep.append(actor="Aki", action="craft", target=None, payload={"thought": "shaped a bowl"})
         ep.append(actor="Aki", action="rest", target=None, payload={"thought": "a brief pause"})
@@ -266,7 +266,7 @@ def test_build_context_keeps_isolated_rest_uncompressed(tmp_path: Path) -> None:
     summary_lines = [line for line in out.recent_episodic if line.startswith("Aki rested ")]
     assert summary_lines == [], f"isolated rest must not be summarised, got {summary_lines!r}"
 
-    bare_rest = [line for line in out.recent_episodic if line == "Aki rest"]
+    bare_rest = [line for line in out.recent_episodic if line == "Aki rested"]
     assert len(bare_rest) == 1, f"isolated rest must appear bare, got {out.recent_episodic!r}"
 
 

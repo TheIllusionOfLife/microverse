@@ -85,7 +85,10 @@ def _format_episodic_event(e: Event) -> str:
         return f"{actor} craft"
     if action == "speak":
         return f"{actor} spoke to {target}" if target else f"{actor} spoke aloud"
-    return f"{actor} {action}"
+    # Use past-tense for the bare-action fallback so single events read
+    # in the same voice as the count summaries emitted by
+    # ``_compress_action_runs``. Unknown actions pass through verbatim.
+    return f"{actor} {_ACTION_PAST_TENSE.get(action, action)}"
 
 
 def _compress_action_runs(events: list[Event]) -> list[str]:
@@ -101,6 +104,16 @@ def _compress_action_runs(events: list[Event]) -> list[str]:
     render as ``f"{actor} {past_tense} {N} times"``. A length-1 run
     falls back to ``_format_episodic_event`` (which already drops the
     thought). Runs are broken by any change of actor or action.
+
+    Exception: ``actor='harvest'`` events bypass the run mechanism and
+    surface individually. A ``Harvester.flush()`` of N ranked candidates
+    emits N consecutive ``actor='harvest', action='rated'`` events, and
+    the per-event payload (score, accepted, creator, kind) IS the value
+    of the Alt-B feedback signal. Collapsing them to ``"harvest rated N
+    times"`` or suppressing them above threshold would erase the only
+    exogenous voice telling the LLM what is actually being valued.
+    Each harvest event flushes any pending agent run cleanly so it does
+    not bridge or extend the surrounding streaks.
     """
     out: list[str] = []
     run_actor: str | None = None
@@ -124,6 +137,10 @@ def _compress_action_runs(events: list[Event]) -> list[str]:
         run_events = []
 
     for e in events:
+        if e.actor == "harvest":
+            flush()
+            out.append(_format_episodic_event(e))
+            continue
         if run_actor == e.actor and run_action == e.action:
             run_events.append(e)
         else:

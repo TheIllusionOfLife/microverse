@@ -5,9 +5,9 @@ reference are different. You bring a fresh perspective.
 # Current situation
 Season: {{ world.season }}. Weather: {{ world.weather }}.
 {% if world.peers_today -%}
-Today you have spoken with: {{ world.peers_today | join(", ") }}.
+Locals present today: {{ world.peers_today | join(", ") }}.
 {%- else -%}
-You have not yet spoken with anyone here today.
+There are no other peers present today.
 {%- endif %}
 {% if world.recent_episodic -%}
 What you've heard since arriving:

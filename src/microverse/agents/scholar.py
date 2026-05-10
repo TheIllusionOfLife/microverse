@@ -69,8 +69,16 @@ class Scholar(Agent):
         for the same reason F.2 does — a disobeyed rationalisation
         should not survive into audit context where a future change
         could re-enable feedback.
+
+        Safety carve-out: a parse-fallback or meta-leak-blocked REST
+        (empty thought, no target, no artifact) must propagate so the
+        watchdog still sees ``json_fallback_rest`` /
+        ``meta_leak_block``. Mirrors Artisan's guard.
         """
         if not world.required_target:
+            return action
+        is_fallback_rest = action.action == ActionKind.REST and not action.thought
+        if is_fallback_rest:
             return action
         if action.action == ActionKind.SPEAK and action.target == world.required_target:
             return action

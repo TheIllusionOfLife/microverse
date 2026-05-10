@@ -396,7 +396,9 @@ def test_harvest_event_does_not_break_adjacent_action_runs(tmp_path: Path) -> No
     harvest_lines = [line for line in out.recent_episodic if line.startswith("[harvest]")]
     assert len(harvest_lines) == 1, f"harvest event must render once, got {out.recent_episodic!r}"
     summary_lines = [line for line in out.recent_episodic if "studied" in line]
-    assert summary_lines, f"surrounding study runs must still summarise, got {out.recent_episodic!r}"
+    assert summary_lines, (
+        f"surrounding study runs must still summarise, got {out.recent_episodic!r}"
+    )
 
 
 def test_episodic_budget_still_capped(tmp_path: Path) -> None:

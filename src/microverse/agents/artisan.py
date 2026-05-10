@@ -106,8 +106,20 @@ class Artisan(Agent):
         ``speak`` to that exact peer, coerce. Drops the original thought
         so a disobeyed-rationalisation cannot enter audit-or-future
         feedback as a justification for ignoring the gate.
+
+        Safety carve-out: a parse-fallback or meta-leak-blocked REST
+        (``parse_action`` returns ``Action(thought='', action=REST,
+        target=None, artifact=None)``) must propagate untouched.
+        Coercing it into a SPEAK would silently disguise a JSON failure
+        or immersion break as social behavior, hiding the
+        ``json_fallback_rest`` / ``meta_leak_block`` signal the watchdog
+        depends on. Mirrors ``_maybe_rate_limit``'s intentional-rest
+        heuristic (REST + non-empty thought) for consistency.
         """
         if not world.required_target:
+            return action
+        is_fallback_rest = action.action == ActionKind.REST and not action.thought
+        if is_fallback_rest:
             return action
         if action.action == ActionKind.SPEAK and action.target == world.required_target:
             return action
