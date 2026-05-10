@@ -396,8 +396,10 @@ def test_harvest_event_does_not_break_adjacent_action_runs(tmp_path: Path) -> No
     harvest_lines = [line for line in out.recent_episodic if line.startswith("[harvest]")]
     assert len(harvest_lines) == 1, f"harvest event must render once, got {out.recent_episodic!r}"
     summary_lines = [line for line in out.recent_episodic if "studied" in line]
-    assert summary_lines, (
-        f"surrounding study runs must still summarise, got {out.recent_episodic!r}"
+    assert sorted(summary_lines) == ["Aki studied 2 times", "Aki studied 3 times"], (
+        "the harvest event must split the study events into two distinct runs "
+        "(2 before, 3 after) — a single merged 'Aki studied 5 times' would mean "
+        f"the run-state was not flushed at the harvest boundary; got {out.recent_episodic!r}"
     )
 
 
