@@ -179,9 +179,7 @@ def test_build_peer_inbox_truncates_at_word_boundary(tmp_path: Path) -> None:
     assert utt.endswith("…"), f"truncation must be marked with ellipsis, got {utt!r}"
     # The body before the ellipsis ends at a space-bounded word.
     body = utt[:-1].rstrip()
-    assert not body.endswith("rive"), (
-        f"truncation must not leave a half-word, got body={body!r}"
-    )
+    assert not body.endswith("rive"), f"truncation must not leave a half-word, got body={body!r}"
 
 
 def test_build_peer_inbox_drops_utterance_with_receiver_name(tmp_path: Path) -> None:
@@ -233,9 +231,7 @@ def test_build_peer_inbox_name_match_is_whole_word(tmp_path: Path) -> None:
             ts=110.0,
         )
         inbox = _build_peer_inbox(ep, agent_name="Aki", since_ts=0.0, metrics=metrics)
-    assert len(inbox) == 2, (
-        f"substring matches must NOT trip whole-word filter, got {inbox!r}"
-    )
+    assert len(inbox) == 2, f"substring matches must NOT trip whole-word filter, got {inbox!r}"
 
 
 def test_build_peer_inbox_returns_chronological_order(tmp_path: Path) -> None:

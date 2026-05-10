@@ -79,9 +79,7 @@ def _seed_world_event(ep: EpisodicMemory, *, action: str, ts: float) -> None:
     ep.append(actor="world", action=action, target=None, payload={}, ts=ts)
 
 
-def _seed_agent_event(
-    ep: EpisodicMemory, *, actor: str, action: str, ts: float
-) -> None:
+def _seed_agent_event(ep: EpisodicMemory, *, actor: str, action: str, ts: float) -> None:
     ep.append(
         actor=actor,
         action=action,

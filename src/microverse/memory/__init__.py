@@ -17,15 +17,17 @@ single-model loop where we control prompt shape.
 
 from __future__ import annotations
 
+import re
 import time
 from typing import TYPE_CHECKING
 
-from microverse.agents.base import WorldContext
+from microverse.agents.base import PeerSpeech, WorldContext
 from microverse.config import REST_SUMMARY_SUPPRESS_AT
 
 if TYPE_CHECKING:
     from microverse.memory.episodic import EpisodicMemory, Event
     from microverse.memory.semantic import SemanticMemory
+    from microverse.ops.metrics import Metrics
 
 
 SEVEN_DAYS_S: float = 7 * 24 * 3600.0
@@ -45,6 +47,115 @@ _ACTION_PAST_TENSE: dict[str, str] = {
     "craft": "crafted",
     "travel": "traveled",
 }
+
+
+# ---------------------------------------------------------------------------
+# Path-3 builders for the bounded peer + world view that replaces the
+# autobiographical ``recent_episodic`` channel.
+#
+# These helpers are pure: they read the episodic log, filter on actor /
+# target / since_ts, and return tuples for assembly into the per-tick
+# ``WorldContext``. The runtime in ``run.py`` calls them once per agent
+# per tick with the agent's own ``_last_tick_ts`` watermark; the result
+# rides through ``world_base`` into ``build_context`` and out to the
+# persona renderer.
+# ---------------------------------------------------------------------------
+
+
+_PEER_UTTERANCE_MAX = 80
+
+
+def _truncate_at_word_boundary(text: str, *, ceiling: int = _PEER_UTTERANCE_MAX) -> str:
+    """Cap ``text`` at ``ceiling`` chars, retreating to the last space
+    so the prompt never carries a mid-word fragment. Returns the
+    bounded prefix + ellipsis when the input exceeds the ceiling;
+    otherwise returns the input verbatim.
+    """
+    if len(text) <= ceiling:
+        return text
+    head = text[:ceiling]
+    cut = head.rsplit(" ", 1)[0] if " " in head else head
+    return cut.rstrip() + "…"
+
+
+def _build_peer_inbox(
+    episodic: EpisodicMemory,
+    *,
+    agent_name: str,
+    since_ts: float,
+    metrics: Metrics | None = None,
+    lookback: int = 200,
+) -> tuple[PeerSpeech, ...]:
+    """Build the per-tick inbox of speaks-to-self by other agents
+    since the receiver's last own-tick.
+
+    Filters applied (in order):
+      1. ``ts >= since_ts`` — drop stale speaks.
+      2. ``action == "speak"`` — only speak events qualify.
+      3. ``target == agent_name`` — only speaks-to-self.
+      4. ``actor != agent_name`` — defence-in-depth against
+         autobiographical leak via own speeches.
+      5. Receiver-name whole-word match in the utterance — DROP the
+         entire PeerSpeech (Codex review HIGH on cross-agent narrative
+         laundering). Substring matches like ``Akihiko`` for receiver
+         ``Aki`` do not trip this filter.
+
+    The utterance is sourced from ``payload.get("thought")`` because
+    the existing ``Action`` schema has no separate utterance field.
+    This means the speaker's narrative voice rides through; the
+    structural mitigations above bound the leak.
+
+    Returns chronologically ordered (oldest-first) PeerSpeech tuples.
+    """
+    rows = episodic.last(lookback)
+    name_pattern = re.compile(rf"\b{re.escape(agent_name)}\b")
+    out: list[PeerSpeech] = []
+    for e in rows:
+        if e.ts < since_ts:
+            continue
+        if e.action != "speak":
+            continue
+        if e.target != agent_name:
+            continue
+        if e.actor == agent_name:
+            continue
+        utterance = str((e.payload or {}).get("thought") or "")
+        if name_pattern.search(utterance):
+            if metrics is not None:
+                metrics.bump("peer_inbox_dropped", agent=agent_name)
+            continue
+        out.append(
+            PeerSpeech(
+                speaker=e.actor,
+                utterance=_truncate_at_word_boundary(utterance),
+            )
+        )
+    out.reverse()  # episodic.last is newest-first; flip to chronological
+    return tuple(out)
+
+
+def _build_world_events(
+    episodic: EpisodicMemory,
+    *,
+    since_ts: float,
+    lookback: int = 200,
+) -> tuple[str, ...]:
+    """Build the per-tick view of world events (weather, season,
+    arrivals) since ``since_ts``. NEVER any agent action — the
+    ``actor == "world"`` filter is exclusive.
+
+    Returns chronologically ordered ``"[world] {action}"`` strings.
+    """
+    rows = episodic.last(lookback)
+    out: list[str] = []
+    for e in rows:
+        if e.ts < since_ts:
+            continue
+        if e.actor != "world":
+            continue
+        out.append(f"[world] {e.action}")
+    out.reverse()
+    return tuple(out)
 
 
 def _format_episodic_event(e: Event) -> str:
@@ -226,6 +337,8 @@ def build_context(
         season=world_base.season,
         weather=world_base.weather,
         peers_today=world_base.peers_today,
+        peer_inbox=world_base.peer_inbox,
+        world_events=world_base.world_events,
         recent_episodic=recent,
         lore_excerpt=lore,
         engagement_hint=world_base.engagement_hint,
