@@ -89,21 +89,9 @@ def test_persona_renders_world_events_when_present(template: str) -> None:
     assert "[world] stranger.arrived" in out
 
 
-@pytest.mark.parametrize(
-    "template",
-    ["persona_artisan.j2", "persona_scholar.j2", "persona_stranger.j2"],
-)
-def test_persona_does_not_render_recent_episodic(template: str) -> None:
-    """Even if recent_episodic is populated (it still is, until
-    Slice 5 removes the field), the templates must NOT render it —
-    the autobiographical channel is structurally cut at the prompt
-    layer in Slice 4.
-    """
-    out = render(
-        template,
-        name="Aki",
-        world=WorldContext(recent_episodic=("Aki crafted a bowl",)),
-    )
-    assert "Aki crafted a bowl" not in out, (
-        f"recent_episodic must NOT surface in Path-3 prompts, got:\n{out}"
-    )
+# NOTE: the prior "templates do not render recent_episodic" guard
+# was removed in Slice 5 — the WorldContext field itself is gone, so
+# passing it as a kwarg would TypeError at the schema layer well
+# before any template render path. The contract this guard protected
+# is now enforced structurally by the dataclass definition in
+# ``src/microverse/agents/base.py``.

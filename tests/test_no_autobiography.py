@@ -32,7 +32,6 @@ from microverse.memory import build_context
 from microverse.memory.episodic import EpisodicMemory
 from microverse.memory.semantic import SemanticMemory
 
-
 _ALL_VERBS_PAST = ("crafted", "spoke", "studied", "rested", "traveled")
 _ALL_VERBS_PRESENT = ("craft", "speak", "study", "rest", "travel")
 
@@ -165,21 +164,18 @@ def test_build_context_recent_episodic_field_is_unused_or_empty(tmp_path: Path) 
             topic="",
         )
     field = getattr(out, "recent_episodic", ())
-    assert field == (), (
-        f"recent_episodic must be removed or empty after Slice 5, got {field!r}"
-    )
+    assert field == (), f"recent_episodic must be removed or empty after Slice 5, got {field!r}"
 
 
 @pytest.mark.parametrize("agent_name", ["Aki", "Bo", "Cy"])
-def test_build_context_no_self_history_for_any_agent(
-    tmp_path: Path, agent_name: str
-) -> None:
+def test_build_context_no_self_history_for_any_agent(tmp_path: Path, agent_name: str) -> None:
     """The contract holds for any agent name, not just Aki — the
     bounded view is structural, not name-specific.
     """
-    with EpisodicMemory(tmp_path / f"ep-{agent_name}.sqlite") as ep, SemanticMemory(
-        tmp_path / f"se-{agent_name}.sqlite"
-    ) as se:
+    with (
+        EpisodicMemory(tmp_path / f"ep-{agent_name}.sqlite") as ep,
+        SemanticMemory(tmp_path / f"se-{agent_name}.sqlite") as se,
+    ):
         _seed_diverse_history(ep, actor=agent_name, n=30)
         out = build_context(
             world_base=WorldContext(),

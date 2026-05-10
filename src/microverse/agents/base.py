@@ -187,7 +187,6 @@ class WorldContext:
     peers_today: tuple[str, ...] = ()
     peer_inbox: tuple[PeerSpeech, ...] = ()
     world_events: tuple[str, ...] = ()
-    recent_episodic: tuple[str, ...] = ()
     lore_excerpt: tuple[str, ...] = ()
     engagement_hint: str = ""
     required_target: str | None = None
