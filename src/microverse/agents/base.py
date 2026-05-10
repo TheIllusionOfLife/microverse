@@ -144,6 +144,11 @@ class WorldContext:
     witnessed) and ``lore_excerpt`` (top-k FTS5 hits keyed off the
     current scene topic). ``microverse.memory.build_context`` is the
     canonical assembler.
+
+    Layer-G slice 3 adds ``engagement_hint`` / ``required_target``: an
+    exogenous nudge the runtime sets BEFORE ``Agent.think`` when the
+    agent has not produced a targeted speak in K of its own actions.
+    Both empty/None when the gate is not firing.
     """
 
     season: str = "spring"
@@ -151,6 +156,8 @@ class WorldContext:
     peers_today: tuple[str, ...] = ()
     recent_episodic: tuple[str, ...] = ()
     lore_excerpt: tuple[str, ...] = ()
+    engagement_hint: str = ""
+    required_target: str | None = None
 
 
 class Agent(abc.ABC):

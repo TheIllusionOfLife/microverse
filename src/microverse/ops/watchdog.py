@@ -76,8 +76,17 @@ class Watchdog:
 
     def check(self) -> None:
         recent = self._episodic.last(max(self._stagnation_window, self._diversity_window))
-        # Skip world-emitted weather events — they aren't agent actions.
-        agent_events = [e for e in recent if e.actor != "world"]
+        # Skip exogenous events — they aren't agent actions:
+        #   ``world``    — weather events emitted by ``WorldClock``.
+        #   ``harvest``  — Layer-G Alt-B rating events emitted by
+        #                  ``Harvester.flush``. A flush of N candidates
+        #                  bursts N consecutive ``actor='harvest',
+        #                  action='rated'`` events; without this exclusion
+        #                  the run-length detectors flag the burst as
+        #                  agent-runaway, the diversity detector tanks
+        #                  on identical action strings, and the rescue
+        #                  path spawns a Stranger that will never help.
+        agent_events = [e for e in recent if e.actor not in ("world", "harvest")]
 
         self._check_runaway(agent_events)
         self._check_stagnation(agent_events)

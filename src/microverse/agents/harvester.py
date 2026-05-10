@@ -46,6 +46,7 @@ import yaml
 
 if TYPE_CHECKING:
     from microverse.agents.trader import Score
+    from microverse.memory.episodic import EpisodicMemory
 
 MIN_ARTIFACT_CHARS = 20
 SLUG_MAX_LEN = 60
@@ -125,6 +126,7 @@ class Harvester:
         *,
         trader: _RankerProtocol | None = None,
         percentile: int = DEFAULT_PERCENTILE,
+        episodic: EpisodicMemory | None = None,
     ) -> None:
         self._root = Path(harvest_root)
         self._root.mkdir(parents=True, exist_ok=True)
@@ -132,6 +134,12 @@ class Harvester:
         self._trader = trader
         self._percentile = percentile
         self._buffer: list[ArtifactCandidate] = []
+        # Layer-G slice 5 (Alt-B): when an episodic store is supplied,
+        # ``flush`` records one synthetic ``actor='harvest', action='rated'``
+        # event per ranked candidate so the Trader's verdict flows back
+        # into the next tick's recent_episodic. ``None`` keeps the legacy
+        # heuristic / smoke-test paths unchanged.
+        self._episodic = episodic
 
     def consider(self, candidate: ArtifactCandidate) -> Path | None:
         # Phase 2 path: trader present → buffer the candidate, write at flush().
@@ -183,13 +191,40 @@ class Harvester:
             # cutoff is None ⇒ no signal (multi-item all-tied population).
             # Accept nothing — better to lose a batch than to spam the
             # inbox with unranked output.
-            if cutoff is not None and score.score >= cutoff:
+            accepted = cutoff is not None and score.score >= cutoff
+            if accepted:
                 path = self._write_artifact(cand)
                 written.append(path)
                 self._append_manifest(cand, accepted=True, path=path, score=score.score)
             else:
                 self._append_manifest(cand, accepted=False, path=None, score=score.score)
+            self._maybe_emit_rating_event(cand, score=score.score, accepted=accepted)
         return written
+
+    def _maybe_emit_rating_event(
+        self,
+        candidate: ArtifactCandidate,
+        *,
+        score: float,
+        accepted: bool,
+    ) -> None:
+        """Append the synthetic harvest-rated event for Alt-B feedback.
+        No-op when ``episodic`` was not supplied — preserves the
+        backwards-compat path for heuristic / smoke-test runs.
+        """
+        if self._episodic is None:
+            return
+        self._episodic.append(
+            actor="harvest",
+            action="rated",
+            target=None,
+            payload={
+                "actor": candidate.actor,
+                "kind": candidate.action,
+                "score": score,
+                "accepted": accepted,
+            },
+        )
 
     def _percentile_cutoff(self, scores: list[float]) -> float | None:
         """Compute a score floor such that values >= floor land in the

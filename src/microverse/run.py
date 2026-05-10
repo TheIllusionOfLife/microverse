@@ -43,6 +43,7 @@ from microverse import config
 from microverse.agents.artisan import Artisan
 from microverse.agents.base import Action, Agent, WorldContext
 from microverse.agents.harvester import ArtifactCandidate, Harvester
+from microverse.agents.scholar import Scholar
 from microverse.agents.trader import Trader
 from microverse.memory import build_context
 from microverse.memory.episodic import EpisodicMemory
@@ -64,6 +65,23 @@ WATCHDOG_EVERY = 25  # ticks between watchdog sweeps
 WORLD_CLOCK_MEAN_INTERVAL = 100  # mean ticks between weather events
 
 
+def _build_roster(metrics: Metrics, *, solo: bool = False) -> list[Agent]:
+    """Build the default tick-loop roster.
+
+    Layer-G slice 4 (R2.c): default = Aki (Artisan, soul_tokens=100) +
+    a Scholar resident (soul_tokens=70). The Scholar's lower weight
+    keeps Aki the primary creator; the Scholar provides peer presence
+    and observational output so the engagement gate (slice 3) has a
+    real partner. ``solo=True`` reproduces the legacy single-Artisan
+    regime for regression soaks.
+    """
+    aki = Artisan(name="Aki", metrics=metrics, soul_tokens=100)
+    if solo:
+        return [aki]
+    cy = Scholar(name="Cy", metrics=metrics, soul_tokens=70)
+    return [aki, cy]
+
+
 def _all_agents_paused(metrics: Metrics, agents: Sequence[Agent]) -> bool:
     """True iff every registered agent is currently paused.
 
@@ -74,6 +92,99 @@ def _all_agents_paused(metrics: Metrics, agents: Sequence[Agent]) -> bool:
     mask legitimate per-agent failures.
     """
     return all(metrics.should_pause(a.name) for a in agents)
+
+
+def _compute_peers(
+    scheduler: WeightedScheduler,
+    episodic: EpisodicMemory,
+    agent: Agent,
+    lookback: int = 200,
+) -> tuple[str, ...]:
+    """Compute the peer set for an agent's per-tick ``WorldContext``.
+
+    Layer-G slice 2 (R2.a): the prior code constructed
+    ``WorldContext()`` with no peers, so the persona rendered "You
+    have not spoken with anyone today" every tick — reinforcing the
+    solitary-narrator frame the silent-craftsperson attractor lives
+    inside.
+
+    Two sources, deduped, in roster-then-history order:
+      1. Currently-registered scheduler agents minus self (always-on
+         residency — peers exist whether or not they have spoken).
+      2. Recent speak partners in episodic within ``lookback`` events
+         (so a Stranger immigrant who has addressed self, or a
+         self-spoken target who has since departed, still counts as
+         an eligible engagement target).
+
+    ``actor == "world"`` is excluded — weather is not a peer.
+    """
+    peers: list[str] = []
+    seen: set[str] = {agent.name, "world"}
+
+    for a in scheduler.agents:
+        if a.name not in seen:
+            peers.append(a.name)
+            seen.add(a.name)
+
+    for e in episodic.last(lookback):
+        if e.action != "speak":
+            continue
+        candidate: str | None = None
+        if e.actor == agent.name and e.target:
+            candidate = e.target
+        elif e.target == agent.name and e.actor:
+            candidate = e.actor
+        if candidate and candidate not in seen:
+            peers.append(candidate)
+            seen.add(candidate)
+
+    return tuple(peers)
+
+
+def _maybe_engagement_target(
+    episodic: EpisodicMemory,
+    *,
+    agent_name: str,
+    peers: tuple[str, ...],
+    rng: random.Random,
+    interval: int,
+) -> str | None:
+    """Pick a peer the agent must address this tick, or None.
+
+    Layer-G slice 3 (R2.b): the engagement gate. The post-Layer-F 24h
+    soak showed Aki silently crafting hundreds of ticks in a row with
+    no targeted speaks at all — Layer F bound the artifact channel
+    but the LLM rerouted into pure asocial production. The gate is
+    the missing balancing loop.
+
+    Walks ``episodic`` newest-first counting ONLY the agent's own
+    actions. If any of its last ``interval`` actions was a speak with
+    a non-null target, the gate is reset (return None). If the agent
+    has fewer than ``interval`` total actions, it is in warmup and
+    the gate does not fire. Otherwise picks a peer from ``peers`` via
+    ``rng`` and returns it.
+
+    The lookback into episodic is ``interval * 4`` events to find
+    enough of the agent's own actions even when other agents are
+    mixing in. Cap is intentional — a stale long-departed targeted
+    speak from before the 4*K window does not save the agent from
+    the gate.
+    """
+    if not peers:
+        return None
+    own_seen = 0
+    lookback = max(interval * 4, 100)
+    for e in episodic.last(lookback):
+        if e.actor != agent_name:
+            continue
+        own_seen += 1
+        if e.action == "speak" and e.target:
+            return None
+        if own_seen >= interval:
+            break
+    if own_seen < interval:
+        return None
+    return rng.choice(peers)
 
 
 def _derive_topic(episodic: EpisodicMemory, agent: Agent) -> str:
@@ -123,6 +234,7 @@ def run(
     tempo: float | None = None,
     data_dir: str | Path | None = None,
     harvest_dir: str | Path | None = None,
+    solo: bool = False,
 ) -> int:
     """Run the tick loop. Returns the number of ticks executed."""
     rng = random.Random(seed) if seed is not None else random.Random()
@@ -144,10 +256,11 @@ def run(
     metrics = Metrics(data_dir / "metrics.sqlite", auto_flush_every=10)
 
     trader = Trader(name="Bo", soul_tokens=30)
-    harvester = Harvester(harvest_dir, trader=trader, percentile=70)
+    harvester = Harvester(harvest_dir, trader=trader, percentile=70, episodic=episodic)
 
     sched = WeightedScheduler(rng=rng)
-    sched.register(Artisan(name="Aki", metrics=metrics, soul_tokens=100))
+    for agent in _build_roster(metrics, solo=solo):
+        sched.register(agent)
     # Trader scheduling is internal — it ranks the buffer at flush time,
     # not as a tick action. We don't register it in the scheduler.
 
@@ -212,8 +325,25 @@ def run(
             # may spawn Strangers mid-run and a cached topic from the
             # initial agent would mis-tag their lore retrieval.
             topic = _derive_topic(episodic, agent)
+            peers = _compute_peers(sched, episodic, agent)
+            required_target = _maybe_engagement_target(
+                episodic,
+                agent_name=agent.name,
+                peers=peers,
+                rng=rng,
+                interval=config.PEER_ENGAGEMENT_INTERVAL,
+            )
+            engagement_hint = (
+                f"You must address {required_target} this tick." if required_target else ""
+            )
+            if required_target:
+                metrics.bump("engagement_gate_fired", agent=agent.name)
             world = build_context(
-                world_base=WorldContext(),
+                world_base=WorldContext(
+                    peers_today=peers,
+                    engagement_hint=engagement_hint,
+                    required_target=required_target,
+                ),
                 episodic=episodic,
                 semantic=semantic,
                 topic=topic,
@@ -300,12 +430,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Override per-agent sleep (seconds). Use 0 for no sleep (tests).",
     )
+    p.add_argument(
+        "--solo",
+        action="store_true",
+        help="Run with the legacy single-Artisan roster (no Scholar resident).",
+    )
     return p.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
-    return run(ticks=args.ticks, seed=args.seed, tempo=args.tempo)
+    return run(ticks=args.ticks, seed=args.seed, tempo=args.tempo, solo=args.solo)
 
 
 if __name__ == "__main__":

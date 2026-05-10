@@ -36,64 +36,118 @@ def est_tokens(text: str) -> int:
     return len(text) // 4
 
 
-def _format_episodic(actor: str, action: str, thought: str) -> str:
-    if thought:
-        return f"{actor} {action}: {thought}"
-    return f"{actor} {action}"
+_ARTIFACT_EXCERPT_MAX = 120
+
+_ACTION_PAST_TENSE: dict[str, str] = {
+    "rest": "rested",
+    "speak": "spoke",
+    "study": "studied",
+    "craft": "crafted",
+    "travel": "traveled",
+}
 
 
-def _compress_rest_runs(events: list[Event]) -> list[str]:
-    """Collapse runs of >=2 consecutive same-actor rest events into a
-    single count-only summary line so a long rest streak cannot poison
-    ``recent_episodic``. Runs of length >= ``REST_SUMMARY_SUPPRESS_AT``
-    emit *nothing* — beyond that threshold the count itself becomes
-    enough signal for the LLM to infer fatigue and continue resting.
+def _format_episodic_event(e: Event) -> str:
+    """Render a single episodic event for inclusion in next-prompt
+    ``recent_episodic``. Layer G structural contract: the agent's
+    ``thought`` is NEVER rendered — the autobiographical feedback
+    edge that sustained the prior six layers' failure family. Only
+    factual surface (action, target, artifact-excerpt, ``[world]`` /
+    ``[harvest]`` tags) flows into the next prompt.
 
-    A single isolated rest is left verbatim (its thought is real recent
-    context, not a run). Runs of 2..(threshold-1) render as a count-only
-    line. Runs of >= threshold are dropped from the slice entirely.
-    Runs are broken by any non-rest event or a rest by a different
-    actor.
+    The thought is still emitted by the LLM, persisted into episodic
+    for audit, and consumed by current-tick logic; this function is
+    the boundary that prevents it from re-feeding the loop.
+    """
+    actor = e.actor
+    action = e.action
+    payload = e.payload or {}
+    target = e.target
 
-    Layer history:
-      - Layer C: render runs as one summary with "Latest: <thought>".
-      - Layer D: drop the thought; summary became count-only.
-      - Layer E.1 (this layer): suppress entirely above the threshold,
-        because even "Aki rested 57 times" was enough fatigue signal in
-        soak-wiring-resoak-3 (post-Layer-D, seed 38, 43% rest).
+    if actor == "world":
+        return f"[world] {action}"
+    if actor == "harvest" and action == "rated":
+        # Alt-B exogenous feedback: surface the Trader's verdict so the
+        # next-tick context shows what is actually being valued, not
+        # the agent's own narrative-about-its-narrative.
+        rated_actor = str(payload.get("actor") or "")
+        kind = str(payload.get("kind") or "artifact")
+        score_raw = payload.get("score")
+        score_str = f"{float(score_raw):.2f}" if isinstance(score_raw, int | float) else "?"
+        accepted_tag = "accepted" if payload.get("accepted") else "rejected"
+        return f"[harvest] Trader rated {rated_actor}'s {kind} {score_str} ({accepted_tag})"
+    if action == "craft":
+        artifact = str(payload.get("artifact") or "").replace("\n", " ").strip()
+        if artifact:
+            if len(artifact) > _ARTIFACT_EXCERPT_MAX:
+                artifact = artifact[:_ARTIFACT_EXCERPT_MAX] + "…"
+            return f"{actor} crafted: {artifact}"
+        return f"{actor} craft"
+    if action == "speak":
+        return f"{actor} spoke to {target}" if target else f"{actor} spoke aloud"
+    # Use past-tense for the bare-action fallback so single events read
+    # in the same voice as the count summaries emitted by
+    # ``_compress_action_runs``. Unknown actions pass through verbatim.
+    return f"{actor} {_ACTION_PAST_TENSE.get(action, action)}"
+
+
+def _compress_action_runs(events: list[Event]) -> list[str]:
+    """Collapse runs of >=2 consecutive same-actor + same-action events
+    into a single count-only summary so no streak shape can become a
+    same-channel signal in the next prompt. Generalises the Layer
+    C/D/E.1 rest-run mechanism to ALL actions, closing speak / study /
+    travel / craft as alternative expressions of the same crystallised
+    persona.
+
+    A run of length >= ``REST_SUMMARY_SUPPRESS_AT`` is dropped entirely
+    (Layer E.1 logic preserved and extended). Runs of 2..(threshold-1)
+    render as ``f"{actor} {past_tense} {N} times"``. A length-1 run
+    falls back to ``_format_episodic_event`` (which already drops the
+    thought). Runs are broken by any change of actor or action.
+
+    Exception: ``actor='harvest'`` events bypass the run mechanism and
+    surface individually. A ``Harvester.flush()`` of N ranked candidates
+    emits N consecutive ``actor='harvest', action='rated'`` events, and
+    the per-event payload (score, accepted, creator, kind) IS the value
+    of the Alt-B feedback signal. Collapsing them to ``"harvest rated N
+    times"`` or suppressing them above threshold would erase the only
+    exogenous voice telling the LLM what is actually being valued.
+    Each harvest event flushes any pending agent run cleanly so it does
+    not bridge or extend the surrounding streaks.
     """
     out: list[str] = []
     run_actor: str | None = None
-    run_count = 0
-    run_thought = ""
+    run_action: str | None = None
+    run_events: list[Event] = []
 
     def flush() -> None:
-        nonlocal run_actor, run_count, run_thought
-        if run_count >= REST_SUMMARY_SUPPRESS_AT and run_actor:
-            # Drop the entire run from the slice. The count alone still
-            # carries fatigue signal — see soak-wiring-resoak-3.
+        nonlocal run_actor, run_action, run_events
+        n = len(run_events)
+        if n >= REST_SUMMARY_SUPPRESS_AT and run_actor and run_action:
+            # Drop entirely — the count alone is enough signal for the
+            # LLM to continue the streak (Layer E.1 finding, generalised).
             pass
-        elif run_count >= 2 and run_actor:
-            out.append(f"{run_actor} rested {run_count} times")
-        elif run_count == 1 and run_actor:
-            out.append(_format_episodic(run_actor, "rest", run_thought))
+        elif n >= 2 and run_actor and run_action:
+            verb = _ACTION_PAST_TENSE.get(run_action, run_action)
+            out.append(f"{run_actor} {verb} {n} times")
+        elif n == 1 and run_events:
+            out.append(_format_episodic_event(run_events[0]))
         run_actor = None
-        run_count = 0
-        run_thought = ""
+        run_action = None
+        run_events = []
 
     for e in events:
-        thought = str(e.payload.get("thought") or "")
-        if e.action == "rest":
-            if run_actor == e.actor:
-                run_count += 1
-            else:
-                flush()
-                run_actor = e.actor
-                run_count = 1
-                run_thought = thought
+        if e.actor == "harvest":
+            flush()
+            out.append(_format_episodic_event(e))
+            continue
+        if run_actor == e.actor and run_action == e.action:
+            run_events.append(e)
         else:
             flush()
-            out.append(_format_episodic(e.actor, e.action, thought))
+            run_actor = e.actor
+            run_action = e.action
+            run_events = [e]
     flush()
     return out
 
@@ -156,7 +210,7 @@ def build_context(
     """
     cutoff = time.time() - episodic_window_s
     events = episodic.since(cutoff, limit=episodic_lookback)
-    recent_lines = _compress_rest_runs(events)
+    recent_lines = _compress_action_runs(events)
     recent = _pack_under_budget(recent_lines, episodic_tok)
 
     lore_lines: list[str] = []
@@ -174,4 +228,6 @@ def build_context(
         peers_today=world_base.peers_today,
         recent_episodic=recent,
         lore_excerpt=lore,
+        engagement_hint=world_base.engagement_hint,
+        required_target=world_base.required_target,
     )

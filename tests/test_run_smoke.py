@@ -78,6 +78,7 @@ def test_30_ticks_produces_at_least_one_artifact(tmp_path: Path):
             tempo=0,
             data_dir=data_dir,
             harvest_dir=harvest_dir,
+            solo=True,
         )
 
     assert executed == 30
@@ -109,7 +110,7 @@ def test_run_creates_data_and_harvest_dirs(tmp_path: Path):
         "raw": {},
     }
     with patch("microverse.agents.artisan.chat", return_value=rest_only):
-        run(ticks=3, seed=0, tempo=0, data_dir=data_dir, harvest_dir=harvest_dir)
+        run(ticks=3, seed=0, tempo=0, data_dir=data_dir, harvest_dir=harvest_dir, solo=True)
         # Touch call_count so unused-import lints don't mind us.
         call_count[0] += 0
 
@@ -150,6 +151,7 @@ def test_run_survives_chat_exception(tmp_path: Path):
             tempo=0,
             data_dir=data_dir,
             harvest_dir=harvest_dir,
+            solo=True,
         )
     # We absorbed 5 exceptions then completed 2 ticks.
     assert executed == 2
@@ -219,6 +221,7 @@ def test_run_exits_after_consecutive_deadlock_breaks(tmp_path: Path):
             tempo=0,
             data_dir=data_dir,
             harvest_dir=harvest_dir,
+            solo=True,
         )
 
     # Loop exited without committing anything (every think() raised).
@@ -261,6 +264,7 @@ def test_run_survives_snapshot_disk_io_error(tmp_path: Path):
             tempo=0,
             data_dir=tmp_path / "data",
             harvest_dir=tmp_path / "harvest",
+            solo=True,
         )
 
     assert executed == 3, "loop must complete despite snapshot I/O error"
@@ -296,5 +300,6 @@ def test_run_recovers_from_all_paused_via_consecutive_fail_reset(tmp_path: Path)
             tempo=0,
             data_dir=tmp_path / "data",
             harvest_dir=tmp_path / "harvest",
+            solo=True,
         )
     assert executed == 3
