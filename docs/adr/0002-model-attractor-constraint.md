@@ -36,28 +36,30 @@ to verify whether removing the substrate also removes the attractor.
 ## Decision
 
 Ship v0.1.0 as a harness with a documented model-level attractor constraint.
-Do NOT add a "Layer I" patch.
+Do NOT add another layer patch.
 
 The Path-3 soak shows two distinct results:
 
-1. **The architecture works.** A 24h, 897-sample structural leak sweep
-   returned zero substring matches of any agent's prior thought, artifact,
-   action-verb pattern, or self-name lore line across every text field of
-   the assembled `WorldContext`. Cross-agent narrative laundering through
-   `peer_inbox` is bounded by the whole-word name filter (which fired 77+ in
-   the wiring soak and continues to be load-bearing in the 24h run). Lore
-   excerpts containing the receiver's own name are dropped at retrieval
-   time. Weather and engagement-gate signals surface correctly.
+1. **The Path-3 architecture works for its structural goal.** A 24h,
+   897-sample structural leak sweep returned zero substring matches of any
+   agent's prior thought, artifact, action-verb pattern, or self-name lore
+   line across every text field of the assembled `WorldContext`. Cross-agent
+   narrative laundering through `peer_inbox` is bounded by the whole-word
+   name filter (which dropped 77 Aki-named utterances in the wiring soak and
+   continues to be load-bearing in the 24h run). Lore excerpts containing
+   the receiver's own name are dropped at retrieval time. Weather and
+   engagement-gate signals surface correctly. No observed prompt
+   self-history leak through the audited channels.
 
-2. **The model still has a primary-verb attractor.** Aki (Artisan) settled
-   at 93-94% craft share within hour 1 and held that distribution across
-   every hour of the 24h run. This crosses the conservative halt sentinel
-   (any single action > 70% sustained two consecutive hours AND worse than
-   the Layer-G baseline of 46% for Aki). The trap is *not* the Layer-G
+2. **A primary-verb attractor remains.** Aki (Artisan) settled at 93-94%
+   craft share within hour 1 and held that distribution across every hour
+   of the 24h run. This crosses the conservative halt sentinel (any single
+   action > 70% sustained two consecutive hours AND worse than the Layer-G
+   baseline of 46% for Aki). The trap is *not* the Layer-G
    silent-craftsperson failure: Aki's manifest grew to 19,918 lines at
    ~830 lines/hour (three times the Layer-G rate of ~283/hour), thought
-   diversity stayed at 0.86 (matching the Layer-G 0.92), Cy stayed varied
-   (study 59-71%, rest and speak interspersed, diversity 0.87, never
+   diversity stayed at 0.86 (comparable to the Layer-G 0.92), Cy stayed
+   varied (study 59-71%, rest and speak interspersed, diversity 0.87, never
    exceeded its baseline 84% craft share), and the engagement gate
    continued to fire and coerce. Aki is producing real, distinct artifacts
    at high volume — the LLM has specialised on its persona's primary verb,
@@ -67,10 +69,12 @@ The Layer-G plan stated: "if the post-R1+R2 24h soak shows yet another
 route-around, the honest response is NOT a Layer H patch. It is to admit
 that gemma4:e4b at this size has an attractor we cannot fully eliminate
 without a different model or a fundamentally different prompt architecture."
-Path-3 *is* the fundamentally different prompt architecture. The remaining
-attractor is the model itself: `gemma4:e4b` (8B parameters, Q4_K_M) loves
-its persona's primary verb and will lean into it absent narrative pressure
-to do otherwise.
+Path-3 *is* the fundamentally different prompt architecture. Given zero
+evidence of architectural leakage in the audited context fields, the
+remaining specialisation is best attributed to `gemma4:e4b` (8B parameters,
+Q4_K_M) under this persona/prompt setup: the model strongly favours its
+persona's primary verb and leans into it absent narrative pressure to do
+otherwise.
 
 ## Consequences
 
@@ -81,7 +85,8 @@ to do otherwise.
 
 - Users running `gemma4:e4b` on the default Artisan + Scholar roster should
   expect Aki to specialise heavily on craft (90%+) and Cy to remain varied
-  but study-leaning. This is a feature characteristic, not a defect.
+  but study-leaning. This is documented behaviour of the default v0.1.0
+  configuration, not an untracked regression.
 
 - The Layer pattern stops here. Further attempts to coerce the action
   distribution by patching prompt text would be churn: the experiments
@@ -89,14 +94,15 @@ to do otherwise.
   next attractor's substrate. The architectural mitigations in PR #24 are
   the structural ceiling.
 
-- Future moves that *could* change this finding, but are outside v0.1.0:
-  - **Different model.** A larger (`gemma4:26b`) or differently-tuned model
-    may distribute actions more evenly under the same persona prompts.
-    Worth verifying with a one-off comparison soak.
+- Future moves that *could* change this finding, but are outside v0.1.0
+  (ordered lowest-intervention first):
   - **Persona prompt revision.** The current Artisan persona over-specifies
     craft. A revision that frames the role more broadly ("inhabitant who
     sometimes makes things") may produce a flatter distribution. This is a
     v0.2 concern.
+  - **Different model.** A larger (`gemma4:26b`) or differently-tuned model
+    may distribute actions more evenly under the same persona prompts.
+    Worth verifying with a one-off comparison soak.
   - **Multi-tick artifact WIP.** Out-of-scope for v0.1.0 per the Path-3
     plan; a v0.2 "shared workshop state" abstraction could change the
     incentive landscape.
