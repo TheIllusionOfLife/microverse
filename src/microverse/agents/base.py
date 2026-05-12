@@ -58,6 +58,11 @@ class ActionKind(StrEnum):
     STUDY = "study"
     REST = "rest"
     TRAVEL = "travel"
+    # v0.2 (ADR 0003): a contribution to a shared workshop WIP. The
+    # WIP name rides in ``Action.contribute_to``; the fragment text
+    # rides in ``Action.artifact``. ``target`` stays None (target is
+    # for peer addressing).
+    CONTRIBUTE = "contribute"
 
 
 class Action(BaseModel):
@@ -69,10 +74,46 @@ class Action(BaseModel):
     action: ActionKind
     target: str | None = Field(default=None, max_length=100)
     artifact: str | None = Field(default=None, max_length=8000)
+    # v0.2 (ADR 0003): name of the workshop WIP this contribution
+    # targets. Validated by ``parse_action`` against the configured
+    # set; only meaningful when ``action == ActionKind.CONTRIBUTE``.
+    # Defaults to None so v0.1.1 callers / fixtures round-trip.
+    contribute_to: str | None = Field(default=None, max_length=100)
 
 
 def _rest_action() -> Action:
     return Action(thought="", action=ActionKind.REST, target=None, artifact=None)
+
+
+def _validate_contribute(action: Action, *, metrics: Metrics, agent: str) -> Action:
+    """ADR 0003: when ``action`` is contribute, the WIP name must be
+    a configured one AND the artifact (fragment text) must be
+    non-empty. When the action is NOT contribute, ``contribute_to``
+    must be None — a stray name on the wrong verb is malformed.
+
+    On failure, fold to a safe rest and bump
+    ``contribute_invalid_target`` (distinct from
+    ``json_fallback_rest`` so operators can tell workshop routing
+    failures apart from JSON parse failures).
+    """
+    # Lazy import so agents/base.py stays cycle-free.
+    from microverse.world.workshop import CONFIGURED_WIPS
+
+    if action.action == ActionKind.CONTRIBUTE:
+        if (
+            action.contribute_to not in CONFIGURED_WIPS
+            or not (action.artifact and action.artifact.strip())
+        ):
+            metrics.bump("contribute_invalid_target", agent=agent)
+            return _rest_action()
+        return action
+
+    if action.contribute_to is not None:
+        # Stray name on a non-contribute verb. Defence-in-depth: the
+        # workshop affordance is only reachable through CONTRIBUTE.
+        metrics.bump("contribute_invalid_target", agent=agent)
+        return _rest_action()
+    return action
 
 
 def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
@@ -106,6 +147,11 @@ def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
                 # immersion breaks.
                 metrics.bump("meta_leak_block", agent=agent)
                 return _rest_action()
+            action = _validate_contribute(action, metrics=metrics, agent=agent)
+            if action.action == ActionKind.REST and not action.thought:
+                # _validate_contribute folded — don't credit json_ok
+                # and don't reset consecutive_fail on a fold.
+                return action
             metrics.bump("json_ok")
             metrics.reset("consecutive_fail", agent=agent)
             return action
@@ -127,6 +173,12 @@ def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
             ):
                 metrics.bump("meta_leak_block", agent=agent)
                 return _rest_action()
+            repaired_action = _validate_contribute(
+                repaired_action, metrics=metrics, agent=agent
+            )
+            if repaired_action.action == ActionKind.REST and not repaired_action.thought:
+                # Workshop-route fold — don't credit json_repaired.
+                return repaired_action
             metrics.bump("json_repaired")
             metrics.reset("consecutive_fail", agent=agent)
             return repaired_action

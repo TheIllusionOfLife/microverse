@@ -107,7 +107,7 @@ def test_parse_action_folds_contribute_to_unknown_wip_to_rest() -> None:
     # The fold uses the "invalid contribute" counter, NOT
     # json_fallback_rest, so operators can distinguish parse failures
     # from workshop-route failures.
-    assert metrics.get("contribute_invalid_target") == 1
+    assert metrics.get("contribute_invalid_target", agent="Aki") == 1
 
 
 def test_parse_action_folds_contribute_without_target_to_rest() -> None:
@@ -115,7 +115,7 @@ def test_parse_action_folds_contribute_without_target_to_rest() -> None:
     raw = _raw("contribute", contribute_to=None, artifact="hello")
     out = parse_action(raw, metrics=metrics, agent="Aki")
     assert out.action == ActionKind.REST
-    assert metrics.get("contribute_invalid_target") == 1
+    assert metrics.get("contribute_invalid_target", agent="Aki") == 1
 
 
 def test_parse_action_folds_contribute_with_empty_artifact_to_rest() -> None:
@@ -130,7 +130,7 @@ def test_parse_action_folds_contribute_with_empty_artifact_to_rest() -> None:
     raw = _raw("contribute", contribute_to=wip, artifact=None)
     out = parse_action(raw, metrics=metrics, agent="Aki")
     assert out.action == ActionKind.REST
-    assert metrics.get("contribute_invalid_target") == 1
+    assert metrics.get("contribute_invalid_target", agent="Aki") == 1
 
 
 def test_parse_action_folds_stray_contribute_to_on_other_actions() -> None:
@@ -183,4 +183,4 @@ def test_parse_action_meta_leak_still_applies_to_contribute_artifact() -> None:
     )
     out = parse_action(raw, metrics=metrics, agent="Aki")
     assert out.action == ActionKind.REST
-    assert metrics.get("meta_leak_block") == 1
+    assert metrics.get("meta_leak_block", agent="Aki") == 1
