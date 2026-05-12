@@ -27,7 +27,10 @@ Lore that feels relevant right now:
   {{ line }}
 {% endfor -%}
 {%- endif %}
-
+{% if workshop_view_spike -%}
+The village workshop currently holds:
+{{ workshop_view_spike }}
+{% endif %}
 {% if world.engagement_hint -%}
 {{ world.engagement_hint }}
 {% endif %}
