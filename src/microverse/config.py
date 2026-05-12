@@ -73,3 +73,24 @@ ARTISAN_REST_STREAK_LIMIT: int = 3
 # the post-Layer-F soak Aki silently crafted hundreds of ticks in a
 # row, so 20 is plenty of head-room without being intrusive.
 PEER_ENGAGEMENT_INTERVAL: int = 20
+
+# v0.2 (ADR 0003): Harvester per-flush per-primary-verb caps applied
+# AFTER Trader ranking. Bounds the rate at which any single action
+# verb can dominate the harvest manifest — defence-in-depth against
+# the Trader v2 itself becoming a new attractor. A 50-tick flush at
+# v0.1.1 cadence yields ~15 flushes/hour, so a cap of 5 caps the
+# craft inbox at ~75/hour vs the unbounded v0.1.1 ~280-830/hour.
+HARVEST_CRAFT_CAP_PER_FLUSH: int = 5
+
+# v0.2 (ADR 0003): Watchdog workshop_stale detector. When all
+# configured WIPs are flat (no new contribute events) for longer
+# than this window, bump ``watchdog_workshop_stale`` so the operator
+# can see the workshop affordance has fallen out of use.
+WORKSHOP_STALE_TIMEOUT_S: float = 3600.0  # 1 hour
+
+# v0.2 (ADR 0003): Trader v2 novelty term — number of recent
+# completed WIPs to compare against when computing the Jaccard
+# distance for ``score_wip``. Larger N smooths the novelty score
+# at the cost of more tokenisation work; 8 is the default since
+# COMPLETE_FRAGMENT_FLOOR is also 8 (parity).
+TRADER_WIP_NOVELTY_LOOKBACK: int = 8

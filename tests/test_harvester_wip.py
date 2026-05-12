@@ -37,7 +37,6 @@ from microverse.memory.episodic import EpisodicMemory
 from microverse.memory.semantic import SemanticMemory
 from microverse.world.workshop import CONFIGURED_WIPS, WorkshopProjection
 
-
 # ---------------------------------------------------------------------------
 # Trader v2: rule-based WIP scoring
 # ---------------------------------------------------------------------------
