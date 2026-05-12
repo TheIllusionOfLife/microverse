@@ -75,6 +75,27 @@ class Fragment:
     ts: float
 
 
+@dataclass(frozen=True, slots=True)
+class WIPView:
+    """Render-ready view of one WIP for a single receiver.
+
+    Built by ``memory._build_workshop_view`` with per-receiver
+    redaction: the receiver's own contributor name is masked in
+    ``contributors`` and the receiver's own fragment texts are
+    replaced by an anonymous marker in ``excerpt``. Other
+    contributors and their fragments pass through verbatim.
+
+    The fields are pre-rendered strings, not raw structures, so the
+    persona template can render them with simple Jinja conditionals
+    without needing iteration logic for redaction.
+    """
+
+    name: str
+    phase: str
+    contributors: str
+    excerpt: str
+
+
 @dataclass
 class WIP:
     """One workshop work-in-progress.

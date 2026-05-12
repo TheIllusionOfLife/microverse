@@ -26,6 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from microverse._text import safe_json_loads
 from microverse.config import MAX_PARSE_BYTES
+from microverse.world.workshop import WIPView
 
 if TYPE_CHECKING:
     from microverse.ops.metrics import Metrics
@@ -247,6 +248,13 @@ class WorldContext:
     lore_excerpt: tuple[str, ...] = ()
     engagement_hint: str = ""
     required_target: str | None = None
+    # v0.2 (ADR 0003): per-receiver workshop view. Each ``WIPView``
+    # is pre-rendered with the receiver's own fragments redacted to
+    # anonymous markers and the receiver's own name masked in the
+    # contributors string. Empty tuple means the workshop is absent
+    # (v0.1.1 callers or fresh data dir). Defaults preserve
+    # backward-compat with every existing WorldContext() fixture.
+    workshop_view: tuple[WIPView, ...] = ()
 
 
 class Agent(abc.ABC):

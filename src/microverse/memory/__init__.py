@@ -29,11 +29,13 @@ import re
 from typing import TYPE_CHECKING
 
 from microverse.agents.base import PeerSpeech, WorldContext
+from microverse.world.workshop import WIPView
 
 if TYPE_CHECKING:
     from microverse.memory.episodic import EpisodicMemory
     from microverse.memory.semantic import SemanticMemory
     from microverse.ops.metrics import Metrics
+    from microverse.world.workshop import WorkshopProjection
 
 
 def est_tokens(text: str) -> int:
@@ -180,6 +182,69 @@ def _pack_under_budget(items: list[str], token_budget: int, joiner: str = "\n") 
     return tuple(kept)
 
 
+_WORKSHOP_FRAGMENT_TAIL = 4  # last N fragments included in each WIPView excerpt
+_WORKSHOP_REDACTED_MARKER = "[earlier contributor wove ...]"
+
+
+def _build_workshop_view(
+    workshop: WorkshopProjection,
+    *,
+    agent_name: str,
+    metrics: Metrics | None,
+) -> tuple[WIPView, ...]:
+    """Render a per-receiver view of every configured WIP.
+
+    ADR 0003 Decision 1 (load-bearing per Codex): the receiver's own
+    fragment texts are replaced by ``_WORKSHOP_REDACTED_MARKER`` and
+    the receiver's own contributor name is masked. Non-receiver
+    contributors and their fragment texts pass through verbatim
+    (community knowledge is preserved at the village level; only the
+    *receiver's own* contributions are redacted in their own view).
+
+    The name filter is whole-word case-insensitive — same rule as the
+    lore redaction in ``build_context`` and the peer-inbox filter in
+    ``_build_peer_inbox`` — so a peer named ``Akihiko`` is not
+    redacted when ``Aki`` is the receiver.
+
+    Every redaction bumps ``workshop_view_self_redactions`` per-agent
+    so operators can verify the redaction is firing under live load.
+    """
+    name_re = re.compile(rf"\b{re.escape(agent_name)}\b", re.IGNORECASE)
+    views: list[WIPView] = []
+    for wip in workshop.wips():
+        # Contributors: drop the receiver's own name; preserve order.
+        peer_contribs: list[str] = []
+        for c in wip.contributors():
+            if name_re.fullmatch(c):
+                continue
+            peer_contribs.append(c)
+        contributors = ", ".join(peer_contribs)
+
+        # Excerpt: last N fragments. Replace own texts with the
+        # redacted marker; keep peer texts verbatim. Also bump
+        # the metric on every redaction so operators can see it.
+        tail = wip.fragments[-_WORKSHOP_FRAGMENT_TAIL:]
+        lines: list[str] = []
+        for f in tail:
+            if name_re.fullmatch(f.contributor):
+                if metrics is not None:
+                    metrics.bump("workshop_view_self_redactions", agent=agent_name)
+                lines.append(_WORKSHOP_REDACTED_MARKER)
+            else:
+                lines.append(f"{f.contributor}: {f.text}")
+        excerpt = "\n".join(lines)
+
+        views.append(
+            WIPView(
+                name=wip.name,
+                phase=wip.phase,
+                contributors=contributors,
+                excerpt=excerpt,
+            )
+        )
+    return tuple(views)
+
+
 _LORE_DIGEST_CHARS = 200  # cap on the fallback "k=v, k=v" digest
 
 
@@ -207,6 +272,8 @@ def build_context(
     lore_tok: int = 600,
     lore_k: int = 3,
     receiver_name: str | None = None,
+    workshop: WorkshopProjection | None = None,
+    metrics: Metrics | None = None,
 ) -> WorldContext:
     """Assemble the per-tick context from semantic memory + the
     pre-populated bounded fields on ``world_base``.
@@ -244,6 +311,13 @@ def build_context(
 
     lore = _pack_under_budget(lore_lines, lore_tok)
 
+    if workshop is not None and receiver_name:
+        workshop_view = _build_workshop_view(
+            workshop, agent_name=receiver_name, metrics=metrics
+        )
+    else:
+        workshop_view = ()
+
     return WorldContext(
         season=world_base.season,
         weather=world_base.weather,
@@ -253,4 +327,5 @@ def build_context(
         lore_excerpt=lore,
         engagement_hint=world_base.engagement_hint,
         required_target=world_base.required_target,
+        workshop_view=workshop_view,
     )
