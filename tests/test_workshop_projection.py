@@ -26,12 +26,12 @@ import pytest
 
 from microverse.memory.episodic import EpisodicMemory
 from microverse.world.workshop import (
-    CONFIGURED_WIPS,
-    DEVELOPING_FRAGMENT_FLOOR,
-    DEVELOPING_CONTRIBUTOR_FLOOR,
     COMPLETE_FRAGMENT_FLOOR,
-    Fragment,
+    CONFIGURED_WIPS,
+    DEVELOPING_CONTRIBUTOR_FLOOR,
+    DEVELOPING_FRAGMENT_FLOOR,
     WIP,
+    Fragment,
     WorkshopProjection,
 )
 
