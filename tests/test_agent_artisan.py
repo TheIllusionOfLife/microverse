@@ -24,9 +24,12 @@ def test_artisan_uses_creative_sampling():
 def test_artisan_persona_renders_with_world_context():
     a = Artisan(name="Aki")
     rendered = a.render_prompt(WorldContext(season="winter", weather="snow", peers_today=("Bo",)))
-    # Persona must mention name, role, and current world state.
+    # Persona must mention name and current world state. Phase 7
+    # (ADR 0003) intentionally removed the verb-fused "artisan"
+    # identity-marker — the role is now an attention/disposition, not
+    # a primary verb. We still assert name + world fields render.
     assert "Aki" in rendered
-    assert "artisan" in rendered.lower()
+    assert "inhabitant" in rendered.lower()
     assert "winter" in rendered.lower()
     assert "Bo" in rendered
     # Hard rule: persona explicitly forbids meta-references. The

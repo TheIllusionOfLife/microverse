@@ -25,7 +25,11 @@ def test_scholar_persona_renders_with_world_context() -> None:
     s = Scholar(name="Cy")
     rendered = s.render_prompt(WorldContext(season="winter", weather="snow", peers_today=("Aki",)))
     assert "Cy" in rendered
-    assert "scholar" in rendered.lower()
+    # Phase 7 (ADR 0003) removed the verb-fused "scholar" identity-
+    # marker. The role is now an attention/disposition: paying close
+    # attention to what unfolds, optionally writing field notes.
+    assert "inhabitant" in rendered.lower()
+    assert "attention" in rendered.lower()
     assert "winter" in rendered.lower()
     assert "Aki" in rendered
     # Hard rule still in place: meta references forbidden.

@@ -41,18 +41,19 @@ from pathlib import Path
 
 from microverse import config
 from microverse.agents.artisan import Artisan
-from microverse.agents.base import Action, Agent, WorldContext
+from microverse.agents.base import Action, ActionKind, Agent, WorldContext
 from microverse.agents.harvester import ArtifactCandidate, Harvester
 from microverse.agents.scholar import Scholar
 from microverse.agents.trader import Trader
 from microverse.memory import _build_peer_inbox, _build_world_events, build_context
-from microverse.memory.episodic import EpisodicMemory
+from microverse.memory.episodic import EpisodicMemory, Event
 from microverse.memory.semantic import SemanticMemory
 from microverse.ops.metrics import Metrics
 from microverse.ops.watchdog import Watchdog
 from microverse.world.clock import WorldClock
 from microverse.world.scheduler import WeightedScheduler
 from microverse.world.snapshot import SnapshotBusyError, maybe_snapshot
+from microverse.world.workshop import WorkshopProjection
 
 _logger = logging.getLogger(__name__)
 
@@ -278,21 +279,65 @@ def _build_per_tick_world_base(
     )
 
 
-def _commit_action(episodic: EpisodicMemory, agent: Agent, action: Action) -> int:
-    return episodic.append(
+def _commit_action(
+    episodic: EpisodicMemory,
+    agent: Agent,
+    action: Action,
+    *,
+    workshop: WorkshopProjection | None = None,
+) -> int:
+    """Append the action to the episodic log and, when it is a
+    workshop ``contribute``, mirror it into the WorkshopProjection.
+
+    The contribute payload carries the ``fragment`` field that the
+    projection reads (and that the workshop view renders); the
+    episodic event also records ``thought`` and ``artifact`` for
+    parity with other actions so the audit trail is identical.
+    """
+    payload: dict[str, object] = {
+        "thought": action.thought,
+        "artifact": action.artifact,
+        "role": agent.role,
+    }
+    target: str | None = action.target
+    if action.action == ActionKind.CONTRIBUTE:
+        # contribute_to is the workshop WIP name; target on episodic
+        # carries that so the projection can match without payload
+        # inspection. The fragment text rides in ``fragment`` for the
+        # projection AND in ``artifact`` so the manifest / dashboard
+        # paths see the same text the persona did.
+        target = action.contribute_to
+        payload["fragment"] = action.artifact
+        payload["contribute_to"] = action.contribute_to
+    ts = time.time()
+    event_id = episodic.append(
         actor=agent.name,
         action=action.action.value,
-        target=action.target,
-        payload={
-            "thought": action.thought,
-            "artifact": action.artifact,
-            "role": agent.role,
-        },
+        target=target,
+        payload=payload,
+        ts=ts,
     )
+    if action.action == ActionKind.CONTRIBUTE and workshop is not None:
+        workshop.on_contribute_event(
+            Event(
+                id=event_id,
+                ts=ts,
+                actor=agent.name,
+                action=action.action.value,
+                target=target,
+                payload=payload,
+            )
+        )
+    return event_id
 
 
 def _maybe_harvest(harvester: Harvester, agent: Agent, action: Action) -> None:
     if not action.artifact:
+        return
+    if action.action == ActionKind.CONTRIBUTE:
+        # Workshop fragments are harvested as part of the completed
+        # WIP, not as standalone artifacts. The Harvester pulls them
+        # at flush time from the WorkshopProjection.
         return
     candidate = ArtifactCandidate(
         actor=agent.name,
@@ -332,7 +377,8 @@ def run(
     metrics = Metrics(data_dir / "metrics.sqlite", auto_flush_every=10)
 
     trader = Trader(name="Bo", soul_tokens=30)
-    harvester = Harvester(harvest_dir, trader=trader, percentile=70)
+    workshop = WorkshopProjection(episodic)
+    harvester = Harvester(harvest_dir, trader=trader, percentile=70, workshop=workshop)
 
     sched = WeightedScheduler(rng=rng)
     for agent in _build_roster(metrics, solo=solo):
@@ -447,6 +493,8 @@ def run(
                 semantic=semantic,
                 topic=topic,
                 receiver_name=agent.name,
+                workshop=workshop,
+                metrics=metrics,
             )
             try:
                 action = agent.think(world)
@@ -458,7 +506,7 @@ def run(
                 continue
             metrics.reset("consecutive_fail", agent=agent.name)
             deadlock_breaks_since_success = 0
-            _commit_action(episodic, agent, action)
+            _commit_action(episodic, agent, action, workshop=workshop)
             _maybe_harvest(harvester, agent, action)
             # Path-3: advance the agent's watermark so the NEXT call
             # to ``_build_per_tick_world_base`` for this agent drains

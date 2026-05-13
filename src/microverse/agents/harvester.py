@@ -44,16 +44,29 @@ from typing import TYPE_CHECKING, Protocol
 
 import yaml
 
+from microverse.config import HARVEST_CRAFT_CAP_PER_FLUSH
+
 if TYPE_CHECKING:
     from microverse.agents.trader import Score
+    from microverse.world.workshop import WorkshopProjection
 
 MIN_ARTIFACT_CHARS = 20
 SLUG_MAX_LEN = 60
 DEFAULT_PERCENTILE = 70
 
+# Per-primary-verb caps applied AFTER Trader scoring. Bounds the rate
+# at which any single verb can dominate the harvest manifest —
+# defence-in-depth against Trader v2 itself becoming a new attractor.
+_PER_VERB_FLUSH_CAP: dict[str, int] = {
+    "craft": HARVEST_CRAFT_CAP_PER_FLUSH,
+}
+
 
 class _RankerProtocol(Protocol):
-    def rank(self, candidates: list[ArtifactCandidate]) -> list[Score]: ...
+    def rank(
+        self,
+        candidates: list[ArtifactCandidate | WIPCandidate],
+    ) -> list[Score]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +74,26 @@ class ArtifactCandidate:
     actor: str
     action: str
     artifact: str | None
+    ts: float
+
+
+@dataclass(frozen=True, slots=True)
+class WIPCandidate:
+    """A completed workshop WIP ready for harvest.
+
+    Built by ``Harvester.flush()`` from the ``WorkshopProjection`` at
+    completion time. The fragments are a snapshot — the WIP is in
+    phase=complete so the projection will not add more.
+
+    ``contributors`` is the distinct contributor set in first-
+    appearance order; ``fragments`` is the (contributor, text)
+    sequence in commit order so the harvested file preserves
+    chronology.
+    """
+
+    name: str
+    contributors: tuple[str, ...]
+    fragments: tuple[tuple[str, str], ...]
     ts: float
 
 
@@ -125,6 +158,7 @@ class Harvester:
         *,
         trader: _RankerProtocol | None = None,
         percentile: int = DEFAULT_PERCENTILE,
+        workshop: WorkshopProjection | None = None,
     ) -> None:
         self._root = Path(harvest_root)
         self._root.mkdir(parents=True, exist_ok=True)
@@ -132,6 +166,12 @@ class Harvester:
         self._trader = trader
         self._percentile = percentile
         self._buffer: list[ArtifactCandidate] = []
+        # v0.2 (ADR 0003): workshop projection reference. flush()
+        # scans for newly-completed WIPs and adds them to the
+        # candidates list. _harvested_wips dedupes — a WIP that
+        # was harvested in flush N is not re-harvested at flush N+1.
+        self._workshop = workshop
+        self._harvested_wips: set[str] = set()
 
     def consider(self, candidate: ArtifactCandidate) -> Path | None:
         # Phase 2 path: trader present → buffer the candidate, write at flush().
@@ -156,41 +196,126 @@ class Harvester:
     def flush(self) -> list[Path]:
         """Apply Trader scoring + percentile threshold; write accepted.
 
-        No-op when no trader is configured. If ``trader.rank()`` raises,
-        the buffer is preserved (a transient ranker failure must not
-        silently discard pending artifacts) and the exception is
-        re-raised so the caller can decide whether to retry.
+        No-op when no trader is configured. Builds a heterogeneous
+        candidates list of ArtifactCandidate (from the per-tick
+        buffer) AND WIPCandidate (snapshotted from any newly-completed
+        WIPs on the workshop projection, if one is attached). Both
+        flow through ``Trader.rank()``; the per-verb cap then bounds
+        the accepted set so no single primary verb can dominate the
+        manifest (ADR 0003 — Trader v2 must not become a new
+        attractor).
+
+        WIPs are only marked as harvested *after* a successful write —
+        a WIP that scored below the percentile cutoff, was rejected
+        by the per-verb cap, or hit a write error remains eligible on
+        the next flush. If ``trader.rank()`` raises, the buffer is
+        preserved (a transient ranker failure must not silently
+        discard pending artifacts) and the exception is re-raised so
+        the caller can decide whether to retry; no WIP is marked
+        harvested in that case either.
         """
-        if self._trader is None or not self._buffer:
+        if self._trader is None:
+            # No-trader mode: workshop projection is never drained,
+            # buffer is the only state and is already empty (consider()
+            # writes immediately in this mode).
             self._buffer.clear()
             return []
 
-        candidates = list(self._buffer)
-        try:
-            scores = self._trader.rank(candidates)
-        except Exception:
-            # Keep the buffer intact so a retry can rescue these
-            # candidates; let the caller log + bump metrics.
-            raise
+        wip_candidates = self._snapshot_pending_wips()
+        if not self._buffer and not wip_candidates:
+            return []
+
+        artifact_candidates: list[ArtifactCandidate] = list(self._buffer)
+        candidates: list[ArtifactCandidate | WIPCandidate] = [
+            *artifact_candidates,
+            *wip_candidates,
+        ]
+        scores = self._trader.rank(candidates)
+        if len(scores) != len(candidates):
+            raise RuntimeError(
+                f"trader.rank() returned {len(scores)} scores for "
+                f"{len(candidates)} candidates — refusing to drop the batch"
+            )
 
         # Only clear after a successful rank — partial failures don't
         # silently drop the batch.
         self._buffer.clear()
         cutoff = self._percentile_cutoff([s.score for s in scores])
 
+        # Decide acceptance in score-desc order so per-verb caps pick
+        # the TOP items (not the first-buffered). Then write the
+        # manifest in candidate-input order so audit-trail consumers
+        # get a stable insertion-order log.
+        order = sorted(range(len(candidates)), key=lambda i: -scores[i].score)
+        accepted_set: set[int] = set()
+        accepted_paths: dict[int, Path] = {}
+        per_verb_count: dict[str, int] = {}
+        for idx in order:
+            cand = candidates[idx]
+            score = scores[idx]
+            verb = self._verb_of(cand)
+            cap = _PER_VERB_FLUSH_CAP.get(verb)
+            # cutoff is None ⇒ no signal across a multi-item all-tied
+            # population. Accept nothing rather than spam the inbox.
+            above_cutoff = cutoff is not None and score.score >= cutoff
+            under_cap = cap is None or per_verb_count.get(verb, 0) < cap
+            if not (above_cutoff and under_cap):
+                continue
+            path = self._write_candidate(cand)
+            accepted_set.add(idx)
+            accepted_paths[idx] = path
+            per_verb_count[verb] = per_verb_count.get(verb, 0) + 1
+            # Mark the WIP harvested only after a successful write.
+            # If write_candidate raised above, the WIP stays eligible
+            # for the next flush.
+            if isinstance(cand, WIPCandidate):
+                self._harvested_wips.add(cand.name)
+
         written: list[Path] = []
-        for cand, score in zip(candidates, scores, strict=True):
-            # cutoff is None ⇒ no signal (multi-item all-tied population).
-            # Accept nothing — better to lose a batch than to spam the
-            # inbox with unranked output.
-            accepted = cutoff is not None and score.score >= cutoff
-            if accepted:
-                path = self._write_artifact(cand)
+        for idx, cand in enumerate(candidates):
+            score = scores[idx]
+            if idx in accepted_set:
+                path = accepted_paths[idx]
                 written.append(path)
                 self._append_manifest(cand, accepted=True, path=path, score=score.score)
             else:
                 self._append_manifest(cand, accepted=False, path=None, score=score.score)
         return written
+
+    def _snapshot_pending_wips(self) -> list[WIPCandidate]:
+        """Snapshot newly-completed WIPs from the workshop projection
+        as immutable WIPCandidate objects. Does NOT mark them
+        harvested — that happens only after a successful write in
+        ``flush()`` so a WIP rejected by the percentile cutoff or
+        per-verb cap stays eligible on the next flush.
+        """
+        if self._workshop is None:
+            return []
+        out: list[WIPCandidate] = []
+        for w in self._workshop.wips():
+            if w.phase != "complete":
+                continue
+            if w.name in self._harvested_wips:
+                continue
+            out.append(
+                WIPCandidate(
+                    name=w.name,
+                    contributors=w.contributors(),
+                    fragments=tuple((f.contributor, f.text) for f in w.fragments),
+                    ts=w.last_activity_ts,
+                )
+            )
+        return out
+
+    def _verb_of(self, cand: ArtifactCandidate | WIPCandidate) -> str:
+        if isinstance(cand, WIPCandidate):
+            return "wip"
+        return cand.action
+
+    def _write_candidate(self, cand: ArtifactCandidate | WIPCandidate) -> Path:
+        if isinstance(cand, WIPCandidate):
+            return self._write_wip(cand)
+        return self._write_artifact(cand)
 
     def _percentile_cutoff(self, scores: list[float]) -> float | None:
         """Compute a score floor such that values >= floor land in the
@@ -218,6 +343,37 @@ class Harvester:
         idx = max(0, min(len(ordered) - 1, (len(ordered) * self._percentile) // 100))
         return ordered[idx]
 
+    def _write_wip(self, cand: WIPCandidate) -> Path:
+        """Write a completed WIP to ``harvest/inbox/<date>/<name>.md``.
+
+        Each fragment is rendered as one line prefixed by its
+        contributor; the frontmatter captures the WIP name, the
+        contributor set, the action discriminator ``"wip"``, and the
+        completion timestamp. Atomic-replace + O_EXCL collision guard
+        matches ``_write_artifact``.
+        """
+        date = datetime.fromtimestamp(cand.ts, tz=UTC).strftime("%Y-%m-%d")
+        day_dir = self._root / "inbox" / date
+        # Strip the "workshop." prefix from the slug for readability;
+        # the YAML frontmatter still carries the full name.
+        slug = _slugify(cand.name.removeprefix("workshop."))
+        target = _reserve_unique_path(day_dir, slug, ".md")
+        frontmatter = yaml.safe_dump(
+            {
+                "wip": cand.name,
+                "contributors": list(cand.contributors),
+                "action": "wip",
+                "ts": cand.ts,
+            },
+            default_flow_style=False,
+            sort_keys=True,
+            allow_unicode=True,
+        )
+        body_lines = [f"- {actor}: {text}" for actor, text in cand.fragments]
+        body = f"---\n{frontmatter}---\n\n" + "\n".join(body_lines) + "\n"
+        _atomic_write_text(target, body)
+        return target
+
     def _write_artifact(self, candidate: ArtifactCandidate) -> Path:
         date = datetime.fromtimestamp(candidate.ts, tz=UTC).strftime("%Y-%m-%d")
         day_dir = self._root / "inbox" / date
@@ -238,20 +394,32 @@ class Harvester:
 
     def _append_manifest(
         self,
-        candidate: ArtifactCandidate,
+        candidate: ArtifactCandidate | WIPCandidate,
         *,
         accepted: bool,
         path: Path | None,
         score: float | None = None,
     ) -> None:
-        record = {
-            "ts": candidate.ts,
-            "actor": candidate.actor,
-            "action": candidate.action,
-            "accepted": accepted,
-            "path": str(path.relative_to(self._root)) if path else None,
-            "score": score,
-        }
+        if isinstance(candidate, WIPCandidate):
+            record = {
+                "ts": candidate.ts,
+                "actor": "workshop",
+                "action": "wip",
+                "wip": candidate.name,
+                "contributors": list(candidate.contributors),
+                "accepted": accepted,
+                "path": str(path.relative_to(self._root)) if path else None,
+                "score": score,
+            }
+        else:
+            record = {
+                "ts": candidate.ts,
+                "actor": candidate.actor,
+                "action": candidate.action,
+                "accepted": accepted,
+                "path": str(path.relative_to(self._root)) if path else None,
+                "score": score,
+            }
         line = json.dumps(record, separators=(",", ":")) + "\n"
         # Records are well below PIPE_BUF (4 KB on macOS/Linux), so a
         # single os.write under O_APPEND is atomic across concurrent
