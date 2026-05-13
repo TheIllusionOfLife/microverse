@@ -46,8 +46,7 @@ def test_score_wip_returns_value_in_unit_interval() -> None:
     c = WIPCandidate(
         name="workshop.loom",
         contributors=("Aki", "Bo"),
-        fragments=(("Aki", "rough warp of dyed wool"),
-                   ("Bo", "blue stitching across the warp")),
+        fragments=(("Aki", "rough warp of dyed wool"), ("Bo", "blue stitching across the warp")),
         ts=1.0,
     )
     s = score_wip(c, last_completed=[])
@@ -56,13 +55,21 @@ def test_score_wip_returns_value_in_unit_interval() -> None:
 
 def test_score_wip_rewards_longer_fragments() -> None:
     short = WIPCandidate(
-        name="x", contributors=("Aki",),
-        fragments=(("Aki", "tiny"),), ts=1.0,
+        name="x",
+        contributors=("Aki",),
+        fragments=(("Aki", "tiny"),),
+        ts=1.0,
     )
     long = WIPCandidate(
-        name="y", contributors=("Aki",),
-        fragments=(("Aki", "rough warp of dyed wool with cherry-blossom finish"
-                          " painted onto the upper border in three layers"),),
+        name="y",
+        contributors=("Aki",),
+        fragments=(
+            (
+                "Aki",
+                "rough warp of dyed wool with cherry-blossom finish"
+                " painted onto the upper border in three layers",
+            ),
+        ),
         ts=1.0,
     )
     assert score_wip(long, last_completed=[]) > score_wip(short, last_completed=[])
@@ -70,12 +77,16 @@ def test_score_wip_rewards_longer_fragments() -> None:
 
 def test_score_wip_rewards_more_contributors() -> None:
     solo = WIPCandidate(
-        name="x", contributors=("Aki",),
-        fragments=(("Aki", "warp"), ("Aki", "weft")), ts=1.0,
+        name="x",
+        contributors=("Aki",),
+        fragments=(("Aki", "warp"), ("Aki", "weft")),
+        ts=1.0,
     )
     duo = WIPCandidate(
-        name="y", contributors=("Aki", "Bo"),
-        fragments=(("Aki", "warp"), ("Bo", "weft")), ts=1.0,
+        name="y",
+        contributors=("Aki", "Bo"),
+        fragments=(("Aki", "warp"), ("Bo", "weft")),
+        ts=1.0,
     )
     assert score_wip(duo, last_completed=[]) > score_wip(solo, last_completed=[])
 
@@ -87,17 +98,20 @@ def test_score_wip_penalises_repetition_against_recent_completions() -> None:
     _text.tokenize helper).
     """
     prev = WIPCandidate(
-        name="prev", contributors=("Aki",),
+        name="prev",
+        contributors=("Aki",),
         fragments=(("Aki", "blue cherry blossom wooden bowl carved"),),
         ts=0.0,
     )
     similar = WIPCandidate(
-        name="similar", contributors=("Aki",),
+        name="similar",
+        contributors=("Aki",),
         fragments=(("Aki", "blue cherry blossom wooden bowl carved deep"),),
         ts=2.0,
     )
     novel = WIPCandidate(
-        name="novel", contributors=("Aki",),
+        name="novel",
+        contributors=("Aki",),
         fragments=(("Aki", "iron lantern wrought with celestial astronomy"),),
         ts=2.0,
     )
@@ -152,7 +166,10 @@ def test_harvester_writes_completed_wip_to_inbox(tmp_path: Path) -> None:
         # All scores in top-30% so percentile cutoff accepts.
         ranker = _PredictableRanker({target: 0.95})
         harvester = Harvester(
-            tmp_path / "harvest", trader=ranker, workshop=proj, percentile=70,
+            tmp_path / "harvest",
+            trader=ranker,
+            workshop=proj,
+            percentile=70,
         )
         written = harvester.flush()
     assert len(written) == 1
@@ -176,7 +193,10 @@ def test_harvester_does_not_double_harvest_same_wip(tmp_path: Path) -> None:
         proj = WorkshopProjection(ep)
         ranker = _PredictableRanker({target: 0.95})
         harvester = Harvester(
-            tmp_path / "harvest", trader=ranker, workshop=proj, percentile=70,
+            tmp_path / "harvest",
+            trader=ranker,
+            workshop=proj,
+            percentile=70,
         )
         first = harvester.flush()
         second = harvester.flush()
@@ -218,7 +238,9 @@ def test_harvester_works_without_workshop_reference(tmp_path: Path) -> None:
     harvester = Harvester(tmp_path / "harvest", percentile=70)  # no trader, no workshop
     harvester.consider(
         ArtifactCandidate(
-            actor="Aki", action="craft", artifact="a wooden flute carved with care",
+            actor="Aki",
+            action="craft",
+            artifact="a wooden flute carved with care",
             ts=1.0,
         )
     )
@@ -264,18 +286,20 @@ def test_no_harvest_actor_event_leaks_into_build_context(tmp_path: Path) -> None
                 topic="",
                 receiver_name=agent,
             )
-            text_fields = "\n".join([
-                world.season,
-                world.weather,
-                *world.peers_today,
-                *(s.utterance for s in world.peer_inbox),
-                *world.world_events,
-                *world.lore_excerpt,
-                world.engagement_hint,
-                world.required_target or "",
-                *(v.excerpt for v in world.workshop_view),
-                *(v.contributors for v in world.workshop_view),
-            ])
+            text_fields = "\n".join(
+                [
+                    world.season,
+                    world.weather,
+                    *world.peers_today,
+                    *(s.utterance for s in world.peer_inbox),
+                    *world.world_events,
+                    *world.lore_excerpt,
+                    world.engagement_hint,
+                    world.required_target or "",
+                    *(v.excerpt for v in world.workshop_view),
+                    *(v.contributors for v in world.workshop_view),
+                ]
+            )
             for i in range(20):
                 assert f"verdict-rationale-distinctive-{i}" not in text_fields, (
                     f"trader verdict leaked into {agent}'s context"

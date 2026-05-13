@@ -171,9 +171,7 @@ class WorkshopProjection:
             # Audit-only — the event remains in episodic for review,
             # but the projection is closed.
             return
-        wip.fragments.append(
-            Fragment(contributor=event.actor, text=text, ts=event.ts)
-        )
+        wip.fragments.append(Fragment(contributor=event.actor, text=text, ts=event.ts))
         wip.last_activity_ts = event.ts
         self._recompute_phase(wip)
 

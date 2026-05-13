@@ -101,9 +101,8 @@ def _validate_contribute(action: Action, *, metrics: Metrics, agent: str) -> Act
     from microverse.world.workshop import CONFIGURED_WIPS
 
     if action.action == ActionKind.CONTRIBUTE:
-        if (
-            action.contribute_to not in CONFIGURED_WIPS
-            or not (action.artifact and action.artifact.strip())
+        if action.contribute_to not in CONFIGURED_WIPS or not (
+            action.artifact and action.artifact.strip()
         ):
             metrics.bump("contribute_invalid_target", agent=agent)
             return _rest_action()
@@ -174,9 +173,7 @@ def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
             ):
                 metrics.bump("meta_leak_block", agent=agent)
                 return _rest_action()
-            repaired_action = _validate_contribute(
-                repaired_action, metrics=metrics, agent=agent
-            )
+            repaired_action = _validate_contribute(repaired_action, metrics=metrics, agent=agent)
             if repaired_action.action == ActionKind.REST and not repaired_action.thought:
                 # Workshop-route fold — don't credit json_repaired.
                 return repaired_action

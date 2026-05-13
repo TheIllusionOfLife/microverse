@@ -109,8 +109,7 @@ def test_rebuild_collects_fragments_for_named_wip(tmp_path: Path) -> None:
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
         _seed_contribute(ep, actor="Aki", wip=target, fragment="rough warp", ts=1.0)
         _seed_contribute(ep, actor="Bo", wip=target, fragment="blue stitching", ts=2.0)
-        _seed_contribute(ep, actor="Aki", wip="workshop.does-not-exist",
-                         fragment="dropped", ts=3.0)
+        _seed_contribute(ep, actor="Aki", wip="workshop.does-not-exist", fragment="dropped", ts=3.0)
         proj = WorkshopProjection(ep)
     wip = next(w for w in proj.wips() if w.name == target)
     assert [f.text for f in wip.fragments] == ["rough warp", "blue stitching"]
@@ -199,9 +198,7 @@ def test_many_fragments_from_one_contributor_promote_to_developing(tmp_path: Pat
     target = CONFIGURED_WIPS[0]
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
         for i in range(DEVELOPING_FRAGMENT_FLOOR):
-            _seed_contribute(
-                ep, actor="Aki", wip=target, fragment=f"frag-{i}", ts=float(i)
-            )
+            _seed_contribute(ep, actor="Aki", wip=target, fragment=f"frag-{i}", ts=float(i))
         proj = WorkshopProjection(ep)
     wip = next(w for w in proj.wips() if w.name == target)
     assert wip.phase == "developing"
@@ -216,9 +213,7 @@ def test_complete_fragment_floor_triggers_complete(tmp_path: Path) -> None:
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
         for i in range(COMPLETE_FRAGMENT_FLOOR):
             actor = "Aki" if i % 2 == 0 else "Bo"
-            _seed_contribute(
-                ep, actor=actor, wip=target, fragment=f"frag-{i}", ts=float(i)
-            )
+            _seed_contribute(ep, actor=actor, wip=target, fragment=f"frag-{i}", ts=float(i))
         proj = WorkshopProjection(ep)
     wip = next(w for w in proj.wips() if w.name == target)
     assert wip.phase == "complete"
@@ -235,12 +230,13 @@ def test_post_complete_fragments_are_ignored(tmp_path: Path) -> None:
         # Fill to complete.
         for i in range(COMPLETE_FRAGMENT_FLOOR):
             actor = "Aki" if i % 2 == 0 else "Bo"
-            _seed_contribute(
-                ep, actor=actor, wip=target, fragment=f"frag-{i}", ts=float(i)
-            )
+            _seed_contribute(ep, actor=actor, wip=target, fragment=f"frag-{i}", ts=float(i))
         # One more after.
         _seed_contribute(
-            ep, actor="Cy", wip=target, fragment="too-late",
+            ep,
+            actor="Cy",
+            wip=target,
+            fragment="too-late",
             ts=float(COMPLETE_FRAGMENT_FLOOR + 1),
         )
         proj = WorkshopProjection(ep)
@@ -266,10 +262,10 @@ def test_stale_to_complete_returns_names_past_timeout(tmp_path: Path) -> None:
     target_stale = CONFIGURED_WIPS[1]
     now = time.time()
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
-        _seed_contribute(ep, actor="Aki", wip=target_active, fragment="recent",
-                         ts=now - 10.0)
-        _seed_contribute(ep, actor="Bo", wip=target_stale, fragment="old",
-                         ts=now - 7200.0)  # 2 hours old
+        _seed_contribute(ep, actor="Aki", wip=target_active, fragment="recent", ts=now - 10.0)
+        _seed_contribute(
+            ep, actor="Bo", wip=target_stale, fragment="old", ts=now - 7200.0
+        )  # 2 hours old
         proj = WorkshopProjection(ep)
     stale = proj.stale_to_complete(now_ts=now, timeout_s=3600.0)
     assert target_stale in stale
@@ -286,7 +282,10 @@ def test_stale_to_complete_skips_already_complete(tmp_path: Path) -> None:
         for i in range(COMPLETE_FRAGMENT_FLOOR):
             actor = "Aki" if i % 2 == 0 else "Bo"
             _seed_contribute(
-                ep, actor=actor, wip=target, fragment=f"frag-{i}",
+                ep,
+                actor=actor,
+                wip=target,
+                fragment=f"frag-{i}",
                 ts=now - 7200.0 + i,
             )
         proj = WorkshopProjection(ep)

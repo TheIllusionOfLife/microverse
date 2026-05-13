@@ -67,9 +67,14 @@ def test_action_rejects_unknown_field_via_extra_forbid() -> None:
         )
 
 
-def _raw(action: str, *, contribute_to: str | None = None,
-         target: str | None = None, artifact: str | None = None,
-         thought: str = "x") -> str:
+def _raw(
+    action: str,
+    *,
+    contribute_to: str | None = None,
+    target: str | None = None,
+    artifact: str | None = None,
+    thought: str = "x",
+) -> str:
     payload: dict[str, object] = {"thought": thought, "action": action}
     payload["target"] = target
     payload["artifact"] = artifact
@@ -150,8 +155,7 @@ def test_parse_action_folds_stray_contribute_to_on_other_actions() -> None:
         )
         out = parse_action(raw, metrics=metrics, agent="Aki")
         assert out.action == ActionKind.REST, (
-            f"{action!r} with stray contribute_to should fold to rest, "
-            f"got {out.action!r}"
+            f"{action!r} with stray contribute_to should fold to rest, got {out.action!r}"
         )
 
 

@@ -188,9 +188,7 @@ class Trader(Agent):
     def think(self, world: WorldContext) -> Action:
         return Action(action=ActionKind.REST)
 
-    def rank(
-        self, candidates: list[ArtifactCandidate | WIPCandidate]
-    ) -> list[Score]:
+    def rank(self, candidates: list[ArtifactCandidate | WIPCandidate]) -> list[Score]:
         """Heterogeneous rank: ArtifactCandidate via LLM (existing path);
         WIPCandidate via the rule-based ``score_wip`` (no LLM call).
 
@@ -201,12 +199,8 @@ class Trader(Agent):
         if not candidates:
             return []
 
-        artifact_indices = [
-            i for i, c in enumerate(candidates) if isinstance(c, ArtifactCandidate)
-        ]
-        wip_indices = [
-            i for i, c in enumerate(candidates) if isinstance(c, WIPCandidate)
-        ]
+        artifact_indices = [i for i, c in enumerate(candidates) if isinstance(c, ArtifactCandidate)]
+        wip_indices = [i for i, c in enumerate(candidates) if isinstance(c, WIPCandidate)]
 
         # Score WIPs purely with the rule-based path. Update the
         # novelty history AFTER scoring so this batch's WIPs don't
@@ -253,9 +247,7 @@ class Trader(Agent):
                 if 0 <= aid < len(artifact_candidates):
                     by_inner_id[aid] = entry
             for inner_id, outer_id in enumerate(artifact_indices):
-                coerced = _coerce_score(
-                    by_inner_id.get(inner_id, {}), artifact_id=outer_id
-                )
+                coerced = _coerce_score(by_inner_id.get(inner_id, {}), artifact_id=outer_id)
                 artifact_scores[outer_id] = coerced
 
         # Merge in index order so the Harvester's zip is well-defined.

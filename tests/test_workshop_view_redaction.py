@@ -222,8 +222,7 @@ def test_structural_leak_sweep_no_self_fragments(tmp_path: Path) -> None:
     for i in range(50):
         marker = f"signature-frag-zeta-{i}-aki-unique-marker"
         assert marker not in dump, (
-            f"self workshop fragment {marker!r} leaked into context, "
-            f"dump head:\n{dump[:600]!r}"
+            f"self workshop fragment {marker!r} leaked into context, dump head:\n{dump[:600]!r}"
         )
     # And the agent's own name does not appear in any workshop_view
     # field (contributors / excerpt).
@@ -243,10 +242,8 @@ def test_structural_leak_sweep_peer_fragments_pass_through(tmp_path: Path) -> No
     ):
         for i in range(50):
             wip = CONFIGURED_WIPS[i % len(CONFIGURED_WIPS)]
-            _seed(ep, actor="Aki", wip=wip,
-                  fragment=f"aki-self-{i}", ts=base + i * 0.1)
-            _seed(ep, actor="Bo", wip=wip,
-                  fragment=f"bo-peer-{i}", ts=base + i * 0.1 + 0.01)
+            _seed(ep, actor="Aki", wip=wip, fragment=f"aki-self-{i}", ts=base + i * 0.1)
+            _seed(ep, actor="Bo", wip=wip, fragment=f"bo-peer-{i}", ts=base + i * 0.1 + 0.01)
         proj = WorkshopProjection(ep)
         out = build_context(
             world_base=WorldContext(),

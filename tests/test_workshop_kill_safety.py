@@ -38,12 +38,14 @@ def test_projection_rebuilds_identically_after_sqlite_reopen(tmp_path: Path) -> 
 
     with EpisodicMemory(db) as ep:
         proj_hot = WorkshopProjection(ep)
-        for i, (actor, text) in enumerate([
-            ("Aki", "rough warp"),
-            ("Bo", "blue stitching"),
-            ("Aki", "blossom motif"),
-            ("Cy", "field-note observation"),
-        ]):
+        for i, (actor, text) in enumerate(
+            [
+                ("Aki", "rough warp"),
+                ("Bo", "blue stitching"),
+                ("Aki", "blossom motif"),
+                ("Cy", "field-note observation"),
+            ]
+        ):
             ep.append(
                 actor=actor,
                 action="contribute",
@@ -76,8 +78,7 @@ def test_projection_rebuilds_identically_after_sqlite_reopen(tmp_path: Path) -> 
         )
 
     assert hot_state == cold_state, (
-        f"projection diverged across reopen.\n"
-        f"hot:  {hot_state!r}\ncold: {cold_state!r}"
+        f"projection diverged across reopen.\nhot:  {hot_state!r}\ncold: {cold_state!r}"
     )
     # And the fragments match what the test seeded — no autonomous state.
     assert [(c, t) for (c, t) in hot_state[0]] == expected_fragments

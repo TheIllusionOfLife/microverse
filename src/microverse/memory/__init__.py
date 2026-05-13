@@ -312,9 +312,7 @@ def build_context(
     lore = _pack_under_budget(lore_lines, lore_tok)
 
     if workshop is not None and receiver_name:
-        workshop_view = _build_workshop_view(
-            workshop, agent_name=receiver_name, metrics=metrics
-        )
+        workshop_view = _build_workshop_view(workshop, agent_name=receiver_name, metrics=metrics)
     else:
         workshop_view = ()
 

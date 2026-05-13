@@ -59,10 +59,18 @@ def test_persona_renders_multi_wip_in_order(template: str) -> None:
     """Multiple WIPViews iterate in the order they were assembled."""
     views = (
         WIPView(name="workshop.scroll", phase="forming", contributors="", excerpt=""),
-        WIPView(name="workshop.loom", phase="developing",
-                contributors="Bo, Cy", excerpt="Bo: warp\nCy: weft"),
-        WIPView(name="workshop.garden_bed", phase="complete",
-                contributors="Bo", excerpt="Bo: planted seedlings"),
+        WIPView(
+            name="workshop.loom",
+            phase="developing",
+            contributors="Bo, Cy",
+            excerpt="Bo: warp\nCy: weft",
+        ),
+        WIPView(
+            name="workshop.garden_bed",
+            phase="complete",
+            contributors="Bo",
+            excerpt="Bo: planted seedlings",
+        ),
     )
     out = render(template, name="Aki", world=WorldContext(workshop_view=views))
     # Order check via index comparison.
@@ -80,10 +88,7 @@ def test_persona_workshop_block_hides_excerpt_when_blank(template: str) -> None:
     render (the agent should know the WIP exists) but should not
     produce stray "Excerpt:" header followed by empty content.
     """
-    views = (
-        WIPView(name="workshop.scroll", phase="forming",
-                contributors="", excerpt=""),
-    )
+    views = (WIPView(name="workshop.scroll", phase="forming", contributors="", excerpt=""),)
     out = render(template, name="Aki", world=WorldContext(workshop_view=views))
     assert "workshop.scroll" in out
     assert "forming" in out
