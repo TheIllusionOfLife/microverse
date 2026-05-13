@@ -204,6 +204,96 @@ def test_harvester_does_not_double_harvest_same_wip(tmp_path: Path) -> None:
     assert len(second) == 0
 
 
+class _MutableRanker:
+    """Test double whose score for a key can be changed between flushes
+    — used to simulate a WIP that the ranker rejects on flush-1 (score
+    below cutoff) and accepts on flush-2 (score above cutoff). The
+    earlier ``_PredictableRanker`` keeps a frozen dict.
+    """
+
+    def __init__(self) -> None:
+        self.scores: dict[str, float] = {}
+
+    def rank(self, candidates: list) -> list[Score]:
+        out: list[Score] = []
+        for i, c in enumerate(candidates):
+            key = c.name if isinstance(c, WIPCandidate) else (c.artifact or "")
+            out.append(Score(artifact_id=i, score=self.scores.get(key, 0.5), rationale=""))
+        return out
+
+
+def test_rejected_wip_remains_eligible_on_next_flush(tmp_path: Path) -> None:
+    """ADR 0003 regression: a completed WIP that the ranker scored
+    too low (below the percentile cutoff) on flush N MUST be eligible
+    again on flush N+1. The earlier implementation marked WIPs as
+    harvested as soon as they were snapshotted from the projection,
+    which permanently dropped any WIP that did not pass the cutoff
+    — a silent data-loss bug surfaced by Gemini + CodeRabbit review
+    of PR #32.
+
+    Strategy: a second completed WIP gives the percentile-cutoff
+    something to compare against; on flush-1 we keep the target's
+    score low so it falls below the p70 cutoff (rejected); on
+    flush-2 we raise the target's score and confirm it is now
+    written.
+    """
+    db = tmp_path / "ep.sqlite"
+    target = CONFIGURED_WIPS[0]
+    decoy = CONFIGURED_WIPS[1]
+    with EpisodicMemory(db) as ep:
+        _drive_wip_to_complete(ep, target, ts_base=1.0)
+        _drive_wip_to_complete(ep, decoy, ts_base=100.0)
+        proj = WorkshopProjection(ep)
+        ranker = _MutableRanker()
+        harvester = Harvester(
+            tmp_path / "harvest",
+            trader=ranker,
+            workshop=proj,
+            percentile=70,
+        )
+
+        # Flush 1: target scores below decoy, percentile=70 cuts it.
+        ranker.scores = {target: 0.10, decoy: 0.95}
+        first = harvester.flush()
+        first_names = [p.name for p in first]
+        assert not any(target.removeprefix("workshop.") in n for n in first_names), (
+            f"target WIP should not have been harvested at flush-1: {first_names}"
+        )
+
+        # Flush 2: target's score is now well above cutoff; the
+        # bug version would silently skip it because flush-1 marked
+        # it harvested. With the fix the projection still considers
+        # it a pending completed WIP and the harvest goes through.
+        # Add a second decoy with low score so the cutoff still has
+        # a population to compare against.
+        decoy2 = CONFIGURED_WIPS[2]
+        ep.append(
+            actor="Aki",
+            action="contribute",
+            target=decoy2,
+            payload={"thought": "x", "fragment": "low-priority filler text long enough"},
+            ts=200.0,
+        )
+        for i in range(7):
+            ep.append(
+                actor="Bo",
+                action="contribute",
+                target=decoy2,
+                payload={"thought": "x", "fragment": f"filler-{i}"},
+                ts=201.0 + i,
+            )
+        # Rebuild projection to pick up the new fragments + completion.
+        proj_v2 = WorkshopProjection(ep)
+        harvester._workshop = proj_v2
+        ranker.scores = {target: 0.99, decoy: 0.10, decoy2: 0.10}
+        second = harvester.flush()
+        target_slug = target.removeprefix("workshop.")
+        second_names = [p.name for p in second]
+        assert any(target_slug in n for n in second_names), (
+            f"target WIP must be re-considered and accepted on flush-2; got {second_names}"
+        )
+
+
 def test_harvester_caps_craft_acceptance_per_flush(tmp_path: Path) -> None:
     """Per-primary-verb cap: when more crafts are buffered than the
     cap, only the top ``HARVEST_CRAFT_CAP_PER_FLUSH`` by score are

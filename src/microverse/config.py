@@ -91,6 +91,8 @@ WORKSHOP_STALE_TIMEOUT_S: float = 3600.0  # 1 hour
 # v0.2 (ADR 0003): Trader v2 novelty term — number of recent
 # completed WIPs to compare against when computing the Jaccard
 # distance for ``score_wip``. Larger N smooths the novelty score
-# at the cost of more tokenisation work; 8 is the default since
-# COMPLETE_FRAGMENT_FLOOR is also 8 (parity).
+# at the cost of more tokenisation work; 8 matches the workshop's
+# fragment-count threshold for ``developing → complete`` so the
+# lookback is the same order of magnitude as a single completed
+# WIP's fragment count.
 TRADER_WIP_NOVELTY_LOOKBACK: int = 8

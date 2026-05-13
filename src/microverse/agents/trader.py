@@ -217,17 +217,21 @@ class Trader(Agent):
         # WIP-only — keeps the no-LLM contract of WIP-only flushes.
         artifact_scores: dict[int, Score] = {}
         if artifact_indices:
-            artifact_candidates = [candidates[i] for i in artifact_indices]
+            artifact_candidates: list[ArtifactCandidate] = []
+            for i in artifact_indices:
+                c = candidates[i]
+                assert isinstance(c, ArtifactCandidate)
+                artifact_candidates.append(c)
             prompt = render(
                 self.persona_template,
                 candidates=[
                     {
                         "artifact_id": k,
-                        "actor": c.actor,  # type: ignore[union-attr]
-                        "action": c.action,  # type: ignore[union-attr]
-                        "artifact": c.artifact,  # type: ignore[union-attr]
+                        "actor": ac.actor,
+                        "action": ac.action,
+                        "artifact": ac.artifact,
                     }
-                    for k, c in enumerate(artifact_candidates)
+                    for k, ac in enumerate(artifact_candidates)
                 ],
             )
             result = chat(

@@ -13,6 +13,8 @@ The persona "Hard rules" enumeration of valid actions also gains
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 from microverse.agents.base import WorldContext
@@ -90,12 +92,29 @@ def test_persona_workshop_block_hides_excerpt_when_blank(template: str) -> None:
     """
     views = (WIPView(name="workshop.scroll", phase="forming", contributors="", excerpt=""),)
     out = render(template, name="Aki", world=WorldContext(workshop_view=views))
+    out_lower = out.lower()
     assert "workshop.scroll" in out
     assert "forming" in out
-    # Don't render a "Recent fragments:" / "Excerpt:" label with empty content.
-    blank_excerpt_indicators = ("Recent fragments:\n\n", "Excerpt:\n\n")
-    for marker in blank_excerpt_indicators:
-        assert marker not in out, f"empty-excerpt block rendered with header: {marker!r}"
+    # Case-insensitive: don't render a "Recent fragments:" / "Excerpt:"
+    # header with empty content. Either case (or different surrounding
+    # newline count) would still be a regression.
+    for marker in ("recent fragments:", "excerpt:"):
+        if marker not in out_lower:
+            continue
+        idx = out_lower.find(marker)
+        tail = out_lower[idx + len(marker) :].lstrip("\n").lstrip()
+        msg = (
+            f"empty-excerpt header {marker!r} rendered with no content under it: "
+            f"{out[idx : idx + 80]!r}"
+        )
+        assert tail, msg
+        assert not tail.startswith("phase"), msg
+
+
+# Whole-word regex used by the contribute-listing tests: ensures the
+# template includes ``contribute`` as a distinct token rather than a
+# substring of ``contribute_to`` or some unrelated word.
+_CONTRIBUTE_WORD = re.compile(r"\bcontribute\b")
 
 
 def test_artisan_lists_contribute_in_hard_rules() -> None:
@@ -103,7 +122,7 @@ def test_artisan_lists_contribute_in_hard_rules() -> None:
     ``contribute`` so the LLM knows it is a valid verb.
     """
     out = render("persona_artisan.j2", name="Aki", world=WorldContext())
-    assert "contribute" in out
+    assert _CONTRIBUTE_WORD.search(out), f"`contribute` not listed as a verb: {out!r}"
 
 
 def test_scholar_lists_contribute_in_hard_rules() -> None:
@@ -112,9 +131,9 @@ def test_scholar_lists_contribute_in_hard_rules() -> None:
     surfaces it the same way.
     """
     out = render("persona_scholar.j2", name="Cy", world=WorldContext())
-    assert "contribute" in out
+    assert _CONTRIBUTE_WORD.search(out), f"`contribute` not listed as a verb: {out!r}"
 
 
 def test_stranger_lists_contribute_in_hard_rules() -> None:
     out = render("persona_stranger.j2", name="X", world=WorldContext())
-    assert "contribute" in out
+    assert _CONTRIBUTE_WORD.search(out), f"`contribute` not listed as a verb: {out!r}"

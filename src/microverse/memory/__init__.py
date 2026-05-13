@@ -201,21 +201,23 @@ def _build_workshop_view(
     (community knowledge is preserved at the village level; only the
     *receiver's own* contributions are redacted in their own view).
 
-    The name filter is whole-word case-insensitive — same rule as the
-    lore redaction in ``build_context`` and the peer-inbox filter in
-    ``_build_peer_inbox`` — so a peer named ``Akihiko`` is not
-    redacted when ``Aki`` is the receiver.
+    Contributor identity is matched by case-insensitive *exact* string
+    equality (``casefold``) because the contributor field is a stored
+    actor name, not free text. This is more correct than a regex
+    whole-word check, which fails on names containing non-word
+    characters (``C++``, ``Aki.``). Substring names like ``Akihiko``
+    vs receiver ``Aki`` are correctly NOT matched.
 
     Every redaction bumps ``workshop_view_self_redactions`` per-agent
     so operators can verify the redaction is firing under live load.
     """
-    name_re = re.compile(rf"\b{re.escape(agent_name)}\b", re.IGNORECASE)
+    receiver_key = agent_name.casefold()
     views: list[WIPView] = []
     for wip in workshop.wips():
         # Contributors: drop the receiver's own name; preserve order.
         peer_contribs: list[str] = []
         for c in wip.contributors():
-            if name_re.fullmatch(c):
+            if c.casefold() == receiver_key:
                 continue
             peer_contribs.append(c)
         contributors = ", ".join(peer_contribs)
@@ -226,7 +228,7 @@ def _build_workshop_view(
         tail = wip.fragments[-_WORKSHOP_FRAGMENT_TAIL:]
         lines: list[str] = []
         for f in tail:
-            if name_re.fullmatch(f.contributor):
+            if f.contributor.casefold() == receiver_key:
                 if metrics is not None:
                     metrics.bump("workshop_view_self_redactions", agent=agent_name)
                 lines.append(_WORKSHOP_REDACTED_MARKER)

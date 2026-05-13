@@ -86,14 +86,19 @@ def _rest_action() -> Action:
     return Action(thought="", action=ActionKind.REST, target=None, artifact=None)
 
 
-def _validate_contribute(action: Action, *, metrics: Metrics, agent: str) -> Action:
+def _validate_contribute(action: Action, *, metrics: Metrics, agent: str) -> tuple[Action, bool]:
     """ADR 0003: when ``action`` is contribute, the WIP name must be
     a configured one AND the artifact (fragment text) must be
     non-empty. When the action is NOT contribute, ``contribute_to``
     must be None — a stray name on the wrong verb is malformed.
 
-    On failure, fold to a safe rest and bump
-    ``contribute_invalid_target`` (distinct from
+    Returns ``(action, folded)``. ``folded`` is True iff the original
+    action was rejected and replaced with a safe rest. The caller
+    uses the bool to decide whether to credit ``json_ok`` /
+    ``json_repaired`` — a folded action should not credit either,
+    while a legitimate ``{"action":"rest","thought":""}`` should.
+
+    On fold, bumps ``contribute_invalid_target`` (distinct from
     ``json_fallback_rest`` so operators can tell workshop routing
     failures apart from JSON parse failures).
     """
@@ -105,15 +110,15 @@ def _validate_contribute(action: Action, *, metrics: Metrics, agent: str) -> Act
             action.artifact and action.artifact.strip()
         ):
             metrics.bump("contribute_invalid_target", agent=agent)
-            return _rest_action()
-        return action
+            return _rest_action(), True
+        return action, False
 
     if action.contribute_to is not None:
         # Stray name on a non-contribute verb. Defence-in-depth: the
         # workshop affordance is only reachable through CONTRIBUTE.
         metrics.bump("contribute_invalid_target", agent=agent)
-        return _rest_action()
-    return action
+        return _rest_action(), True
+    return action, False
 
 
 def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
@@ -147,8 +152,8 @@ def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
                 # immersion breaks.
                 metrics.bump("meta_leak_block", agent=agent)
                 return _rest_action()
-            action = _validate_contribute(action, metrics=metrics, agent=agent)
-            if action.action == ActionKind.REST and not action.thought:
+            action, folded = _validate_contribute(action, metrics=metrics, agent=agent)
+            if folded:
                 # _validate_contribute folded — don't credit json_ok
                 # and don't reset consecutive_fail on a fold.
                 return action
@@ -173,13 +178,13 @@ def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
             ):
                 metrics.bump("meta_leak_block", agent=agent)
                 return _rest_action()
-            repaired_action = _validate_contribute(repaired_action, metrics=metrics, agent=agent)
-            if repaired_action.action == ActionKind.REST and not repaired_action.thought:
+            validated, folded = _validate_contribute(repaired_action, metrics=metrics, agent=agent)
+            if folded:
                 # Workshop-route fold — don't credit json_repaired.
-                return repaired_action
+                return validated
             metrics.bump("json_repaired")
             metrics.reset("consecutive_fail", agent=agent)
-            return repaired_action
+            return validated
 
     metrics.bump("json_fallback_rest")
     metrics.bump("consecutive_fail", agent=agent)

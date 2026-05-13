@@ -27,6 +27,41 @@ def test_action_strict_valid_json(metrics: Metrics):
     assert metrics.get("json_fallback_rest") == 0
 
 
+def test_action_strict_rest_with_empty_thought_credits_json_ok(metrics: Metrics):
+    """Regression for Codex review of PR #32: a legitimate
+    ``{"action":"rest","thought":""}`` must credit ``json_ok`` and
+    reset ``consecutive_fail``. An earlier fold-detection heuristic
+    used ``action == REST and not action.thought`` which mis-classified
+    this case as a workshop-route fallback fold.
+    """
+    metrics.bump("consecutive_fail", agent="aki")
+    metrics.bump("consecutive_fail", agent="aki")
+    payload = '{"thought": "", "action": "rest", "target": null, "artifact": null}'
+    a = parse_action(payload, metrics=metrics, agent="aki")
+    assert a.action == ActionKind.REST
+    assert a.thought == ""
+    assert metrics.get("json_ok") == 1
+    assert metrics.get("json_repaired") == 0
+    assert metrics.get("json_fallback_rest") == 0
+    assert metrics.get("contribute_invalid_target", agent="aki") == 0
+    # consecutive_fail must be reset on a successful parse.
+    assert metrics.get("consecutive_fail", agent="aki") == 0
+
+
+def test_action_repaired_rest_with_empty_thought_credits_json_repaired(metrics: Metrics):
+    """Companion to the strict-path test: when the JSON needs repair
+    (trailing comma) AND has an empty thought + rest action, we must
+    still credit ``json_repaired`` rather than silently folding.
+    """
+    payload = '{"thought": "", "action": "rest", "target": null, "artifact": null,}'
+    a = parse_action(payload, metrics=metrics, agent="aki")
+    assert a.action == ActionKind.REST
+    assert a.thought == ""
+    assert metrics.get("json_repaired") == 1
+    assert metrics.get("json_ok") == 0
+    assert metrics.get("json_fallback_rest") == 0
+
+
 def test_action_repaired_when_trailing_comma(metrics: Metrics):
     """json-repair handles common LLM mishaps like trailing commas."""
     payload = '{"thought": "rest", "action": "rest", "target": null, "artifact": null,}'

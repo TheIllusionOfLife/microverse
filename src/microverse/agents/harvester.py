@@ -198,21 +198,31 @@ class Harvester:
 
         No-op when no trader is configured. Builds a heterogeneous
         candidates list of ArtifactCandidate (from the per-tick
-        buffer) AND WIPCandidate (from any newly-completed WIPs on
-        the workshop projection, if one is attached). Both flow
-        through ``Trader.rank()``; the per-verb cap then bounds the
-        accepted set so no single primary verb can dominate the
+        buffer) AND WIPCandidate (snapshotted from any newly-completed
+        WIPs on the workshop projection, if one is attached). Both
+        flow through ``Trader.rank()``; the per-verb cap then bounds
+        the accepted set so no single primary verb can dominate the
         manifest (ADR 0003 — Trader v2 must not become a new
         attractor).
 
-        If ``trader.rank()`` raises, the buffer is preserved (a
-        transient ranker failure must not silently discard pending
-        artifacts) and the exception is re-raised so the caller can
-        decide whether to retry.
+        WIPs are only marked as harvested *after* a successful write —
+        a WIP that scored below the percentile cutoff, was rejected
+        by the per-verb cap, or hit a write error remains eligible on
+        the next flush. If ``trader.rank()`` raises, the buffer is
+        preserved (a transient ranker failure must not silently
+        discard pending artifacts) and the exception is re-raised so
+        the caller can decide whether to retry; no WIP is marked
+        harvested in that case either.
         """
-        wip_candidates = self._drain_completed_wips()
-        if self._trader is None or (not self._buffer and not wip_candidates):
+        if self._trader is None:
+            # No-trader mode: workshop projection is never drained,
+            # buffer is the only state and is already empty (consider()
+            # writes immediately in this mode).
             self._buffer.clear()
+            return []
+
+        wip_candidates = self._snapshot_pending_wips()
+        if not self._buffer and not wip_candidates:
             return []
 
         artifact_candidates: list[ArtifactCandidate] = list(self._buffer)
@@ -220,16 +230,12 @@ class Harvester:
             *artifact_candidates,
             *wip_candidates,
         ]
-        try:
-            scores = self._trader.rank(candidates)
-        except Exception:
-            # Keep both buffers intact so a retry can rescue. The
-            # WIP candidates were drained — re-add them to the
-            # harvested set's inverse (i.e., remove from
-            # _harvested_wips) so the next flush re-discovers them.
-            for w in wip_candidates:
-                self._harvested_wips.discard(w.name)
-            raise
+        scores = self._trader.rank(candidates)
+        if len(scores) != len(candidates):
+            raise RuntimeError(
+                f"trader.rank() returned {len(scores)} scores for "
+                f"{len(candidates)} candidates — refusing to drop the batch"
+            )
 
         # Only clear after a successful rank — partial failures don't
         # silently drop the batch.
@@ -259,6 +265,11 @@ class Harvester:
             accepted_set.add(idx)
             accepted_paths[idx] = path
             per_verb_count[verb] = per_verb_count.get(verb, 0) + 1
+            # Mark the WIP harvested only after a successful write.
+            # If write_candidate raised above, the WIP stays eligible
+            # for the next flush.
+            if isinstance(cand, WIPCandidate):
+                self._harvested_wips.add(cand.name)
 
         written: list[Path] = []
         for idx, cand in enumerate(candidates):
@@ -271,12 +282,12 @@ class Harvester:
                 self._append_manifest(cand, accepted=False, path=None, score=score.score)
         return written
 
-    def _drain_completed_wips(self) -> list[WIPCandidate]:
+    def _snapshot_pending_wips(self) -> list[WIPCandidate]:
         """Snapshot newly-completed WIPs from the workshop projection
-        (if one is attached) and mark them harvested. Returns
-        WIPCandidate objects with frozen fragment tuples — the
-        projection may continue to mutate, but the snapshot is
-        immutable.
+        as immutable WIPCandidate objects. Does NOT mark them
+        harvested — that happens only after a successful write in
+        ``flush()`` so a WIP rejected by the percentile cutoff or
+        per-verb cap stays eligible on the next flush.
         """
         if self._workshop is None:
             return []
@@ -286,7 +297,6 @@ class Harvester:
                 continue
             if w.name in self._harvested_wips:
                 continue
-            self._harvested_wips.add(w.name)
             out.append(
                 WIPCandidate(
                     name=w.name,
