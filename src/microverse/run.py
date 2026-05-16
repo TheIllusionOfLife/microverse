@@ -388,6 +388,11 @@ def run(
 
     sched = WeightedScheduler(rng=rng)
     for agent in _build_roster(metrics, solo=solo):
+        # v0.3 (ADR 0004 Decision 3): the agent's parse_action looks
+        # up the projection to hard-fold contributes targeting a
+        # complete WIP. Attach before registering so the first tick
+        # already sees it.
+        agent.attach_workshop(workshop)
         sched.register(agent)
     # Trader scheduling is internal — it ranks the buffer at flush time,
     # not as a tick action. We don't register it in the scheduler.

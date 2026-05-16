@@ -93,7 +93,12 @@ class Artisan(Agent):
             options={**self.sampling, "num_predict": LLM_MAX_TOKENS},
             timeout_s=LLM_TIMEOUT_S,  # explicit so a hung model can't freeze the tick loop
         )
-        action = parse_action(result["content"], metrics=self._metrics, agent=self.name)
+        action = parse_action(
+            result["content"],
+            metrics=self._metrics,
+            agent=self.name,
+            workshop=self._workshop,
+        )
         # F.2 must run BEFORE the rest rate-limiter: empty-craft is an
         # active tick that should reset the rest streak, not pass
         # through it as rest.

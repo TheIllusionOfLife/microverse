@@ -59,7 +59,12 @@ class Scholar(Agent):
             options={**self.sampling, "num_predict": LLM_MAX_TOKENS},
             timeout_s=LLM_TIMEOUT_S,
         )
-        action = parse_action(result["content"], metrics=self._metrics, agent=self.name)
+        action = parse_action(
+            result["content"],
+            metrics=self._metrics,
+            agent=self.name,
+            workshop=self._workshop,
+        )
         return self._maybe_enforce_engagement(action, world)
 
     def _maybe_enforce_engagement(self, action: Action, world: WorldContext) -> Action:

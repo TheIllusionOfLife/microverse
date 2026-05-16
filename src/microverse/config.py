@@ -108,3 +108,12 @@ TRADER_WIP_NOVELTY_LOOKBACK: int = 8
 # of contributes silently fell into locked WIPs.
 MAX_HARVEST_ATTEMPTS: int = 3
 HARVEST_PENDING_TIMEOUT_S: float = 1800.0  # 30 min
+
+# v0.3 (ADR 0004 Decision 2): hard floor on contribute fragment
+# length. The 120-character / ~25-word floor is the structural
+# enforcement point against v0.2's pathology where ~91-char single-
+# sentence object descriptions rode through the contribute verb.
+# The composite acceptance gate (length AND repeat-4gram AND peer-
+# reference) is the load-bearing guard against this floor becoming
+# a new padding attractor.
+MIN_FRAGMENT_CHARS: int = 120

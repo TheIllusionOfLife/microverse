@@ -86,15 +86,21 @@ def _raw(
 def test_parse_action_accepts_valid_contribute() -> None:
     metrics = Metrics(":memory:")
     wip = CONFIGURED_WIPS[0]
+    # Fragment must exceed MIN_FRAGMENT_CHARS=120 (ADR 0004 Decision 2).
+    long_fragment = (
+        "a long blue stitch across the warp, deep cobalt against the "
+        "cream thread, drawn taut and tied off near the lower border "
+        "of the woven panel."
+    )
     raw = _raw(
         "contribute",
         contribute_to=wip,
-        artifact="a blue stitch across the warp",
+        artifact=long_fragment,
     )
     out = parse_action(raw, metrics=metrics, agent="Aki")
     assert out.action == ActionKind.CONTRIBUTE
     assert out.contribute_to == wip
-    assert out.artifact == "a blue stitch across the warp"
+    assert out.artifact == long_fragment
     assert metrics.get("json_ok") == 1
     assert metrics.get("json_fallback_rest") == 0
 
@@ -161,13 +167,18 @@ def test_parse_action_folds_stray_contribute_to_on_other_actions() -> None:
 
 def test_parse_action_contribute_round_trip_via_repair() -> None:
     """The json_repair pass also validates contribute. A trailing
-    comma is the cheapest "repaired" shape.
+    comma is the cheapest "repaired" shape. Fragment must exceed
+    MIN_FRAGMENT_CHARS=120 to pass the v0.3 length floor.
     """
     metrics = Metrics(":memory:")
     wip = CONFIGURED_WIPS[0]
+    long_fragment = (
+        "a very long stitch, dyed indigo, ran straight across the entire "
+        "warp before being carefully knotted off near the loom lower beam"
+    )
     raw = (
         '{"thought": "x", "action": "contribute", "target": null, '
-        f'"contribute_to": "{wip}", "artifact": "a stitch",}}'  # trailing comma
+        f'"contribute_to": "{wip}", "artifact": "{long_fragment}",}}'  # trailing comma
     )
     out = parse_action(raw, metrics=metrics, agent="Aki")
     assert out.action == ActionKind.CONTRIBUTE

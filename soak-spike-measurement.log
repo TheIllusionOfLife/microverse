@@ -1,0 +1,12 @@
+arm   aki actions   craft share   artifacts  median words
+  A          2770           94%        1600          18.0
+  B          2576           94%        1664          18.0
+  C          2533           93%        1634          18.0
+  D          2516           93%        1658          18.0
+  E          2435           95%        1656          22.0
+
+=== Halt criterion (Phase 0) ===
+  any arm B/C/D drops Aki craft-share < 75%: NO
+  any arm B/C/D raises artifact median > 25 words: NO
+
+HALT — neither signal fired. Mechanism claim falsified. Replan with model-swap or persona-only routes from ADR 0002.

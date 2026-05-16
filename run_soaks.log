@@ -1,0 +1,33 @@
+[2026-05-13T13:08:10Z] Switching to spike/workshop-view-measurement for Phase 0.
+From https://github.com/TheIllusionOfLife/microverse
+ * branch            spike/workshop-view-measurement -> FETCH_HEAD
+Switched to branch 'spike/workshop-view-measurement'
+[2026-05-13T13:08:11Z] Phase 0 arm A starting (duration 5h, view=...)
+[2026-05-13T18:08:49Z] Phase 0 arm A finished.
+[2026-05-13T18:08:49Z] Phase 0 arm B starting (duration 5h, view=- The village loom: three-quarters of a tapestry, rough warp...)
+[2026-05-13T23:09:03Z] Phase 0 arm B finished.
+[2026-05-13T23:09:03Z] Phase 0 arm C starting (duration 5h, view=- The village loom: three-quarters of a tapestry. Bo has bee...)
+[2026-05-14T04:09:22Z] Phase 0 arm C finished.
+[2026-05-14T04:09:22Z] Phase 0 arm D starting (duration 5h, view=- The village loom: three-quarters of a tapestry. [an earlie...)
+[2026-05-14T09:09:24Z] Phase 0 arm D finished.
+[2026-05-14T09:09:24Z] Phase 0 arm E starting (duration 5h, view=- The village loom: a richly crafted weaving with carved woo...)
+[2026-05-14T14:10:10Z] Phase 0 arm E finished.
+[2026-05-14T14:10:10Z] Phase 0 arms complete; running measurement.
+arm   aki actions   craft share   artifacts  median words
+  A          2770           94%        1600          18.0
+  B          2576           94%        1664          18.0
+  C          2533           93%        1634          18.0
+  D          2516           93%        1658          18.0
+  E          2435           95%        1656          22.0
+
+=== Halt criterion (Phase 0) ===
+  any arm B/C/D drops Aki craft-share < 75%: NO
+  any arm B/C/D raises artifact median > 25 words: NO
+
+HALT — neither signal fired. Mechanism claim falsified. Replan with model-swap or persona-only routes from ADR 0002.
+[2026-05-14T14:10:12Z] Switching to main for v0.2 acceptance soak.
+Switched to branch 'main'
+Your branch is up to date with 'origin/main'.
+[2026-05-14T14:10:13Z] Acceptance soak starting (duration 24h).
+[2026-05-15T13:40:29Z] Acceptance soak finished.
+[2026-05-15T13:40:29Z] All soaks complete.

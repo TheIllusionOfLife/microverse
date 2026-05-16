@@ -1,0 +1,1406 @@
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Aki
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/artisan.py", line 89, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+think() failed for agent Cy
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 500, in run
+    action = agent.think(world)
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/scholar.py", line 55, in think
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download
+all agents stuck after 10 consecutive deadlock-breaks — exiting
+final harvester.flush failed
+Traceback (most recent call last):
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 565, in run
+    harvester.flush()
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/harvester.py", line 233, in flush
+    scores = self._trader.rank(candidates)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/agents/trader.py", line 237, in rank
+    result = chat(
+             ^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 138, in chat
+    response = _chat_with_retry(
+               ^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/llm/ollama_client.py", line 112, in _chat_with_retry
+    return client.chat(**kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 387, in chat
+    return self._request(
+           ^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 199, in _request
+    return cls(**self._request_raw(*args, **kwargs).json())
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/.venv/lib/python3.12/site-packages/ollama/_client.py", line 145, in _request_raw
+    raise ConnectionError(CONNECTION_ERROR_MESSAGE) from None
+ConnectionError: Failed to connect to Ollama. Please check that Ollama is downloaded, running and accessible. https://ollama.com/download

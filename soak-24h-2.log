@@ -1,0 +1,20 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 302, in <module>
+    sys.exit(0 if main() >= 0 else 1)
+                  ^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 298, in main
+    return run(ticks=args.ticks, seed=args.seed, tempo=args.tempo)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/run.py", line 247, in run
+    maybe_snapshot(
+  File "/Users/yuyamukai/dev/microverse/src/microverse/world/snapshot.py", line 241, in maybe_snapshot
+    return take_snapshot(data_dir, snapshots_dir)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/yuyamukai/dev/microverse/src/microverse/world/snapshot.py", line 136, in take_snapshot
+    _checkpoint_wal(data_dir)
+  File "/Users/yuyamukai/dev/microverse/src/microverse/world/snapshot.py", line 66, in _checkpoint_wal
+    row = conn.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: disk I/O error

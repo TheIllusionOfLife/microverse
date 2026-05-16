@@ -98,7 +98,10 @@ def test_contribute_to_complete_wip_hard_folds(tmp_path, metrics: Metrics) -> No
         proj = WorkshopProjection(ep)
         assert proj.is_complete(CONFIGURED_WIPS[0])
 
-        long_text = "this is a perfectly adequate fragment that exceeds the minimum length floor" * 2
+        long_text = (
+            "this is a perfectly adequate fragment that exceeds the minimum "
+            "length floor by a comfortable margin so the validator does not fold"
+        )
         raw = _make_contribute_json(wip=CONFIGURED_WIPS[0], text=long_text)
         action = parse_action(raw, metrics=metrics, agent="aki", workshop=proj)
     assert action.action == ActionKind.REST
@@ -113,7 +116,10 @@ def test_contribute_to_open_wip_with_workshop_param_validates(tmp_path, metrics:
     """
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
         proj = WorkshopProjection(ep)
-        long_text = "this is a perfectly adequate fragment that exceeds the minimum length floor" * 2
+        long_text = (
+            "this is a perfectly adequate fragment that exceeds the minimum "
+            "length floor by a comfortable margin so the validator does not fold"
+        )
         raw = _make_contribute_json(wip=CONFIGURED_WIPS[0], text=long_text)
         action = parse_action(raw, metrics=metrics, agent="aki", workshop=proj)
     assert action.action == ActionKind.CONTRIBUTE
