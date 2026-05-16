@@ -64,22 +64,32 @@ final config flip so the soak A/B can isolate the model effect.
 
 ### Decision 1 — WIP terminal lifecycle with bounded recycle
 
-The WIP state machine gains a `harvest_pending` state between
-`complete` and the next `forming`. Every transition is an explicit
-episodic event so ADR 0003's invariant (episodic log is the sole
-authoritative write, projection is a pure read-model) is preserved
-end-to-end:
+The WIP state machine keeps the three v0.2 phases
+(`forming|developing|complete`); `complete` is the terminal phase
+between the 8th contribute and the next recycle (functionally what
+an earlier draft of this ADR called `harvest_pending`). Every
+non-contribute transition is an explicit episodic event so ADR
+0003's invariant (episodic log is the sole authoritative write,
+projection is a pure read-model) is preserved end-to-end:
 
-- `workshop.complete{wip, completed_ts}` on entry to `harvest_pending`.
+- `complete` entry is derived from the projection on apply:
+  `len(fragments) >= COMPLETE_FRAGMENT_FLOOR` after the 8th
+  `contribute` event. No separate `workshop.complete` event is
+  emitted — the state is a pure function of the contribute log,
+  which keeps the log idempotent under replay.
+- `workshop.harvest_attempt{wip}` is emitted by the Harvester on
+  each WIP rejection so the projection can derive an `attempts`
+  counter (`count(harvest_attempt events since last recycle)`).
 - `workshop.recycle{wip, reason=accepted|attempts_exceeded|timeout,
-  dropped_fragments=<n>}` on transition back to `forming`.
-- Contribute events that arrive while `phase==harvest_pending` are
+  dropped_fragments=<n>}` is emitted by the Harvester on transition
+  back to `forming`.
+- Contribute events that arrive while `phase==complete` are
   hard-folded at the validator (Decision 3 below). If the log
   contains a pre-recycle contribute (e.g. interrupted process), the
   projection drops it on apply; rebuild order is single-threaded
-  in-memory state machine, log in `ts` order, no out-of-band side
-  channels. Restart determinism is bit-for-bit: replay from any
-  point yields the same projection state.
+  in-memory state machine, log in commit order, no out-of-band
+  side channels. Restart determinism is bit-for-bit: replay from
+  any point yields the same projection state.
 
 Recycle rules:
 - On a flush that **accepts** the WIP, the Harvester emits
@@ -130,8 +140,11 @@ AND repeat-4gram < 0.15 AND peer-reference ≥ 30 %).
 `parse_action` extends with `workshop: WorkshopProjection | None =
 None` (read-only, no commit-surface implications). When a
 `contribute` action's `contribute_to` references a WIP currently in
-`complete|harvest_pending`, the validator folds to `rest` and bumps
-`contribute_to_complete_wip`. Back-compat: tests passing
+`complete`, the validator folds to `rest` and bumps
+`contribute_to_complete_wip`. The check fires before the
+`contribute_too_short` length guard so a short fragment aimed at a
+locked WIP is attributed to the structural pathology gate 6 closes,
+not the length pathology gate 1 covers. Back-compat: tests passing
 `workshop=None` skip the lookup.
 
 Codex review noted this is a borderline seam — lifecycle admission

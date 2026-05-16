@@ -271,9 +271,11 @@ class Harvester:
                 f"{len(candidates)} candidates — refusing to drop the batch"
             )
 
-        # Only clear after a successful rank — partial failures don't
-        # silently drop the batch.
-        self._buffer.clear()
+        # v0.3 PR #33 review (Gemini): defer the buffer clear until
+        # after the write loop completes. If any ``_write_candidate``
+        # raises mid-loop, the buffer is preserved so the next flush
+        # re-ranks the same artifacts (WIPs already recover via the
+        # ``_harvested_wips`` set; artifacts had no equivalent guard).
         # v0.3 (ADR 0004 Decision 4): two cutoffs by candidate kind.
         # Artifacts keep the p70 percentile (v0.2 behavior). WIPs use
         # the absolute WIP_ACCEPTANCE_FLOOR plus the contributor
@@ -349,6 +351,11 @@ class Harvester:
                 self._append_manifest(cand, accepted=True, path=path, score=score.score)
             else:
                 self._append_manifest(cand, accepted=False, path=None, score=score.score)
+        # Successful end-of-flush: every artifact in the buffer has
+        # been ranked and resolved (accepted+written or rejected+
+        # manifest-logged). Safe to discard. A raise above this line
+        # preserves the buffer for the next flush.
+        self._buffer.clear()
         return written
 
     def _timeout_pending_wips(self) -> None:

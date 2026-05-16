@@ -95,6 +95,37 @@ def test_echo_chamber_triggers_stranger_spawn(tmp_path: Path, metrics: Metrics):
     assert any(n.startswith("stranger") for n in names)
 
 
+def test_spawned_stranger_inherits_workshop_projection(tmp_path: Path, metrics: Metrics):
+    """PR #33 review (Codex): Strangers registered mid-run by the
+    Watchdog must inherit the same WorkshopProjection the startup
+    roster holds, so ``parse_action`` hard-folds contributes to
+    complete WIPs for every agent regardless of spawn time. Without
+    this, a Stranger's first tick would have ``_workshop=None`` and
+    could write into a locked WIP.
+    """
+    from microverse.world.workshop import WorkshopProjection
+
+    sched = WeightedScheduler()
+    sched.register(_StubAgent("aki"))
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
+        _seed_actions(ep, [("aki", "craft a wooden bowl")] * 10)
+        workshop = WorkshopProjection(ep)
+        wd = Watchdog(
+            metrics=metrics,
+            episodic=ep,
+            scheduler=sched,
+            workshop=workshop,
+            diversity_floor=0.35,
+        )
+        wd.check()
+    strangers = [a for a in sched.agents if a.name.startswith("stranger")]
+    assert strangers, "expected at least one stranger to be spawned"
+    for s in strangers:
+        # Public surface: ``parse_action`` reads ``agent._workshop``
+        # after ``attach_workshop`` stores it there.
+        assert getattr(s, "_workshop", None) is workshop
+
+
 def test_echo_chamber_quiet_when_diversity_high(tmp_path: Path, metrics: Metrics):
     sched = WeightedScheduler()
     sched.register(_StubAgent("aki"))

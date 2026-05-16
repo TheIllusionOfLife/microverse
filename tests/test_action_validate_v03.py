@@ -127,6 +127,35 @@ def test_contribute_to_open_wip_with_workshop_param_validates(tmp_path, metrics:
     assert metrics.get("json_ok") == 1
 
 
+def test_complete_wip_check_precedes_length_check(tmp_path, metrics: Metrics) -> None:
+    """When a fragment is BOTH too short AND targeting a complete WIP,
+    the fold is attributed to ``contribute_to_complete_wip``, not
+    ``contribute_too_short``. ADR 0004 gate 6 is the primary v0.2
+    pathology being closed; the metric ordering preserves its
+    observability when both pathologies coincide.
+    """
+    from microverse.world.workshop import COMPLETE_FRAGMENT_FLOOR
+
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
+        for i in range(COMPLETE_FRAGMENT_FLOOR):
+            ep.append(
+                actor=("Aki" if i % 2 == 0 else "Bo"),
+                action="contribute",
+                target=CONFIGURED_WIPS[0],
+                payload={"fragment": f"fragment-{i}-with-many-letters-aaaaaaaaaaaaaa"},
+                ts=float(i),
+            )
+        proj = WorkshopProjection(ep)
+        assert proj.is_complete(CONFIGURED_WIPS[0])
+
+        short_text = "tiny"  # 4 chars, well below MIN_FRAGMENT_CHARS
+        raw = _make_contribute_json(wip=CONFIGURED_WIPS[0], text=short_text)
+        action = parse_action(raw, metrics=metrics, agent="aki", workshop=proj)
+    assert action.action == ActionKind.REST
+    assert metrics.get("contribute_to_complete_wip", agent="aki") == 1
+    assert metrics.get("contribute_too_short", agent="aki") == 0
+
+
 def test_parse_action_back_compat_without_workshop(metrics: Metrics) -> None:
     """ADR 0004 Decision 3: existing callers passing no workshop= must
     keep working unchanged — the lookup is skipped.

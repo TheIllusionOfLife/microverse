@@ -101,10 +101,14 @@ def _validate_contribute(
     - ``contribute_to`` is not a configured WIP, OR artifact is empty
       after strip (existing v0.2 behaviour;
       ``contribute_invalid_target``).
-    - artifact length after strip is below ``MIN_FRAGMENT_CHARS``
-      (ADR 0004 Decision 2; ``contribute_too_short``).
     - ``workshop`` is provided AND the target WIP is in ``complete``
       phase (ADR 0004 Decision 3; ``contribute_to_complete_wip``).
+    - artifact length after strip is below ``MIN_FRAGMENT_CHARS``
+      (ADR 0004 Decision 2; ``contribute_too_short``).
+
+    Order matters: the complete-WIP check fires before the length
+    check so a short fragment aimed at a locked WIP is attributed to
+    the structural pathology (gate 6), not the length pathology.
 
     Also folds non-contribute actions that carry a stray
     ``contribute_to`` (workshop affordance reachable only through
@@ -124,11 +128,17 @@ def _validate_contribute(
         if action.contribute_to not in CONFIGURED_WIPS or not artifact:
             metrics.bump("contribute_invalid_target", agent=agent)
             return _rest_action(), True
-        if len(artifact) < MIN_FRAGMENT_CHARS:
-            metrics.bump("contribute_too_short", agent=agent)
-            return _rest_action(), True
+        # ADR 0004 gate 6 (`contribute_to_complete_wip < 1 %`) is the
+        # primary v0.2 pathology we are closing — the 83 % black hole
+        # where contributes fell into locked WIPs. When a fragment is
+        # both targeting a complete WIP AND too short, attribute the
+        # fold to the structural pathology, not the length pathology,
+        # so gate 6 stays observable.
         if workshop is not None and workshop.is_complete(action.contribute_to or ""):
             metrics.bump("contribute_to_complete_wip", agent=agent)
+            return _rest_action(), True
+        if len(artifact) < MIN_FRAGMENT_CHARS:
+            metrics.bump("contribute_too_short", agent=agent)
             return _rest_action(), True
         return action, False
 

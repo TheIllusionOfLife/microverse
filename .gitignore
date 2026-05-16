@@ -16,9 +16,9 @@ harvest/
 # durable history.
 microverse.log
 microverse.pid
-run_soaks.log
-run_soaks.pid
-run_soaks.sh
+run_soaks*.log
+run_soaks*.pid
+run_soaks*.sh
 soak-*.log
 soak-*.pid
 soak-status/

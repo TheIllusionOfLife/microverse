@@ -399,7 +399,12 @@ def run(
     # not as a tick action. We don't register it in the scheduler.
 
     clock = WorldClock(seed=seed, mean_interval=WORLD_CLOCK_MEAN_INTERVAL)
-    watchdog = Watchdog(metrics=metrics, episodic=episodic, scheduler=sched)
+    watchdog = Watchdog(
+        metrics=metrics,
+        episodic=episodic,
+        scheduler=sched,
+        workshop=workshop,
+    )
 
     stop = {"requested": False}
 

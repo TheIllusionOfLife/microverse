@@ -15,6 +15,7 @@ want to harvest.
 
 from __future__ import annotations
 
+import contextlib
 from pathlib import Path
 
 from microverse.agents.harvester import ArtifactCandidate, Harvester, WIPCandidate
@@ -158,9 +159,116 @@ def test_artifacts_keep_percentile_cutoff(tmp_path: Path) -> None:
         for k in ("artifact-low", "artifact-mid", "artifact-high"):
             harvester.consider(ArtifactCandidate(actor="Aki", action="craft", artifact=k, ts=1.0))
         written = harvester.flush()
-    # p70 over [0.30, 0.55, 0.90] → cutoff is the 0.55 element →
-    # accepts items >= 0.55. The 0.55 and 0.90 items both pass.
-    assert len(written) >= 1
+    # `_percentile_cutoff` uses a linear-rank index (no interpolation):
+    # idx = (3 * 70) // 100 = 2 → cutoff = ordered[2] = 0.90. Only the
+    # top item clears the bar.
+    written_names = [str(p) for p in written]
+    assert len(written) == 1
+    assert "artifact-high" in written_names[0]
+
+
+def test_wip_at_exact_floor_accepted(tmp_path: Path) -> None:
+    """Boundary: a WIP scored at exactly WIP_ACCEPTANCE_FLOOR with two
+    contributors is accepted (the check is ``>=`` not ``>``).
+    """
+    target = CONFIGURED_WIPS[0]
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
+        _drive_wip_to_complete(ep, target, ts_base=1.0, solo=False)
+        proj = WorkshopProjection(ep)
+        ranker = _FixedRanker({target: WIP_ACCEPTANCE_FLOOR})
+        harvester = Harvester(
+            tmp_path / "harvest",
+            trader=ranker,
+            workshop=proj,
+            percentile=70,
+            episodic=ep,
+            now_fn=lambda: 10.0,
+        )
+        written = harvester.flush()
+    assert len(written) == 1
+
+
+def test_empty_flush_is_a_no_op(tmp_path: Path) -> None:
+    """No buffered artifacts and no completed WIPs → flush returns []
+    without raising and without invoking the ranker.
+    """
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
+        proj = WorkshopProjection(ep)
+        # _FixedRanker with empty score map; if rank() were called on
+        # nothing, the per-flush assertion ``len(scores)==len(cands)``
+        # would still hold but we'd rather not invoke it at all.
+        ranker = _FixedRanker({})
+        harvester = Harvester(
+            tmp_path / "harvest",
+            trader=ranker,
+            workshop=proj,
+            percentile=70,
+            episodic=ep,
+            now_fn=lambda: 10.0,
+        )
+        assert harvester.flush() == []
+
+
+def test_all_wip_flush_does_not_starve_on_artifact_cutoff(tmp_path: Path) -> None:
+    """A flush with zero buffered artifacts but one completed WIP must
+    not have the empty-artifact-population poison the WIP decision —
+    the WIP path uses an absolute floor independent of the artifact
+    cutoff.
+    """
+    target = CONFIGURED_WIPS[0]
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
+        _drive_wip_to_complete(ep, target, ts_base=1.0, solo=False)
+        proj = WorkshopProjection(ep)
+        ranker = _FixedRanker({target: 0.80})
+        harvester = Harvester(
+            tmp_path / "harvest",
+            trader=ranker,
+            workshop=proj,
+            percentile=70,
+            episodic=ep,
+            now_fn=lambda: 10.0,
+        )
+        written = harvester.flush()
+    assert len(written) == 1
+
+
+def test_buffer_preserved_when_write_candidate_raises(tmp_path: Path) -> None:
+    """PR #33 review (Gemini): if ``_write_candidate`` raises for an
+    artifact, the buffer must NOT be cleared — the next flush must
+    re-rank the unprocessed artifacts. v0.2 silently dropped them.
+    """
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
+        proj = WorkshopProjection(ep)
+        ranker = _FixedRanker({"artifact-text-long": 0.95})
+        harvester = Harvester(
+            tmp_path / "harvest",
+            trader=ranker,
+            workshop=proj,
+            percentile=70,
+            episodic=ep,
+            now_fn=lambda: 10.0,
+        )
+        harvester.consider(
+            ArtifactCandidate(
+                actor="Aki",
+                action="craft",
+                artifact="artifact-text-long",
+                ts=1.0,
+            )
+        )
+        original = harvester._write_candidate
+
+        def _boom(_cand: object) -> Path:
+            raise OSError("simulated disk failure")
+
+        harvester._write_candidate = _boom  # type: ignore[method-assign]
+        with contextlib.suppress(OSError):
+            harvester.flush()
+        # Buffer preserved: a second flush against a restored writer
+        # would still see the artifact. Easiest check: peek the
+        # internal buffer directly.
+        assert len(harvester._buffer) == 1
+        harvester._write_candidate = original  # type: ignore[method-assign]
 
 
 def test_mixed_flush_applies_two_cutoffs(tmp_path: Path) -> None:
