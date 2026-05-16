@@ -344,6 +344,172 @@ def test_harvester_works_without_workshop_reference(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# v0.3 (ADR 0004 Decision 1) — Harvester emits recycle/attempt events
+# ---------------------------------------------------------------------------
+
+
+def _count_events(ep: EpisodicMemory, *, action: str, target: str | None = None) -> int:
+    """Count episodic events matching ``action`` (and optionally
+    ``target``). Helper for the v0.3 recycle/attempt assertions.
+    """
+    n = 0
+    for e in ep.since(0.0):
+        if e.action != action:
+            continue
+        if target is not None and e.target != target:
+            continue
+        n += 1
+    return n
+
+
+def test_harvester_emits_recycle_event_on_accept(tmp_path: Path) -> None:
+    """Slice 1.3: when a WIPCandidate is accepted by the percentile
+    cutoff and written successfully, the Harvester appends one
+    ``workshop.recycle{reason=accepted}`` event to episodic and the
+    projection resets the WIP to ``forming``.
+
+    The recycle path is the load-bearing fix for v0.2's pathology #2 —
+    a completed WIP that has been harvested must free its slot.
+    """
+    db = tmp_path / "ep.sqlite"
+    target = CONFIGURED_WIPS[0]
+    with EpisodicMemory(db) as ep:
+        _drive_wip_to_complete(ep, target, ts_base=1.0)
+        proj = WorkshopProjection(ep)
+        ranker = _PredictableRanker({target: 0.95})
+        harvester = Harvester(
+            tmp_path / "harvest",
+            trader=ranker,
+            workshop=proj,
+            percentile=70,
+            episodic=ep,
+        )
+        written = harvester.flush()
+        assert len(written) == 1
+        assert _count_events(ep, action="workshop.recycle", target=target) == 1
+        # Projection state is reset; the slot is free again.
+        wip = proj.get(target)
+        assert wip is not None
+        assert wip.phase == "forming"
+        assert wip.fragments == []
+        assert proj.open_slots() == len(CONFIGURED_WIPS)
+
+
+def test_harvester_emits_harvest_attempt_event_on_reject(tmp_path: Path) -> None:
+    """A WIPCandidate rejected by the percentile cutoff appends one
+    ``workshop.harvest_attempt`` event so the projection's
+    ``harvest_attempts`` counter advances. The WIP stays in ``complete``
+    until MAX_HARVEST_ATTEMPTS is reached or HARVEST_PENDING_TIMEOUT_S
+    elapses.
+    """
+    db = tmp_path / "ep.sqlite"
+    target = CONFIGURED_WIPS[0]
+    decoy = CONFIGURED_WIPS[1]
+    with EpisodicMemory(db) as ep:
+        _drive_wip_to_complete(ep, target, ts_base=1.0)
+        _drive_wip_to_complete(ep, decoy, ts_base=100.0)
+        proj = WorkshopProjection(ep)
+        # Target scores low so the p70 cutoff rejects it; decoy scores
+        # high so it gets accepted (and triggers the rank/cutoff path).
+        ranker = _PredictableRanker({target: 0.10, decoy: 0.95})
+        harvester = Harvester(
+            tmp_path / "harvest",
+            trader=ranker,
+            workshop=proj,
+            percentile=70,
+            episodic=ep,
+        )
+        harvester.flush()
+        assert _count_events(ep, action="workshop.harvest_attempt", target=target) == 1
+        # Target stays in complete (not yet at MAX attempts).
+        wip = proj.get(target)
+        assert wip is not None
+        assert wip.phase == "complete"
+        assert wip.harvest_attempts == 1
+
+
+def test_harvester_recycles_after_max_attempts(tmp_path: Path) -> None:
+    """Slice 1.4: a WIP rejected MAX_HARVEST_ATTEMPTS times in a row
+    is force-recycled. The next flush sees an empty ``forming`` WIP,
+    not a perpetual rejected backlog.
+    """
+    from microverse.config import MAX_HARVEST_ATTEMPTS
+
+    db = tmp_path / "ep.sqlite"
+    target = CONFIGURED_WIPS[0]
+    decoy = CONFIGURED_WIPS[1]
+    with EpisodicMemory(db) as ep:
+        _drive_wip_to_complete(ep, target, ts_base=1.0)
+        _drive_wip_to_complete(ep, decoy, ts_base=100.0)
+        proj = WorkshopProjection(ep)
+        ranker = _PredictableRanker({target: 0.10, decoy: 0.95})
+        harvester = Harvester(
+            tmp_path / "harvest",
+            trader=ranker,
+            workshop=proj,
+            percentile=70,
+            episodic=ep,
+        )
+        # Each flush rejects target once; on the MAX_HARVEST_ATTEMPTS
+        # rejection, the recycle event fires.
+        for _ in range(MAX_HARVEST_ATTEMPTS):
+            # Re-complete the decoy each round (it was recycled when
+            # accepted) so target has something to compare against.
+            harvester.flush()
+            if proj.get(decoy) and proj.get(decoy).phase == "forming":  # type: ignore[union-attr]
+                _drive_wip_to_complete(ep, decoy, ts_base=200.0)
+                # Re-build the projection from the freshly-extended
+                # event log so the decoy is complete again.
+                proj._rebuild_from_episodic(ep)  # noqa: SLF001
+        # After MAX attempts, target is force-recycled.
+        assert _count_events(ep, action="workshop.recycle", target=target) >= 1
+        wip = proj.get(target)
+        assert wip is not None
+        assert wip.phase == "forming"
+        assert wip.fragments == []
+
+
+def test_harvester_recycles_on_timeout(tmp_path: Path) -> None:
+    """Slice 1.5: a WIP that has been in ``complete`` longer than
+    HARVEST_PENDING_TIMEOUT_S is force-recycled regardless of
+    attempts. The harvester accepts a ``now`` injection for testing
+    without sleeping.
+    """
+    from microverse.config import HARVEST_PENDING_TIMEOUT_S
+
+    db = tmp_path / "ep.sqlite"
+    target = CONFIGURED_WIPS[0]
+    with EpisodicMemory(db) as ep:
+        _drive_wip_to_complete(ep, target, ts_base=1.0)
+        proj = WorkshopProjection(ep)
+        wip = proj.get(target)
+        assert wip is not None
+        assert wip.completed_ts > 0.0
+        completed_at = wip.completed_ts
+
+        ranker = _PredictableRanker({})  # never called: timeout drains before rank
+        # Inject a "now" that is past the timeout window.
+        future_now = completed_at + HARVEST_PENDING_TIMEOUT_S + 1.0
+        harvester = Harvester(
+            tmp_path / "harvest",
+            trader=ranker,
+            workshop=proj,
+            percentile=70,
+            episodic=ep,
+            now_fn=lambda: future_now,
+        )
+        harvester.flush()
+        assert _count_events(ep, action="workshop.recycle", target=target) == 1
+        wip2 = proj.get(target)
+        assert wip2 is not None
+        assert wip2.phase == "forming"
+        # Timed-out WIPs are NOT written to harvest (they were never
+        # ranked / accepted).
+        manifest = (tmp_path / "harvest" / "manifest.jsonl").read_text(encoding="utf-8")
+        assert "workshop" not in manifest or "accepted" not in manifest or '"accepted":true' not in manifest
+
+
 def test_no_harvest_actor_event_leaks_into_build_context(tmp_path: Path) -> None:
     """Inject synthetic harvest verdict events into episodic; build
     context for every agent; assert none of the verdict text surfaces
