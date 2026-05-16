@@ -96,3 +96,15 @@ WORKSHOP_STALE_TIMEOUT_S: float = 3600.0  # 1 hour
 # lookback is the same order of magnitude as a single completed
 # WIP's fragment count.
 TRADER_WIP_NOVELTY_LOOKBACK: int = 8
+
+# v0.3 (ADR 0004 Decision 1): WIP recycle lifecycle bounds. After a
+# WIP has been rejected MAX_HARVEST_ATTEMPTS times in a row, the
+# Harvester force-recycles it (drops the fragments, resets to
+# forming). Independently, any WIP held in ``complete`` longer than
+# HARVEST_PENDING_TIMEOUT_S is force-recycled regardless of attempts.
+# Both bounds together guarantee the capacity invariant: the system
+# maintains at least ``len(CONFIGURED_WIPS)`` open slots in steady
+# state, eliminating the v0.2 ``complete-WIP black hole`` where 83%
+# of contributes silently fell into locked WIPs.
+MAX_HARVEST_ATTEMPTS: int = 3
+HARVEST_PENDING_TIMEOUT_S: float = 1800.0  # 30 min

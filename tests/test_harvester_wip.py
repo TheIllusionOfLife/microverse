@@ -371,6 +371,9 @@ def test_harvester_emits_recycle_event_on_accept(tmp_path: Path) -> None:
 
     The recycle path is the load-bearing fix for v0.2's pathology #2 —
     a completed WIP that has been harvested must free its slot.
+
+    ``now_fn`` is pinned to a time just after completion so the
+    independent timeout path does not preempt this accept path.
     """
     db = tmp_path / "ep.sqlite"
     target = CONFIGURED_WIPS[0]
@@ -384,6 +387,7 @@ def test_harvester_emits_recycle_event_on_accept(tmp_path: Path) -> None:
             workshop=proj,
             percentile=70,
             episodic=ep,
+            now_fn=lambda: 10.0,
         )
         written = harvester.flush()
         assert len(written) == 1
@@ -419,6 +423,7 @@ def test_harvester_emits_harvest_attempt_event_on_reject(tmp_path: Path) -> None
             workshop=proj,
             percentile=70,
             episodic=ep,
+            now_fn=lambda: 200.0,
         )
         harvester.flush()
         assert _count_events(ep, action="workshop.harvest_attempt", target=target) == 1
@@ -444,24 +449,31 @@ def test_harvester_recycles_after_max_attempts(tmp_path: Path) -> None:
         _drive_wip_to_complete(ep, decoy, ts_base=100.0)
         proj = WorkshopProjection(ep)
         ranker = _PredictableRanker({target: 0.10, decoy: 0.95})
+        # ``now_fn`` is pinned well within HARVEST_PENDING_TIMEOUT_S of
+        # the target's completed_ts so the attempts path (not the
+        # timeout path) drives the recycle.
         harvester = Harvester(
             tmp_path / "harvest",
             trader=ranker,
             workshop=proj,
             percentile=70,
             episodic=ep,
+            now_fn=lambda: 200.0,
         )
         # Each flush rejects target once; on the MAX_HARVEST_ATTEMPTS
         # rejection, the recycle event fires.
+        next_ts_base = 300.0
         for _ in range(MAX_HARVEST_ATTEMPTS):
+            harvester.flush()
             # Re-complete the decoy each round (it was recycled when
             # accepted) so target has something to compare against.
-            harvester.flush()
-            if proj.get(decoy) and proj.get(decoy).phase == "forming":  # type: ignore[union-attr]
-                _drive_wip_to_complete(ep, decoy, ts_base=200.0)
+            decoy_wip = proj.get(decoy)
+            if decoy_wip is not None and decoy_wip.phase == "forming":
+                _drive_wip_to_complete(ep, decoy, ts_base=next_ts_base)
+                next_ts_base += 100.0
                 # Re-build the projection from the freshly-extended
                 # event log so the decoy is complete again.
-                proj._rebuild_from_episodic(ep)  # noqa: SLF001
+                proj._rebuild_from_episodic(ep)
         # After MAX attempts, target is force-recycled.
         assert _count_events(ep, action="workshop.recycle", target=target) >= 1
         wip = proj.get(target)
@@ -505,9 +517,12 @@ def test_harvester_recycles_on_timeout(tmp_path: Path) -> None:
         assert wip2 is not None
         assert wip2.phase == "forming"
         # Timed-out WIPs are NOT written to harvest (they were never
-        # ranked / accepted).
-        manifest = (tmp_path / "harvest" / "manifest.jsonl").read_text(encoding="utf-8")
-        assert "workshop" not in manifest or "accepted" not in manifest or '"accepted":true' not in manifest
+        # ranked / accepted). The manifest may not exist at all if no
+        # other candidates went through this flush.
+        manifest_path = tmp_path / "harvest" / "manifest.jsonl"
+        if manifest_path.exists():
+            manifest = manifest_path.read_text(encoding="utf-8")
+            assert '"accepted":true' not in manifest
 
 
 def test_no_harvest_actor_event_leaks_into_build_context(tmp_path: Path) -> None:

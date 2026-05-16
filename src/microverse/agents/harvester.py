@@ -37,6 +37,8 @@ import hashlib
 import json
 import os
 import re
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -44,10 +46,15 @@ from typing import TYPE_CHECKING, Protocol
 
 import yaml
 
-from microverse.config import HARVEST_CRAFT_CAP_PER_FLUSH
+from microverse.config import (
+    HARVEST_CRAFT_CAP_PER_FLUSH,
+    HARVEST_PENDING_TIMEOUT_S,
+    MAX_HARVEST_ATTEMPTS,
+)
 
 if TYPE_CHECKING:
     from microverse.agents.trader import Score
+    from microverse.memory.episodic import EpisodicMemory
     from microverse.world.workshop import WorkshopProjection
 
 MIN_ARTIFACT_CHARS = 20
@@ -159,6 +166,8 @@ class Harvester:
         trader: _RankerProtocol | None = None,
         percentile: int = DEFAULT_PERCENTILE,
         workshop: WorkshopProjection | None = None,
+        episodic: EpisodicMemory | None = None,
+        now_fn: Callable[[], float] | None = None,
     ) -> None:
         self._root = Path(harvest_root)
         self._root.mkdir(parents=True, exist_ok=True)
@@ -168,10 +177,20 @@ class Harvester:
         self._buffer: list[ArtifactCandidate] = []
         # v0.2 (ADR 0003): workshop projection reference. flush()
         # scans for newly-completed WIPs and adds them to the
-        # candidates list. _harvested_wips dedupes — a WIP that
-        # was harvested in flush N is not re-harvested at flush N+1.
+        # candidates list. _harvested_wips dedupes within a single
+        # flush — entries are discarded on workshop.recycle so a
+        # future completion of the same WIP can be harvested.
         self._workshop = workshop
         self._harvested_wips: set[str] = set()
+        # v0.3 (ADR 0004 Decision 1): episodic reference lets the
+        # Harvester emit ``workshop.recycle`` and
+        # ``workshop.harvest_attempt`` events as the WIP terminal
+        # lifecycle progresses. When None the Harvester degrades to
+        # v0.2 behavior (no events emitted, ``_harvested_wips`` is the
+        # only dedupe). ``now_fn`` lets tests inject a clock so the
+        # timeout path can be exercised without sleeping.
+        self._episodic = episodic
+        self._now_fn: Callable[[], float] = now_fn or time.time
 
     def consider(self, candidate: ArtifactCandidate) -> Path | None:
         # Phase 2 path: trader present → buffer the candidate, write at flush().
@@ -221,6 +240,12 @@ class Harvester:
             self._buffer.clear()
             return []
 
+        # v0.3 (ADR 0004 Decision 1): time out any WIPs that have been
+        # in ``complete`` longer than ``HARVEST_PENDING_TIMEOUT_S``
+        # BEFORE the snapshot, so timed-out WIPs never reach the
+        # ranker. Force-recycle them and drop their fragments.
+        self._timeout_pending_wips()
+
         wip_candidates = self._snapshot_pending_wips()
         if not self._buffer and not wip_candidates:
             return []
@@ -259,17 +284,34 @@ class Harvester:
             # population. Accept nothing rather than spam the inbox.
             above_cutoff = cutoff is not None and score.score >= cutoff
             under_cap = cap is None or per_verb_count.get(verb, 0) < cap
-            if not (above_cutoff and under_cap):
-                continue
-            path = self._write_candidate(cand)
-            accepted_set.add(idx)
-            accepted_paths[idx] = path
-            per_verb_count[verb] = per_verb_count.get(verb, 0) + 1
-            # Mark the WIP harvested only after a successful write.
-            # If write_candidate raised above, the WIP stays eligible
-            # for the next flush.
-            if isinstance(cand, WIPCandidate):
-                self._harvested_wips.add(cand.name)
+            accepted = above_cutoff and under_cap
+            if accepted:
+                path = self._write_candidate(cand)
+                accepted_set.add(idx)
+                accepted_paths[idx] = path
+                per_verb_count[verb] = per_verb_count.get(verb, 0) + 1
+                # Mark the WIP harvested only after a successful write.
+                # If _write_candidate raised above, the WIP stays
+                # eligible for the next flush.
+                if isinstance(cand, WIPCandidate):
+                    self._harvested_wips.add(cand.name)
+                    self._emit_recycle(cand.name, reason="accepted", dropped_fragments=0)
+            elif isinstance(cand, WIPCandidate):
+                # v0.3 (ADR 0004 Decision 1): emit one harvest_attempt
+                # event per WIPCandidate rejection so the projection's
+                # ``harvest_attempts`` counter advances. After
+                # MAX_HARVEST_ATTEMPTS the WIP is force-recycled —
+                # rejected fragments are dropped (the operator does
+                # not want a perpetual rejected backlog).
+                self._emit_harvest_attempt(cand.name)
+                if self._workshop is not None:
+                    wip = self._workshop.get(cand.name)
+                    if wip is not None and wip.harvest_attempts >= MAX_HARVEST_ATTEMPTS:
+                        self._emit_recycle(
+                            cand.name,
+                            reason="attempts_exceeded",
+                            dropped_fragments=len(wip.fragments),
+                        )
 
         written: list[Path] = []
         for idx, cand in enumerate(candidates):
@@ -281,6 +323,99 @@ class Harvester:
             else:
                 self._append_manifest(cand, accepted=False, path=None, score=score.score)
         return written
+
+    def _timeout_pending_wips(self) -> None:
+        """v0.3 (ADR 0004 Decision 1): force-recycle any WIP held in
+        ``complete`` longer than ``HARVEST_PENDING_TIMEOUT_S``.
+
+        Skips entirely when there is no workshop projection or no
+        episodic reference — both are required to (a) observe the
+        ``completed_ts`` and (b) emit the recycle event the projection
+        replays from. Timed-out WIPs are NEVER added to the candidates
+        list for the current flush; their fragments are dropped.
+        """
+        if self._workshop is None or self._episodic is None:
+            return
+        now = self._now_fn()
+        for wip in self._workshop.wips():
+            if wip.phase != "complete":
+                continue
+            if wip.completed_ts <= 0.0:
+                continue
+            if (now - wip.completed_ts) <= HARVEST_PENDING_TIMEOUT_S:
+                continue
+            self._emit_recycle(
+                wip.name,
+                reason="timeout",
+                dropped_fragments=len(wip.fragments),
+            )
+
+    def _emit_recycle(
+        self,
+        wip_name: str,
+        *,
+        reason: str,
+        dropped_fragments: int,
+    ) -> None:
+        """Append one ``workshop.recycle`` event to episodic and apply
+        it to the live projection so the rest of this flush sees the
+        reset state. Discards the ``_harvested_wips`` entry so a
+        future re-completion of the same WIP is eligible for harvest.
+        """
+        if self._episodic is None:
+            return
+        from microverse.memory.episodic import Event
+
+        ts = self._now_fn()
+        payload = {"reason": reason, "dropped_fragments": dropped_fragments}
+        event_id = self._episodic.append(
+            actor="harvester",
+            action="workshop.recycle",
+            target=wip_name,
+            payload=payload,
+            ts=ts,
+        )
+        self._harvested_wips.discard(wip_name)
+        if self._workshop is not None:
+            self._workshop.on_event(
+                Event(
+                    id=event_id,
+                    ts=ts,
+                    actor="harvester",
+                    action="workshop.recycle",
+                    target=wip_name,
+                    payload=payload,
+                )
+            )
+
+    def _emit_harvest_attempt(self, wip_name: str) -> None:
+        """Append one ``workshop.harvest_attempt`` event and apply it
+        to the projection so the counter advances immediately. Used by
+        the rejection path inside ``flush()``.
+        """
+        if self._episodic is None:
+            return
+        from microverse.memory.episodic import Event
+
+        ts = self._now_fn()
+        event_id = self._episodic.append(
+            actor="harvester",
+            action="workshop.harvest_attempt",
+            target=wip_name,
+            payload={},
+            ts=ts,
+        )
+        if self._workshop is not None:
+            self._workshop.on_event(
+                Event(
+                    id=event_id,
+                    ts=ts,
+                    actor="harvester",
+                    action="workshop.harvest_attempt",
+                    target=wip_name,
+                    payload={},
+                )
+            )
 
     def _snapshot_pending_wips(self) -> list[WIPCandidate]:
         """Snapshot newly-completed WIPs from the workshop projection

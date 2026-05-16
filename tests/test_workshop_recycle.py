@@ -201,7 +201,8 @@ def test_kill_safety_after_recycle(tmp_path: Path) -> None:
 
     wip_a = proj_a.get(name)
     wip_b = proj_b.get(name)
-    assert wip_a is not None and wip_b is not None
+    assert wip_a is not None
+    assert wip_b is not None
     assert wip_a.phase == wip_b.phase
     assert [(f.contributor, f.text) for f in wip_a.fragments] == [
         (f.contributor, f.text) for f in wip_b.fragments

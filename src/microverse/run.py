@@ -378,7 +378,13 @@ def run(
 
     trader = Trader(name="Bo", soul_tokens=30)
     workshop = WorkshopProjection(episodic)
-    harvester = Harvester(harvest_dir, trader=trader, percentile=70, workshop=workshop)
+    harvester = Harvester(
+        harvest_dir,
+        trader=trader,
+        percentile=70,
+        workshop=workshop,
+        episodic=episodic,
+    )
 
     sched = WeightedScheduler(rng=rng)
     for agent in _build_roster(metrics, solo=solo):
