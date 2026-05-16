@@ -7,7 +7,14 @@ caps. Importable from anywhere — keep this module dependency-free.
 from __future__ import annotations
 
 # Single-model invariant. Every LLM call goes here. No router, no fallback.
-MODEL: str = "gemma4:e4b"
+# v0.3 (ADR 0004 Decision 5): swapped from "gemma4:e4b" (9.6 GB) to
+# "gemma4:26b" (17 GB) — same model family (prompt format, tokenizer,
+# thinking-channel behavior preserved); only parameter count changes.
+# Phase 0 qualification smoke (60 ticks, seed 38) passed all four
+# gates: 60/60 valid Action JSON, p95 latency 5.91s, Trader rank()
+# returned distinct scores across [0.20..0.90], no immediate
+# action-share divergence from the e4b baseline.
+MODEL: str = "gemma4:26b"
 
 # Hard caps for a single LLM call.
 LLM_TIMEOUT_S: float = 90.0

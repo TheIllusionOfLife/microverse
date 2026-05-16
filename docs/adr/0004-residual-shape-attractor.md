@@ -282,11 +282,31 @@ Codex Q5:
 - Trader v2 model for artifacts (still LLM-rated).
 - Multi-model routing within a soak.
 
-## Reference data (filled at promotion to Accepted)
+## Reference data
 
-- Phase 0 qualification smoke result (`smoke-phase-0-26b.log` or
-  fallback notice).
-- Per-phase smoke results (`smoke-phase-1.log` through
-  `smoke-phase-4.log`).
-- Soak A and Soak B data dirs and gate evaluations from the
-  extended `scripts/spike_workshop_measure.py`.
+Phase 0 qualification smoke (gemma4:26b, 60 ticks, seed 38, run
+2026-05-16): PASSED. json_ok=60, no repairs / fallbacks / meta or
+thinking leaks; per-tick latency p50 4.81s / p95 5.91s / max 27.89s;
+Trader rank() returned 12 distinct score values across
+[0.20..0.90]; workshop_view_self_redactions=183; action-share
+fingerprint sanity-checked against the e4b baseline. Full report:
+`smoke-phase-0-26b.log`.
+
+Per-phase 30-min smokes (200 ticks each, gemma4:e4b, seed 38):
+
+- Phase 1 (recycle lifecycle): 12 workshop.recycle, 1
+  workshop.harvest_attempt; capacity invariant maintained.
+- Phase 2+3 (MIN_FRAGMENT_CHARS + complete-WIP hard fold): Aki
+  contribute share dropped from v0.2's 86.7 % to 47 %; median
+  fragment length 199 chars (v0.2: ~91); no contribute_too_short or
+  contribute_to_complete_wip folds needed under e4b baseline
+  (persona disclosure structurally sufficient).
+- Phase 4 (split cutoffs + contributor subfloor): 13
+  wip_contributor_subfloor events under e4b; cross-agent dialogue
+  gate enforced as designed.
+
+Phase 5 model swap landed 2026-05-16 (commit on the
+feat/v0.3-shape-attractor branch). `MODEL = "gemma4:26b"`.
+
+Soak A and Soak B data dirs + gate evaluations from
+`scripts/spike_workshop_measure.py` fill at acceptance.

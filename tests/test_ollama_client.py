@@ -50,7 +50,12 @@ def test_chat_forwards_think_false_by_default():
 
     kwargs = instance.chat.call_args.kwargs
     assert kwargs["think"] is False
-    assert kwargs["model"] == "gemma4:e4b"
+    # v0.3 (ADR 0004 Decision 5): single-model invariant preserved; the
+    # identity moved from gemma4:e4b to gemma4:26b. Import the constant
+    # so this test does not drift again on the next swap.
+    from microverse.config import MODEL
+
+    assert kwargs["model"] == MODEL
 
 
 def test_chat_forwards_think_true_when_requested():
