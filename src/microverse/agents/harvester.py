@@ -50,11 +50,14 @@ from microverse.config import (
     HARVEST_CRAFT_CAP_PER_FLUSH,
     HARVEST_PENDING_TIMEOUT_S,
     MAX_HARVEST_ATTEMPTS,
+    WIP_ACCEPTANCE_FLOOR,
+    WIP_CONTRIBUTOR_FLOOR,
 )
 
 if TYPE_CHECKING:
     from microverse.agents.trader import Score
     from microverse.memory.episodic import EpisodicMemory
+    from microverse.ops.metrics import Metrics
     from microverse.world.workshop import WorkshopProjection
 
 MIN_ARTIFACT_CHARS = 20
@@ -168,6 +171,7 @@ class Harvester:
         workshop: WorkshopProjection | None = None,
         episodic: EpisodicMemory | None = None,
         now_fn: Callable[[], float] | None = None,
+        metrics: Metrics | None = None,
     ) -> None:
         self._root = Path(harvest_root)
         self._root.mkdir(parents=True, exist_ok=True)
@@ -191,6 +195,11 @@ class Harvester:
         # timeout path can be exercised without sleeping.
         self._episodic = episodic
         self._now_fn: Callable[[], float] = now_fn or time.time
+        # v0.3 (ADR 0004 Decision 4): optional metrics reference so the
+        # subfloor rejection path can bump ``wip_contributor_subfloor``.
+        # Distinct from per-agent metrics — this is a Harvester-side
+        # counter.
+        self._metrics = metrics
 
     def consider(self, candidate: ArtifactCandidate) -> Path | None:
         # Phase 2 path: trader present → buffer the candidate, write at flush().
@@ -265,7 +274,15 @@ class Harvester:
         # Only clear after a successful rank — partial failures don't
         # silently drop the batch.
         self._buffer.clear()
-        cutoff = self._percentile_cutoff([s.score for s in scores])
+        # v0.3 (ADR 0004 Decision 4): two cutoffs by candidate kind.
+        # Artifacts keep the p70 percentile (v0.2 behavior). WIPs use
+        # the absolute WIP_ACCEPTANCE_FLOOR plus the contributor
+        # subfloor — the latter is the structurally load-bearing
+        # guard against single-contributor padded WIPs.
+        artifact_scores = [
+            s.score for i, s in enumerate(scores) if isinstance(candidates[i], ArtifactCandidate)
+        ]
+        artifact_cutoff = self._percentile_cutoff(artifact_scores)
 
         # Decide acceptance in score-desc order so per-verb caps pick
         # the TOP items (not the first-buffered). Then write the
@@ -280,9 +297,19 @@ class Harvester:
             score = scores[idx]
             verb = self._verb_of(cand)
             cap = _PER_VERB_FLUSH_CAP.get(verb)
-            # cutoff is None ⇒ no signal across a multi-item all-tied
-            # population. Accept nothing rather than spam the inbox.
-            above_cutoff = cutoff is not None and score.score >= cutoff
+            if isinstance(cand, WIPCandidate):
+                # WIPs: absolute floor + contributor subfloor.
+                if len(cand.contributors) < WIP_CONTRIBUTOR_FLOOR:
+                    if self._metrics is not None:
+                        self._metrics.bump("wip_contributor_subfloor")
+                    above_cutoff = False
+                else:
+                    above_cutoff = score.score >= WIP_ACCEPTANCE_FLOOR
+            else:
+                # Artifacts: existing p70 percentile.
+                # cutoff is None ⇒ no signal across a multi-item all-tied
+                # population. Accept nothing rather than spam the inbox.
+                above_cutoff = artifact_cutoff is not None and score.score >= artifact_cutoff
             under_cap = cap is None or per_verb_count.get(verb, 0) < cap
             accepted = above_cutoff and under_cap
             if accepted:

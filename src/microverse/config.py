@@ -117,3 +117,13 @@ HARVEST_PENDING_TIMEOUT_S: float = 1800.0  # 30 min
 # reference) is the load-bearing guard against this floor becoming
 # a new padding attractor.
 MIN_FRAGMENT_CHARS: int = 120
+
+# v0.3 (ADR 0004 Decision 4): WIP acceptance policy is structurally
+# distinct from the artifact-side p70 percentile. WIPs use an
+# absolute floor (defence-in-depth against single-contributor padded
+# WIPs that slip past the subfloor) AND a contributor subfloor —
+# the actual goal is cross-agent dialogue, not "long fragments." A
+# solo WIP clearing the absolute floor is structurally not the
+# artifact we want; the subfloor is the load-bearing guard.
+WIP_ACCEPTANCE_FLOOR: float = 0.55
+WIP_CONTRIBUTOR_FLOOR: int = 2

@@ -384,6 +384,7 @@ def run(
         percentile=70,
         workshop=workshop,
         episodic=episodic,
+        metrics=metrics,
     )
 
     sched = WeightedScheduler(rng=rng)

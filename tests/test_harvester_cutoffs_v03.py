@@ -146,9 +146,7 @@ def test_artifacts_keep_percentile_cutoff(tmp_path: Path) -> None:
     with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
         # No WIPs in this test — only artifacts.
         proj = WorkshopProjection(ep)
-        ranker = _FixedRanker(
-            {"artifact-low": 0.30, "artifact-mid": 0.55, "artifact-high": 0.90}
-        )
+        ranker = _FixedRanker({"artifact-low": 0.30, "artifact-mid": 0.55, "artifact-high": 0.90})
         harvester = Harvester(
             tmp_path / "harvest",
             trader=ranker,
@@ -158,9 +156,7 @@ def test_artifacts_keep_percentile_cutoff(tmp_path: Path) -> None:
             now_fn=lambda: 10.0,
         )
         for k in ("artifact-low", "artifact-mid", "artifact-high"):
-            harvester.consider(
-                ArtifactCandidate(actor="Aki", action="craft", artifact=k, ts=1.0)
-            )
+            harvester.consider(ArtifactCandidate(actor="Aki", action="craft", artifact=k, ts=1.0))
         written = harvester.flush()
     # p70 over [0.30, 0.55, 0.90] → cutoff is the 0.55 element →
     # accepts items >= 0.55. The 0.55 and 0.90 items both pass.
