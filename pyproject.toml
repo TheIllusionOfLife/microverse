@@ -52,6 +52,8 @@ ignore = []
 # CLI entrypoints need print() for human output.
 "src/microverse/ops/metrics.py" = ["T20"]
 "src/microverse/run.py" = ["T20"]
+# Operator inspection scripts emit structured JSON / status to stdout.
+"scripts/**/*.py" = ["T20"]
 
 [tool.mypy]
 python_version = "3.12"
