@@ -11,6 +11,19 @@ build/
 data/
 harvest/
 
+# Soak / smoke operator artifacts. Logs and pid files for soaks
+# live alongside the repo for operator inspection but are not
+# durable history.
+microverse.log
+microverse.pid
+run_soaks.log
+run_soaks.pid
+run_soaks.sh
+soak-*.log
+soak-*.pid
+soak-status/
+smoke-*.log
+
 # OS noise
 .DS_Store
 
