@@ -100,17 +100,27 @@ class WIPView:
 class WIP:
     """One workshop work-in-progress.
 
-    Mutable on the hot path (``on_contribute_event`` appends to
-    ``fragments`` and may flip ``phase``) but never observed mutating
-    by callers — ``WorkshopProjection.wips()`` returns the live list,
-    and the per-tick ``build_context`` snapshots it into immutable
-    ``WIPView`` objects.
+    Mutable on the hot path (``on_event`` appends to ``fragments`` and
+    may flip ``phase``) but never observed mutating by callers —
+    ``WorkshopProjection.wips()`` returns the live list, and the
+    per-tick ``build_context`` snapshots it into immutable ``WIPView``
+    objects.
+
+    v0.3 (ADR 0004): ``completed_ts`` records when the WIP transitioned
+    to ``complete`` (the timestamp of the contribute that caused the
+    transition) so the harvester can enforce
+    ``HARVEST_PENDING_TIMEOUT_S``. ``harvest_attempts`` counts the
+    number of rejected flush attempts since the last recycle, so the
+    harvester can enforce ``MAX_HARVEST_ATTEMPTS``. Both fields are
+    reset by ``workshop.recycle``.
     """
 
     name: str
     fragments: list[Fragment] = field(default_factory=list)
     phase: WIPPhase = "forming"
     last_activity_ts: float = 0.0
+    completed_ts: float = 0.0
+    harvest_attempts: int = 0
 
     def contributors(self) -> tuple[str, ...]:
         """Distinct contributors in first-appearance order."""
@@ -134,9 +144,13 @@ class WorkshopProjection:
         """Cold rebuild from the event log. Idempotent.
 
         Iterates events oldest-first (``since(0.0)`` is ordered
-        newest-first, so we reverse) and applies each contribute
-        event. Non-contribute events and contribute events targeting
-        an unknown WIP are dropped.
+        newest-first, so we reverse) and applies each event in turn.
+        Non-contribute / non-lifecycle events are dropped at ``_apply``.
+
+        v0.3 (ADR 0004 Decision 1): every lifecycle transition is an
+        explicit episodic event (``workshop.recycle``,
+        ``workshop.harvest_attempt``), so replay from any point yields
+        an identical projection — restart determinism is preserved.
         """
         # Reset to empty state in case the caller is rebuilding an
         # existing projection (e.g. after kill-safety drill verifies
@@ -145,21 +159,37 @@ class WorkshopProjection:
             wip.fragments.clear()
             wip.phase = "forming"
             wip.last_activity_ts = 0.0
+            wip.completed_ts = 0.0
+            wip.harvest_attempts = 0
 
         events = list(reversed(episodic.since(0.0)))
         for e in events:
             self._apply(e)
 
-    def on_contribute_event(self, event: Event) -> None:
+    def on_event(self, event: Event) -> None:
         """Hot-path: incorporate one freshly-committed event into the
-        projection. Called by ``run.py`` immediately after the event
+        projection. Accepts both ``contribute`` and the v0.3 lifecycle
+        events (``workshop.recycle``, ``workshop.harvest_attempt``).
+        Called by ``run.py``/``harvester`` immediately after the event
         is appended to episodic.
         """
         self._apply(event)
 
+    # Back-compat alias for v0.2 callers; new code should prefer ``on_event``.
+    def on_contribute_event(self, event: Event) -> None:
+        self._apply(event)
+
     def _apply(self, event: Event) -> None:
-        if event.action != "contribute":
-            return
+        action = event.action
+        if action == "contribute":
+            self._apply_contribute(event)
+        elif action == "workshop.recycle":
+            self._apply_recycle(event)
+        elif action == "workshop.harvest_attempt":
+            self._apply_harvest_attempt(event)
+        # Other actions are not the projection's concern.
+
+    def _apply_contribute(self, event: Event) -> None:
         wip_name = event.target
         if wip_name is None or wip_name not in self._wips:
             return
@@ -168,12 +198,32 @@ class WorkshopProjection:
             return
         wip = self._wips[wip_name]
         if wip.phase == "complete":
-            # Audit-only — the event remains in episodic for review,
-            # but the projection is closed.
+            # Contributes against a complete WIP are dropped at the
+            # validator in Fix 3 under live load; replay tolerates them
+            # for back-compat with v0.2 logs.
             return
         wip.fragments.append(Fragment(contributor=event.actor, text=text, ts=event.ts))
         wip.last_activity_ts = event.ts
+        prev_phase = wip.phase
         self._recompute_phase(wip)
+        if prev_phase != "complete" and wip.phase == "complete":
+            wip.completed_ts = event.ts
+
+    def _apply_recycle(self, event: Event) -> None:
+        wip = self._wips.get(event.target or "")
+        if wip is None:
+            return
+        wip.fragments.clear()
+        wip.phase = "forming"
+        wip.last_activity_ts = 0.0
+        wip.completed_ts = 0.0
+        wip.harvest_attempts = 0
+
+    def _apply_harvest_attempt(self, event: Event) -> None:
+        wip = self._wips.get(event.target or "")
+        if wip is None:
+            return
+        wip.harvest_attempts += 1
 
     def _recompute_phase(self, wip: WIP) -> None:
         n = len(wip.fragments)
@@ -194,6 +244,25 @@ class WorkshopProjection:
 
     def get(self, name: str) -> WIP | None:
         return self._wips.get(name)
+
+    def is_complete(self, name: str) -> bool:
+        """True iff the named WIP exists and is in ``complete`` phase.
+
+        v0.3 (ADR 0004 Decision 3): used by ``_validate_contribute`` to
+        hard-fold contributes that target a complete WIP. Unknown names
+        return False so a typo in ``contribute_to`` does not crash the
+        validator (the strict-target check happens elsewhere).
+        """
+        wip = self._wips.get(name)
+        return wip is not None and wip.phase == "complete"
+
+    def open_slots(self) -> int:
+        """Count of WIPs in ``forming|developing`` — the capacity
+        invariant target. v0.3 (ADR 0004 Decision 1) requires this
+        stays >= len(CONFIGURED_WIPS) in steady state, which the
+        recycle path guarantees by resetting accepted/timed-out WIPs.
+        """
+        return sum(1 for w in self._wips.values() if w.phase != "complete")
 
     def stale_to_complete(self, *, now_ts: float, timeout_s: float) -> list[str]:
         """Names of WIPs that have non-zero activity, are not already
