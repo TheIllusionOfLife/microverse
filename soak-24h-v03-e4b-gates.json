@@ -1,0 +1,57 @@
+{
+  "completed_wip_cycles": 425,
+  "data_dir": "data/soak-24h-v03-e4b",
+  "gate_1_fragment_shape": {
+    "median_repeat_4gram": 0.0,
+    "median_words": 33.0,
+    "pass": false,
+    "peer_reference_rate": 0.014,
+    "subgate_a_word_count": true,
+    "subgate_b_repeat_4gram": true,
+    "subgate_c_peer_reference": false,
+    "total_fragments": 3400
+  },
+  "gate_2_wip_throughput": {
+    "accepted_wips": 89,
+    "hours": 24.0,
+    "pass": false,
+    "rate_per_hour": 3.709
+  },
+  "gate_3_verb_concentration": {
+    "pass": false,
+    "worst_actor": "Cy",
+    "worst_share": 0.867,
+    "worst_window_start_hour": 5
+  },
+  "gate_4_pipeline_efficiency": {
+    "contribute_to_complete_wip": 449,
+    "fold_count": 449,
+    "fold_share": 0.132,
+    "pass": false,
+    "pass_threshold": "computed against contribute count in summary",
+    "total_contributes": 3402
+  },
+  "gate_5_path3_invariant": {
+    "pass": true,
+    "workshop_view_self_redactions": 121451
+  },
+  "gate_6_acceptance_throughput": {
+    "accept_rate_among_eligible": 1.0,
+    "accepted": 89,
+    "pass": true,
+    "rejected_other": 0,
+    "rejected_subfloor": 1006,
+    "rejected_total": 1006
+  },
+  "gate_7_capacity_invariant": {
+    "min_open_slots_observed": 0,
+    "pass": false,
+    "violations_over_5min_samples": 285
+  },
+  "harvest_dir": "harvest/soak-24h-v03-e4b",
+  "peer_names": [
+    "Aki",
+    "Cy"
+  ],
+  "total_contributes": 3402
+}

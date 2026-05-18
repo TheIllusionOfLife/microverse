@@ -21,7 +21,7 @@ run_soaks*.pid
 run_soaks*.sh
 soak-*.log
 soak-*.pid
-soak-status/
+soak-status*/
 smoke-*.log
 
 # OS noise
