@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     from microverse.memory.episodic import EpisodicMemory
     from microverse.ops.metrics import Metrics
     from microverse.world.scheduler import Scheduler
+    from microverse.world.workshop import WorkshopProjection
 
 _logger = logging.getLogger(__name__)
 
@@ -57,6 +58,7 @@ class Watchdog:
         metrics: Metrics,
         episodic: EpisodicMemory,
         scheduler: Scheduler,
+        workshop: WorkshopProjection | None = None,
         runaway_max_consecutive: int = 4,
         stagnation_window: int = 50,
         stagnation_floor: int = 1,
@@ -67,6 +69,12 @@ class Watchdog:
         self._metrics = metrics
         self._episodic = episodic
         self._scheduler = scheduler
+        # v0.3 PR #33 review (Codex): mid-run Strangers must inherit
+        # the same workshop projection the startup roster holds, so
+        # ``parse_action`` hard-folds contributes to complete WIPs
+        # for every agent regardless of spawn time. ``None`` is kept
+        # for back-compat with v0.2 callsites and pre-v0.3 tests.
+        self._workshop = workshop
         self._runaway_max = runaway_max_consecutive
         self._stagnation_window = stagnation_window
         self._stagnation_floor = stagnation_floor
@@ -155,6 +163,11 @@ class Watchdog:
         from microverse.agents.stranger import Stranger
 
         stranger = Stranger(metrics=self._metrics)
+        # v0.3 PR #33 review (Codex): attach the projection BEFORE
+        # ``register`` so the Stranger's very first tick already
+        # hard-folds contributes targeting complete WIPs.
+        if self._workshop is not None:
+            stranger.attach_workshop(self._workshop)
         try:
             self._scheduler.register(stranger)
         except ValueError:

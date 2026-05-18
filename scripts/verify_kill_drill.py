@@ -40,7 +40,7 @@ from pathlib import Path
 
 def verify(db: Path, watermark: int | None = None) -> int:
     if not db.exists():
-        print(f"db not found: {db}", file=sys.stderr)  # noqa: T201
+        print(f"db not found: {db}", file=sys.stderr)
         return 1
     conn = sqlite3.connect(str(db))
     try:
@@ -49,7 +49,7 @@ def verify(db: Path, watermark: int | None = None) -> int:
         conn.close()
 
     if not ids:
-        print("kill_drill_FAIL: zero events in db", file=sys.stderr)  # noqa: T201
+        print("kill_drill_FAIL: zero events in db", file=sys.stderr)
         return 1
     # Contiguity: any gap means a committed event was lost from the
     # *middle* of the sequence. (Tail loss is invisible here; that's
@@ -57,13 +57,13 @@ def verify(db: Path, watermark: int | None = None) -> int:
     expected = list(range(ids[0], ids[-1] + 1))
     if ids != expected:
         missing = sorted(set(expected) - set(ids))[:10]
-        print(  # noqa: T201
+        print(
             f"kill_drill_FAIL: gap in id sequence; missing first 10: {missing}",
             file=sys.stderr,
         )
         return 1
     if len(set(ids)) != len(ids):
-        print("kill_drill_FAIL: duplicate ids", file=sys.stderr)  # noqa: T201
+        print("kill_drill_FAIL: duplicate ids", file=sys.stderr)
         return 1
     # Tail-loss check: only meaningful when the operator captured a
     # pre-kill high-watermark MAX(id). We restrict the check to ids
@@ -72,7 +72,7 @@ def verify(db: Path, watermark: int | None = None) -> int:
     # at the watermark itself to have been discarded.
     if watermark is not None:
         if watermark < 1:
-            print(  # noqa: T201
+            print(
                 f"kill_drill_FAIL: invalid watermark {watermark} (must be >= 1; "
                 "the drill requires at least one committed pre-kill event)",
                 file=sys.stderr,
@@ -97,7 +97,7 @@ def verify(db: Path, watermark: int | None = None) -> int:
             tail_note = f", all 1..{watermark} survived (pre-kill watermark {watermark})"
         else:
             missing = sorted(set(expected_full) - set(pre))[:10]
-            print(  # noqa: T201
+            print(
                 f"kill_drill_FAIL: tail loss — pre-watermark ids missing "
                 f"(first 10): {missing} (pre-kill watermark={watermark})",
                 file=sys.stderr,
@@ -105,9 +105,7 @@ def verify(db: Path, watermark: int | None = None) -> int:
             return 1
     else:
         tail_note = ", tail-loss check SKIPPED (no --watermark)"
-    print(  # noqa: T201
-        f"kill_drill_ok ({len(ids)} events, ids {ids[0]}..{ids[-1]}, contiguous{tail_note})"
-    )
+    print(f"kill_drill_ok ({len(ids)} events, ids {ids[0]}..{ids[-1]}, contiguous{tail_note})")
     return 0
 
 

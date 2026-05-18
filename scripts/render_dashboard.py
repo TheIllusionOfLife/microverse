@@ -196,7 +196,7 @@ def render(data_dir: Path, harvest_dir: Path, out_path: Path) -> int:
     parts.append("</body></html>")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text("\n".join(parts), encoding="utf-8")
-    print(f"wrote {out_path}")  # noqa: T201
+    print(f"wrote {out_path}")
     return 0
 
 

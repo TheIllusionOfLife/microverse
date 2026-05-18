@@ -52,6 +52,13 @@ ignore = []
 # CLI entrypoints need print() for human output.
 "src/microverse/ops/metrics.py" = ["T20"]
 "src/microverse/run.py" = ["T20"]
+# Operator inspection scripts emit structured JSON / status to stdout.
+# Listed per-file (not via glob) so new scripts must opt in explicitly,
+# keeping the print-policy intent from CLAUDE.md visible at the lint
+# layer (PR #33 review, CodeRabbit).
+"scripts/render_dashboard.py" = ["T20"]
+"scripts/spike_workshop_measure.py" = ["T20"]
+"scripts/verify_kill_drill.py" = ["T20"]
 
 [tool.mypy]
 python_version = "3.12"

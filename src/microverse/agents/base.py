@@ -25,11 +25,12 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from microverse._text import safe_json_loads
-from microverse.config import MAX_PARSE_BYTES
+from microverse.config import MAX_PARSE_BYTES, MIN_FRAGMENT_CHARS
 from microverse.world.workshop import WIPView
 
 if TYPE_CHECKING:
     from microverse.ops.metrics import Metrics
+    from microverse.world.workshop import WorkshopProjection
 
 
 # Words an in-world inhabitant should never utter. ``\b`` boundaries
@@ -86,30 +87,58 @@ def _rest_action() -> Action:
     return Action(thought="", action=ActionKind.REST, target=None, artifact=None)
 
 
-def _validate_contribute(action: Action, *, metrics: Metrics, agent: str) -> tuple[Action, bool]:
-    """ADR 0003: when ``action`` is contribute, the WIP name must be
-    a configured one AND the artifact (fragment text) must be
-    non-empty. When the action is NOT contribute, ``contribute_to``
-    must be None — a stray name on the wrong verb is malformed.
+def _validate_contribute(
+    action: Action,
+    *,
+    metrics: Metrics,
+    agent: str,
+    workshop: WorkshopProjection | None = None,
+) -> tuple[Action, bool]:
+    """ADR 0003 + 0004: validate a CONTRIBUTE action against the
+    workshop schema and the v0.3 structural fixes.
+
+    Folds (returns ``(_rest_action(), True)``) when any of:
+    - ``contribute_to`` is not a configured WIP, OR artifact is empty
+      after strip (existing v0.2 behaviour;
+      ``contribute_invalid_target``).
+    - ``workshop`` is provided AND the target WIP is in ``complete``
+      phase (ADR 0004 Decision 3; ``contribute_to_complete_wip``).
+    - artifact length after strip is below ``MIN_FRAGMENT_CHARS``
+      (ADR 0004 Decision 2; ``contribute_too_short``).
+
+    Order matters: the complete-WIP check fires before the length
+    check so a short fragment aimed at a locked WIP is attributed to
+    the structural pathology (gate 6), not the length pathology.
+
+    Also folds non-contribute actions that carry a stray
+    ``contribute_to`` (workshop affordance reachable only through
+    CONTRIBUTE).
 
     Returns ``(action, folded)``. ``folded`` is True iff the original
-    action was rejected and replaced with a safe rest. The caller
-    uses the bool to decide whether to credit ``json_ok`` /
-    ``json_repaired`` — a folded action should not credit either,
-    while a legitimate ``{"action":"rest","thought":""}`` should.
-
-    On fold, bumps ``contribute_invalid_target`` (distinct from
-    ``json_fallback_rest`` so operators can tell workshop routing
-    failures apart from JSON parse failures).
+    action was rejected and replaced with a safe rest. The caller uses
+    the bool to decide whether to credit ``json_ok`` / ``json_repaired``
+    — a folded action should not credit either, while a legitimate
+    ``{"action":"rest","thought":""}`` should.
     """
     # Lazy import so agents/base.py stays cycle-free.
     from microverse.world.workshop import CONFIGURED_WIPS
 
     if action.action == ActionKind.CONTRIBUTE:
-        if action.contribute_to not in CONFIGURED_WIPS or not (
-            action.artifact and action.artifact.strip()
-        ):
+        artifact = (action.artifact or "").strip()
+        if action.contribute_to not in CONFIGURED_WIPS or not artifact:
             metrics.bump("contribute_invalid_target", agent=agent)
+            return _rest_action(), True
+        # ADR 0004 gate 6 (`contribute_to_complete_wip < 1 %`) is the
+        # primary v0.2 pathology we are closing — the 83 % black hole
+        # where contributes fell into locked WIPs. When a fragment is
+        # both targeting a complete WIP AND too short, attribute the
+        # fold to the structural pathology, not the length pathology,
+        # so gate 6 stays observable.
+        if workshop is not None and workshop.is_complete(action.contribute_to or ""):
+            metrics.bump("contribute_to_complete_wip", agent=agent)
+            return _rest_action(), True
+        if len(artifact) < MIN_FRAGMENT_CHARS:
+            metrics.bump("contribute_too_short", agent=agent)
             return _rest_action(), True
         return action, False
 
@@ -121,7 +150,13 @@ def _validate_contribute(action: Action, *, metrics: Metrics, agent: str) -> tup
     return action, False
 
 
-def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
+def parse_action(
+    raw: str,
+    *,
+    metrics: Metrics,
+    agent: str,
+    workshop: WorkshopProjection | None = None,
+) -> Action:
     """Parse an LLM response into an Action. Never raises.
 
     On strict success: bump ``json_ok``, reset ``consecutive_fail`` for ``agent``.
@@ -132,6 +167,11 @@ def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
     Inputs above ``MAX_PARSE_BYTES`` (UTF-8 bytes) are short-circuited
     straight to the fallback so the tick loop cannot stall on a
     pathological response.
+
+    v0.3 (ADR 0004 Decision 3): when ``workshop`` is provided,
+    contribute actions targeting a complete WIP are hard-folded to rest
+    with ``contribute_to_complete_wip``. ``workshop=None`` preserves
+    v0.2 back-compat.
     """
     if len(raw.encode("utf-8", errors="replace")) > MAX_PARSE_BYTES:
         metrics.bump("json_fallback_rest")
@@ -152,7 +192,9 @@ def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
                 # immersion breaks.
                 metrics.bump("meta_leak_block", agent=agent)
                 return _rest_action()
-            action, folded = _validate_contribute(action, metrics=metrics, agent=agent)
+            action, folded = _validate_contribute(
+                action, metrics=metrics, agent=agent, workshop=workshop
+            )
             if folded:
                 # _validate_contribute folded — don't credit json_ok
                 # and don't reset consecutive_fail on a fold.
@@ -178,7 +220,9 @@ def parse_action(raw: str, *, metrics: Metrics, agent: str) -> Action:
             ):
                 metrics.bump("meta_leak_block", agent=agent)
                 return _rest_action()
-            validated, folded = _validate_contribute(repaired_action, metrics=metrics, agent=agent)
+            validated, folded = _validate_contribute(
+                repaired_action, metrics=metrics, agent=agent, workshop=workshop
+            )
             if folded:
                 # Workshop-route fold — don't credit json_repaired.
                 return validated
@@ -271,6 +315,15 @@ class Agent(abc.ABC):
     def __init__(self, name: str, *, soul_tokens: int = 100) -> None:
         self.name = name
         self.soul_tokens = soul_tokens
+        # v0.3 (ADR 0004 Decision 3): the runtime sets this after the
+        # WorkshopProjection is constructed so the agent's parse_action
+        # can hard-fold contributes targeting a complete WIP. Defaults
+        # to None for tests that construct an agent without a workshop.
+        self._workshop: WorkshopProjection | None = None
+
+    def attach_workshop(self, workshop: WorkshopProjection) -> None:
+        """Bind a WorkshopProjection for the v0.3 validator hard-fold."""
+        self._workshop = workshop
 
     def tempo(self) -> float:
         """Seconds to sleep after this agent's tick. Override per role."""

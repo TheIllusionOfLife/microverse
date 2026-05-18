@@ -2,9 +2,21 @@
 
 ## Status
 
-Proposed. Targets v0.2. Promotion to Accepted is gated on a Phase 0
-measurement spike (see `scripts/spike_workshop_arms.sh`) and a final
-24h acceptance soak per the v0.2 plan.
+Accepted. Ships with v0.2 (PR #32, merged 2026-05-13).
+
+Promotion record: the 24h acceptance soak (`data/soak-24h-pr-v02`,
+21,429 events, seed 38) confirmed every architectural contract in
+this ADR. The structural-leak sweep returned zero substring matches
+of any receiver's own fragment texts in their `workshop_view`
+(Decision 1). The episodic event log remained the sole authoritative
+write (Decision 2); the kill-safety drill passed unchanged. Trader
+verdicts never re-entered any `WorldContext` (Decision 3).
+
+The soak also surfaced three residual pathologies that the contracts
+in this ADR do *not* address — they belong to the validator, the
+projection's terminal lifecycle, and the Harvester's percentile
+policy, not to the workshop substrate itself. v0.3 (ADR 0004)
+addresses those. The substrate decisions here are stable.
 
 ## Context
 
@@ -145,10 +157,22 @@ Path-3 pattern asserts no Trader verdict text appears in any later
 - Model swap to `gemma4:26b` — defer until v0.2 measurement is in
   hand so the comparison is apples-to-apples.
 
-## Reference data (filled at promotion to Accepted)
+## Reference data
 
-- Phase 0 spike halt-criterion results (`scripts/spike_workshop_measure.py`).
-- Phase 4 structural leak sweep (24h, seed 38).
-- Phase 6 Trader-feedback-invisibility sweep.
-- Final v0.2 acceptance soak (24h, seed 38) per the v0.2 plan halt
-  criteria.
+- Phase 0 spike halt-criterion measurement: the spike's static
+  prompt-injection mechanism was empirically falsified as a proxy
+  for the v0.2 affordance (`soak-spike-measurement.log`). The
+  acceptance soak below is the load-bearing evidence.
+- v0.2 acceptance soak: `data/soak-24h-pr-v02`, 21,429 events, seed
+  38, ~24h wall time. Craft share collapsed from 94 % → <1 %; the
+  contribute verb absorbed it. One accepted WIP (workshop.loom,
+  8 fragments, two contributors) is the existence proof for
+  multi-tick cross-agent dialogue. Three residual pathologies (Aki
+  contribute 86.7 %, complete-WIP black hole, Trader cutoff
+  conflation) motivate ADR 0004.
+- Structural leak sweep on the v0.2 soak: zero substring matches of
+  receiver fragment texts in their `workshop_view` (Decision 1
+  preserved).
+- Trader-feedback-invisibility sweep on the v0.2 soak: zero Trader
+  verdict text in any later `build_context()` (Decision 3
+  preserved).

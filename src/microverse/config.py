@@ -7,7 +7,14 @@ caps. Importable from anywhere — keep this module dependency-free.
 from __future__ import annotations
 
 # Single-model invariant. Every LLM call goes here. No router, no fallback.
-MODEL: str = "gemma4:e4b"
+# v0.3 (ADR 0004 Decision 5): swapped from "gemma4:e4b" (9.6 GB) to
+# "gemma4:26b" (17 GB) — same model family (prompt format, tokenizer,
+# thinking-channel behavior preserved); only parameter count changes.
+# Phase 0 qualification smoke (60 ticks, seed 38) passed all four
+# gates: 60/60 valid Action JSON, p95 latency 5.91s, Trader rank()
+# returned distinct scores across [0.20..0.90], no immediate
+# action-share divergence from the e4b baseline.
+MODEL: str = "gemma4:26b"
 
 # Hard caps for a single LLM call.
 LLM_TIMEOUT_S: float = 90.0
@@ -96,3 +103,34 @@ WORKSHOP_STALE_TIMEOUT_S: float = 3600.0  # 1 hour
 # lookback is the same order of magnitude as a single completed
 # WIP's fragment count.
 TRADER_WIP_NOVELTY_LOOKBACK: int = 8
+
+# v0.3 (ADR 0004 Decision 1): WIP recycle lifecycle bounds. After a
+# WIP has been rejected MAX_HARVEST_ATTEMPTS times in a row, the
+# Harvester force-recycles it (drops the fragments, resets to
+# forming). Independently, any WIP held in ``complete`` longer than
+# HARVEST_PENDING_TIMEOUT_S is force-recycled regardless of attempts.
+# Both bounds together guarantee the capacity invariant: the system
+# maintains at least ``len(CONFIGURED_WIPS)`` open slots in steady
+# state, eliminating the v0.2 ``complete-WIP black hole`` where 83%
+# of contributes silently fell into locked WIPs.
+MAX_HARVEST_ATTEMPTS: int = 3
+HARVEST_PENDING_TIMEOUT_S: float = 1800.0  # 30 min
+
+# v0.3 (ADR 0004 Decision 2): hard floor on contribute fragment
+# length. The 120-character / ~25-word floor is the structural
+# enforcement point against v0.2's pathology where ~91-char single-
+# sentence object descriptions rode through the contribute verb.
+# The composite acceptance gate (length AND repeat-4gram AND peer-
+# reference) is the load-bearing guard against this floor becoming
+# a new padding attractor.
+MIN_FRAGMENT_CHARS: int = 120
+
+# v0.3 (ADR 0004 Decision 4): WIP acceptance policy is structurally
+# distinct from the artifact-side p70 percentile. WIPs use an
+# absolute floor (defence-in-depth against single-contributor padded
+# WIPs that slip past the subfloor) AND a contributor subfloor —
+# the actual goal is cross-agent dialogue, not "long fragments." A
+# solo WIP clearing the absolute floor is structurally not the
+# artifact we want; the subfloor is the load-bearing guard.
+WIP_ACCEPTANCE_FLOOR: float = 0.55
+WIP_CONTRIBUTOR_FLOOR: int = 2
