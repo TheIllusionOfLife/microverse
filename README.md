@@ -1,20 +1,41 @@
 # Microverse Battery
 
-Microverse Battery is a long-running local multi-agent simulation inspired by
-*Rick and Morty*'s Microverse Battery. A small fictional society generates
-artifacts such as essays, code, data, and designs; a Trader ranks those
-artifacts; and a Harvester writes the best ones to `harvest/` for review.
+> **Gemma 4 Hackathon submission.** Live dashboard:
+> https://theillusionoflife.github.io/microverse/ ·
+> Writeup: see `WRITEUP.md` ·
+> Video: linked from the writeup once recorded.
 
-The project is designed to run on a local Apple Silicon machine with zero
-marginal model cost by using Ollama and a single model: `gemma4:e4b`.
+Microverse Battery is a long-running local multi-agent simulation inspired by
+*Rick and Morty*'s Microverse Battery. A small fictional society of AI agents
+generates artifacts (essays, code, sketches, observations); a Trader ranks
+those artifacts; a Harvester writes the best ones to `harvest/inbox/` for
+review. A Watchdog can spawn immigrant Strangers when the conversation gets
+stale. The whole thing runs on one Apple Silicon laptop with zero cloud calls
+and zero API bills.
+
+## Why this matters
+
+Most multi-agent demos depend on a hosted API: each tick has a per-token cost,
+each "thought" leaves your machine, and the system stops working the moment the
+network does. For privacy-sensitive use (regulated industries, classrooms,
+journalism, individual creatives) and edge contexts (clinics with spotty
+internet, field research, offline-first apps), that's a non-starter.
+
+Microverse Battery shows what changes when the model invariant is *local*:
+every tick is a local Ollama call against a single Gemma 4 model
+(`gemma4:26b`). The episodic log is a local SQLite WAL — auditable
+artifact-by-artifact. The dashboard is a static HTML file, no JS framework.
+The bottleneck is your laptop, not your budget. A 24-hour soak produced
+14,113 events, 702 accepted artifacts, and full provenance for every
+contribution. The documented limits are documented honestly — see `docs/adr/`.
 
 ## Status
 
-`v0.1.0` implements the core simulation loop, persistence, artifact harvesting,
-dashboard rendering, kill-safety checks, snapshots, watchdog checks, lore
-compression components, and tests. Long soak validation is still operator-run:
-the repo contains the commands and verification tools, but a 24-hour run should
-be done on a dedicated machine window.
+`v0.3` ships the core simulation loop, the shared-workshop artifact substrate
+(ADR 0003), the residual-shape-attractor structural fixes (ADR 0004), and the
+v0.4 harness-shape roadmap (ADR 0005). Two 24-hour soaks on `gemma4:e4b` and
+`gemma4:26b` are documented under `data/soak-24h-v03-e4b/` and
+`data/soak-24h-v03-26b/`.
 
 ## What it does
 
@@ -32,18 +53,18 @@ be done on a dedicated machine window.
 
 ## Requirements
 
-- macOS on Apple Silicon
-- Python 3.12 managed through `uv`
-- Ollama running locally
-- `gemma4:e4b` pulled in Ollama
+- macOS on Apple Silicon (M-series). Linux should work; not exercised.
+- Python 3.12 managed through `uv`.
+- Ollama running locally.
+- `gemma4:26b` (17 GB) pulled in Ollama. The smaller `gemma4:e4b` (9.6 GB)
+  also works and is documented in ADR 0002 / ADR 0004; the v0.3 production
+  default is `gemma4:26b` per `src/microverse/config.py`.
 
 ```bash
-ollama pull gemma4:e4b
-ollama serve
+ollama pull gemma4:26b      # production default for v0.3
+ollama pull gemma4:e4b      # optional, used by the v0.3.1 acceptance smoke
+ollama serve                 # skip if Ollama is already running as a service
 ```
-
-If Ollama is already running as a service, you do not need to run
-`ollama serve` again.
 
 ## Quickstart
 
