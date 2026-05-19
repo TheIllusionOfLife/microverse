@@ -30,7 +30,7 @@ Lore the locals seem to live by:
 {% if world.workshop_view -%}
 The village workshop currently holds:
 {% for wip in world.workshop_view -%}
-  - {{ wip.name }} (phase: {{ wip.phase }}){% if wip.phase == "complete" %} [complete — awaiting harvest, do not contribute]{% endif %}{% if wip.contributors %}; contributors so far: {{ wip.contributors }}{% endif %}{% if wip.excerpt %}
+  - {{ wip.name }} (phase: {{ wip.phase }}){% if wip.contributors %}; contributors so far: {{ wip.contributors }}{% endif %}{% if wip.excerpt %}
     recent fragments:
 {{ wip.excerpt | indent(6, true) }}{% endif %}
 {% endfor -%}

@@ -36,6 +36,7 @@ import random
 import signal
 import sys
 import time
+from collections import Counter
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -439,6 +440,16 @@ def run(
     # their first inbox.
     last_tick_ts: dict[str, float] = {}
 
+    # ADR 0005 §"Empirical risks" / Decision 1 guard: track the
+    # distribution of contribute_to targets across the run so the
+    # operator can detect the rerouting failure mode (all contributes
+    # collapse onto the lowest-fragment open WIP after complete WIPs
+    # are hidden). Published as ``wip_target_concentration`` integer
+    # gauge (x100) every ``HARVEST_FLUSH_EVERY`` ticks; acceptance
+    # threshold is < 70 (i.e. no single WIP holds >70% of recent
+    # contribute targets).
+    wip_target_counts: Counter[str] = Counter()
+
     def _safe(label: str, fn: Callable[[], object]) -> None:
         try:
             fn()
@@ -524,6 +535,8 @@ def run(
             metrics.reset("consecutive_fail", agent=agent.name)
             deadlock_breaks_since_success = 0
             _commit_action(episodic, agent, action, workshop=workshop)
+            if action.action == ActionKind.CONTRIBUTE and action.contribute_to:
+                wip_target_counts[action.contribute_to] += 1
             _maybe_harvest(harvester, agent, action)
             # Path-3: advance the agent's watermark so the NEXT call
             # to ``_build_per_tick_world_base`` for this agent drains
@@ -543,6 +556,16 @@ def run(
                 except Exception:
                     _logger.exception("harvester.flush failed")
                     metrics.bump("harvest_flush_fail")
+                # ADR 0005 D1 rerouting guard: publish the current
+                # ``wip_target_concentration`` and reset the window.
+                # Sampling at the flush boundary aligns the window
+                # with the harvester's recycle cadence so each
+                # measurement covers one flush-window of contributes.
+                total = sum(wip_target_counts.values())
+                if total > 0:
+                    peak = max(wip_target_counts.values())
+                    metrics.set_value("wip_target_concentration", int(peak * 100 / total))
+                wip_target_counts.clear()
             try:
                 maybe_snapshot(
                     executed,

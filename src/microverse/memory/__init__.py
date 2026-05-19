@@ -210,10 +210,23 @@ def _build_workshop_view(
 
     Every redaction bumps ``workshop_view_self_redactions`` per-agent
     so operators can verify the redaction is firing under live load.
+
+    ADR 0005 Decision 1 (v0.3.1): WIPs in ``complete`` phase are
+    filtered out of the per-receiver view entirely. The persona prompt
+    only ever sees ``forming`` or ``developing`` WIPs. The projection
+    itself is unchanged — the Harvester still sees complete WIPs at
+    flush time, and the validator still hard-folds any contribute that
+    targets a complete WIP by name (defence-in-depth). Each hidden
+    WIP bumps ``workshop_view_hidden_complete`` per-agent so operators
+    can watch the filter fire under live load.
     """
     receiver_key = agent_name.casefold()
     views: list[WIPView] = []
     for wip in workshop.wips():
+        if wip.phase == "complete":
+            if metrics is not None:
+                metrics.bump("workshop_view_hidden_complete", agent=agent_name)
+            continue
         # Contributors: drop the receiver's own name; preserve order.
         peer_contribs: list[str] = []
         for c in wip.contributors():
