@@ -119,14 +119,18 @@ floor, recycle lifecycle, acceptance subfloor) plus a model swap to
 `gemma4:26b` raised accepted-WIPs-per-hour from 3.7 to 29.3 — an 8x
 throughput improvement on the same hardware.
 
-**ADR 0005 — The next bottleneck is harness shape, and we know the
-shape of the fix.** The same soaks that closed throughput exposed a
-structural ceiling on social engagement: a single-action tick can't
-guarantee peer reference because there's no prior turn to read. v0.4
-replaces the workshop affordance with a 3-turn scene where turn N reads
-turns 1..N-1. Engagement becomes the path of least resistance instead of
-the path the prompt has to beg for. Acceptance gates are written before
-the code lands.
+**ADR 0005 — The next bottleneck is harness shape, and we shipped
+the first piece tonight.** The same soaks that closed throughput
+exposed a structural ceiling on social engagement: a single-action
+tick can't guarantee peer reference because there's no prior turn to
+read. **Decision 1** of the ADR — hide complete workshop entries
+from the persona prompt so the affordance can't pull contributes into
+already-finished WIPs — landed as **v0.3.1** during this hackathon,
+with a new `wip_target_concentration` gauge guarding against the
+rerouting failure mode the ADR itself called out. The deeper v0.4
+piece (replace the single-tick affordance with a 3-turn scene where
+turn N reads turns 1..N-1) has its acceptance gates written before
+the code, and ships next.
 
 Each ADR closed one bottleneck and exposed the next. The published
 limits aren't defects — they're the load-bearing evidence that the next
