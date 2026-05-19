@@ -158,6 +158,77 @@ def test_build_workshop_view_name_filter_is_case_insensitive_whole_word(tmp_path
 
 
 # ---------------------------------------------------------------------------
+# Slice D1 — ADR 0005 Decision 1: hide complete WIPs from the persona view
+# ---------------------------------------------------------------------------
+
+
+def _drive_to_complete(ep: EpisodicMemory, wip: str, *, base_ts: float = 1.0) -> None:
+    """Append COMPLETE_FRAGMENT_FLOOR (8) fragments to drive ``wip`` to
+    ``complete`` phase. Uses two contributors so the projection sees
+    a multi-author WIP (matches the harness-shape contract)."""
+    contributors = ("Bo", "Ce")
+    for i in range(8):
+        _seed(
+            ep,
+            actor=contributors[i % 2],
+            wip=wip,
+            fragment=f"d1-drive-fragment-{i}-distinctive",
+            ts=base_ts + i * 0.1,
+        )
+
+
+def test_build_workshop_view_hides_complete_wips(tmp_path: Path) -> None:
+    """ADR 0005 Decision 1: a WIP in ``complete`` phase is not surfaced
+    in the per-receiver view at all. The persona prompt never sees a
+    name that is awaiting harvest. The other configured WIPs still
+    appear.
+    """
+    target = CONFIGURED_WIPS[0]
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
+        proj = WorkshopProjection(ep)
+        _drive_to_complete(ep, target)
+        # Re-project so the contribute events apply.
+        proj = WorkshopProjection(ep)
+        complete_wip = proj.get(target)
+        assert complete_wip is not None
+        assert complete_wip.phase == "complete"
+        metrics = Metrics(":memory:")
+        views = _build_workshop_view(proj, agent_name="Aki", metrics=metrics)
+    names = {v.name for v in views}
+    assert target not in names, f"complete WIP {target!r} should be hidden, got {names}"
+    # Other configured WIPs are still present.
+    for other in CONFIGURED_WIPS[1:]:
+        assert other in names
+    # Per-agent metric bumped once per hidden WIP per call.
+    assert metrics.get("workshop_view_hidden_complete", agent="Aki") >= 1
+
+
+def test_build_workshop_view_shows_wip_after_recycle(tmp_path: Path) -> None:
+    """A WIP that is driven to ``complete`` is hidden; once it is
+    recycled (``workshop.recycle`` event), the name returns to the
+    view — the persona regains the affordance for the next round.
+    """
+    target = CONFIGURED_WIPS[0]
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
+        _drive_to_complete(ep, target)
+        # Recycle event flips it back to forming.
+        ep.append(
+            actor="harvester",
+            action="workshop.recycle",
+            target=target,
+            payload={"reason": "test"},
+            ts=2.0,
+        )
+        proj = WorkshopProjection(ep)
+        recycled = proj.get(target)
+        assert recycled is not None
+        assert recycled.phase == "forming"
+        views = _build_workshop_view(proj, agent_name="Aki", metrics=None)
+    names = {v.name for v in views}
+    assert target in names, f"recycled WIP {target!r} should reappear, got {names}"
+
+
+# ---------------------------------------------------------------------------
 # Slice 4.2 — structural leak sweep parallel to PR #24
 # ---------------------------------------------------------------------------
 
@@ -190,17 +261,30 @@ def _world_state_dump(world: WorldContext) -> str:
     return "\n".join(parts)
 
 
+_LEAK_SWEEP_ITERATIONS = 6
+"""Per-WIP fragment count after a sweep iteration must stay strictly
+below ``COMPLETE_FRAGMENT_FLOOR=8`` so the WIPs remain visible after
+ADR 0005 Decision 1 (which hides complete WIPs from the persona view).
+With 3 configured WIPs and 2 contributors per iteration, range(6)
+gives each WIP 4 fragments — ``developing`` phase, still visible."""
+
+
 def test_structural_leak_sweep_no_self_fragments(tmp_path: Path) -> None:
-    """Seed 50 contribute events for Aki across the configured WIPs;
-    assert zero substring matches of any of Aki's fragment texts
+    """Seed Aki contributes across configured WIPs and assert that
+    none of Aki's fragment texts surface in the per-receiver view
     when build_context is assembled for Aki.
+
+    Iteration count is bounded below the COMPLETE_FRAGMENT_FLOOR
+    threshold so the WIPs stay in ``developing`` phase and remain
+    visible under ADR 0005 Decision 1; a separate test covers the
+    hide-when-complete behavior.
     """
     base = time.time() - 60.0
     with (
         EpisodicMemory(tmp_path / "ep.sqlite") as ep,
         SemanticMemory(tmp_path / "se.sqlite") as se,
     ):
-        for i in range(50):
+        for i in range(_LEAK_SWEEP_ITERATIONS):
             wip = CONFIGURED_WIPS[i % len(CONFIGURED_WIPS)]
             _seed(
                 ep,
@@ -219,7 +303,7 @@ def test_structural_leak_sweep_no_self_fragments(tmp_path: Path) -> None:
             workshop=proj,
         )
     dump = _world_state_dump(out)
-    for i in range(50):
+    for i in range(_LEAK_SWEEP_ITERATIONS):
         marker = f"signature-frag-zeta-{i}-aki-unique-marker"
         assert marker not in dump, (
             f"self workshop fragment {marker!r} leaked into context, dump head:\n{dump[:600]!r}"
@@ -231,16 +315,19 @@ def test_structural_leak_sweep_no_self_fragments(tmp_path: Path) -> None:
 
 
 def test_structural_leak_sweep_peer_fragments_pass_through(tmp_path: Path) -> None:
-    """Slice 4.3: don't over-redact. When Bo contributes 50 times,
-    Aki sees Bo's fragments verbatim (community knowledge) but not
-    Aki's own (50 separately-seeded self fragments stay redacted).
+    """Slice 4.3: don't over-redact. When Bo contributes interleaved
+    with Aki, Aki sees Bo's fragments verbatim (community knowledge)
+    but not Aki's own (self fragments stay redacted).
+
+    Iteration count is bounded below ``COMPLETE_FRAGMENT_FLOOR`` for
+    the same reason as the no-self-fragments sweep above.
     """
     base = time.time() - 60.0
     with (
         EpisodicMemory(tmp_path / "ep.sqlite") as ep,
         SemanticMemory(tmp_path / "se.sqlite") as se,
     ):
-        for i in range(50):
+        for i in range(_LEAK_SWEEP_ITERATIONS):
             wip = CONFIGURED_WIPS[i % len(CONFIGURED_WIPS)]
             _seed(ep, actor="Aki", wip=wip, fragment=f"aki-self-{i}", ts=base + i * 0.1)
             _seed(ep, actor="Bo", wip=wip, fragment=f"bo-peer-{i}", ts=base + i * 0.1 + 0.01)
@@ -255,10 +342,10 @@ def test_structural_leak_sweep_peer_fragments_pass_through(tmp_path: Path) -> No
         )
     dump = _world_state_dump(out)
     # No self fragment leaks.
-    for i in range(50):
+    for i in range(_LEAK_SWEEP_ITERATIONS):
         assert f"aki-self-{i}" not in dump
     # At least some peer fragments are visible (don't over-redact).
-    bo_visible = sum(1 for i in range(50) if f"bo-peer-{i}" in dump)
+    bo_visible = sum(1 for i in range(_LEAK_SWEEP_ITERATIONS) if f"bo-peer-{i}" in dump)
     assert bo_visible > 0, "peer fragments should pass through community-knowledge"
 
 
