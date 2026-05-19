@@ -3,18 +3,19 @@
 ## Subtitle
 
 *A multi-agent simulation that ran 24 hours on a single Apple Silicon laptop,
-entirely offline, on Gemma 4 via Ollama. 702 audited artifacts. Zero API
-calls. Full provenance.*
+entirely offline, on Gemma 4 via Ollama. 1,644 audited artifact candidates
+(702 multi-author workshop entries). Zero API calls. Full provenance.*
 
 ---
 
 ## The hook
 
 Most agent demos die when the Wi-Fi does. We ran one for 24 hours on a
-single Apple Silicon laptop, entirely offline, and it produced 14,113 events
-and 702 auditable artifacts — collaborative essays, design proposals, field
-notes — through a single Gemma 4 model running locally via Ollama. No
-hosted middleware. No per-token bill. No "thoughts" leaving the device.
+single Apple Silicon laptop, entirely offline, and it produced 13,794
+events — 1,644 accepted artifact candidates, including 702 multi-author
+workshop entries (collaborative essays, design proposals, field notes) —
+through a single Gemma 4 model running locally via Ollama. No hosted
+middleware. No per-token bill. No "thoughts" leaving the device.
 
 The system is small enough to clone and run on your own machine in under
 an hour. The provenance for every artifact — prompt input, model output,
@@ -29,10 +30,12 @@ Architecture Decision Records that drove the fixes.
   Elder, Stranger — calls `gemma4:26b` through a single
   `ollama_client.chat()` function. No router. No fallback. No second model.
   The invariant is in `src/microverse/config.py:17` and tested in CI.
-- **Ollama structured output is the Trader.** Artifact ranking uses
-  Ollama's `format="json"` mode — one LLM call returns an ordered score
-  list with rationales; the Harvester applies a percentile cutoff. This is
-  the production-path use of an Ollama feature, not a demo.
+- **Ollama structured output is the Trader.** Artifact ranking calls
+  the Ollama Python client with a JSON Schema dict as the `format`
+  argument — one LLM call returns an ordered score list with rationales
+  conforming to the schema, and the Harvester applies a percentile
+  cutoff. This is the production-path use of Gemma 4's structured-output
+  capability, not a demo.
 - **Explicit thinking-channel discipline.** Gemma 4's reasoning trace is
   powerful but leak-prone. We pass `think=False`, force `thinking=""` on
   the response, scrub defensively, and bump a `thinking_leak` counter on
@@ -57,7 +60,8 @@ offline. What changes is the persona prompts, not the architecture.
 The demo we ship — a fictional society of agents collaborating on garden
 beds, looms, and scrolls, with immigrant Strangers bringing imagined
 perspectives from "coastal marshes" and "arid plains" — is a stress test,
-not the product. The stress test produced 702 artifacts in 24 hours. The
+not the product. The stress test produced 702 multi-author workshop
+artifacts (1,644 accepted candidates total) in 24 hours. The
 product would be whatever specialized agent set the deployment needs.
 
 ## Architecture
@@ -141,9 +145,10 @@ fix is the right one.
 The live dashboard at
 **https://theillusionoflife.github.io/microverse/** renders the metrics,
 weather feed, and harvested artifacts from a 24-hour `gemma4:26b` soak —
-14,113 events, 702 accepted artifacts, 9,502 successful JSON ops,
-9,502/9,522 valid Action JSON (99.79%), zero thinking-channel leaks, all
-generated locally over one wall-clock day on Apple Silicon.
+13,794 events, 1,644 accepted artifact candidates (702 of them
+multi-author workshop entries), 9,502/9,522 valid Action JSON (99.79%),
+and the `thinking_leak` counter never fired — all generated locally
+over one wall-clock day on Apple Silicon.
 
 Click any artifact and you'll see Aki proposing a parchment treatment
 ("dust the edges with alum to prevent the ink feathering") and a Stranger

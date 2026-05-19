@@ -561,10 +561,15 @@ def run(
                 # Sampling at the flush boundary aligns the window
                 # with the harvester's recycle cadence so each
                 # measurement covers one flush-window of contributes.
+                # Empty windows publish 0 explicitly so the gauge does
+                # not go stale at the previous window's value.
                 total = sum(wip_target_counts.values())
                 if total > 0:
                     peak = max(wip_target_counts.values())
-                    metrics.set_value("wip_target_concentration", int(peak * 100 / total))
+                    concentration = int(peak * 100 / total)
+                else:
+                    concentration = 0
+                metrics.set_value("wip_target_concentration", concentration)
                 wip_target_counts.clear()
             try:
                 maybe_snapshot(

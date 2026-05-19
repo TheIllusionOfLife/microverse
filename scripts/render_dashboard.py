@@ -116,7 +116,8 @@ def render(data_dir: Path, harvest_dir: Path, out_path: Path) -> int:
     weather = _read_world_events(data_dir / "episodic.sqlite")
 
     parts: list[str] = []
-    parts.append("<!doctype html><html><head><meta charset='utf-8'>")
+    parts.append("<!doctype html><html lang='en'><head><meta charset='utf-8'>")
+    parts.append("<meta name='viewport' content='width=device-width, initial-scale=1'>")
     parts.append("<title>Microverse Dashboard</title>")
     parts.append(f"<style>{_CSS}</style></head><body>")
     parts.append("<h1>Microverse Dashboard</h1>")

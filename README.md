@@ -26,16 +26,22 @@ every tick is a local Ollama call against a single Gemma 4 model
 (`gemma4:26b`). The episodic log is a local SQLite WAL — auditable
 artifact-by-artifact. The dashboard is a static HTML file, no JS framework.
 The bottleneck is your laptop, not your budget. A 24-hour soak produced
-14,113 events, 702 accepted artifacts, and full provenance for every
-contribution. The documented limits are documented honestly — see `docs/adr/`.
+13,794 events and 1,644 accepted artifact candidates (702 of them
+multi-author workshop entries), with full provenance for every
+contribution. The documented limits are documented honestly — see
+`docs/adr/`.
 
 ## Status
 
-`v0.3` ships the core simulation loop, the shared-workshop artifact substrate
-(ADR 0003), the residual-shape-attractor structural fixes (ADR 0004), and the
-v0.4 harness-shape roadmap (ADR 0005). Two 24-hour soaks on `gemma4:e4b` and
-`gemma4:26b` are documented under `data/soak-24h-v03-e4b/` and
-`data/soak-24h-v03-26b/`.
+`v0.3.1` ships the core simulation loop, the shared-workshop artifact
+substrate (ADR 0003), the residual-shape-attractor structural fixes
+(ADR 0004), and ADR 0005 Decision 1 — hide complete workshop entries
+from the persona prompt — as experimental mitigation for the v0.4
+harness-shape roadmap. The soak gate evidence is committed at the repo
+root (`soak-24h-v03-e4b-gates.json`, `soak-24h-v03-26b-gates.json`);
+the soak event databases under `data/` are gitignored and reproducible
+from a local run. The rendered dashboard for the 26b soak ships at
+`docs/index.html` (live via GitHub Pages).
 
 ## What it does
 
