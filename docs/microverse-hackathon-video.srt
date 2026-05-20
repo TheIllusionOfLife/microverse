@@ -1,0 +1,148 @@
+1
+00:00:00,000 --> 00:00:02,838
+Most AI agent demos die when the Wi-Fi does.
+
+2
+00:00:02,838 --> 00:00:09,224
+This one ran for 24 hours on a single laptop, entirely offline, on Gemma 4 through Ollama.
+
+3
+00:00:09,224 --> 00:00:10,578
+No hosted middleware.
+
+4
+00:00:10,578 --> 00:00:11,739
+No per-token bill.
+
+5
+00:00:11,739 --> 00:00:13,739
+No thoughts leaving the device.
+
+6
+00:00:13,739 --> 00:00:16,719
+Microverse Battery is a multi-agent simulation.
+
+7
+00:00:16,719 --> 00:00:24,518
+A society of personas — an Artisan, a Trader, immigrant Strangers, a Harvester — generates artifacts over a long tick loop.
+
+8
+00:00:24,518 --> 00:00:28,703
+Every call goes through a single Ollama chat to one Gemma 4 model.
+
+9
+00:00:28,703 --> 00:00:29,908
+There is no router.
+
+10
+00:00:29,908 --> 00:00:31,239
+There is no fallback.
+
+11
+00:00:31,239 --> 00:00:35,829
+The single-model invariant lives in one line of config: gemma4:26b.
+
+12
+00:00:35,829 --> 00:00:45,467
+We use Ollama's JSON Schema structured output for the Trader's artifact ranking, and we explicitly suppress Gemma's reasoning channel so it never leaks into the output.
+
+13
+00:00:45,467 --> 00:00:48,794
+24 hours of soaking, zero thinking-channel leaks.
+
+14
+00:00:48,794 --> 00:00:50,469
+This is the live dashboard.
+
+15
+00:00:50,469 --> 00:00:54,317
+It's a static HTML page — no JavaScript framework, no backend.
+
+16
+00:00:54,317 --> 00:00:59,839
+Every artifact you see was generated on one Apple Silicon laptop over one wall-clock day.
+
+17
+00:00:59,839 --> 00:01:03,252
+13,794 events.
+
+18
+00:01:03,252 --> 00:01:06,479
+702 multi-author workshop entries.
+
+19
+00:01:06,479 --> 00:01:13,243
+Six resident agents, three of them immigrant Strangers spawned by a Watchdog when the conversation got stale.
+
+20
+00:01:13,243 --> 00:01:14,104
+Click into one.
+
+21
+00:01:14,104 --> 00:01:19,042
+Here, Aki — the resident Artisan — proposes a parchment treatment for a shared scroll.
+
+22
+00:01:19,042 --> 00:01:23,119
+A Stranger answers with a technique from her imagined coastal homeland.
+
+23
+00:01:23,119 --> 00:01:26,794
+Another Stranger overlays a third approach from the arid plains.
+
+24
+00:01:26,794 --> 00:01:32,593
+The Trader scored the aggregate workshop entry, the Harvester accepted it, the provenance is on disk.
+
+25
+00:01:32,593 --> 00:01:38,795
+This is what local multi-agent intelligence looks like when the substrate gives the model room to be social.
+
+26
+00:01:38,795 --> 00:01:42,887
+The project earned five Architecture Decision Records along the way.
+
+27
+00:01:42,887 --> 00:01:45,895
+Each one closed a bottleneck and exposed the next.
+
+28
+00:01:45,895 --> 00:01:47,701
+The local-first runtime works.
+
+29
+00:01:47,701 --> 00:01:51,010
+We documented a model-level limit instead of hiding it.
+
+30
+00:01:51,010 --> 00:01:54,019
+Shared workshops solved the solo-agent bottleneck.
+
+31
+00:01:54,019 --> 00:01:56,847
+Structural fixes raised throughput eight times.
+
+32
+00:01:56,847 --> 00:01:58,532
+Multi-turn scenes ship next.
+
+33
+00:01:58,532 --> 00:02:10,714
+Microverse Battery proves that the hard parts of multi-agent AI — durability, observability, governance, honest measurement — already work today on one laptop with Gemma 4 and Ollama.
+
+34
+00:02:10,714 --> 00:02:12,435
+No API key required, ever.
+
+35
+00:02:12,435 --> 00:02:13,428
+Clone the repo.
+
+36
+00:02:13,428 --> 00:02:14,422
+Pull the model.
+
+37
+00:02:14,422 --> 00:02:15,812
+Run your own society.
+
