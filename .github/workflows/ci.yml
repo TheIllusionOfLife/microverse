@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -39,7 +39,19 @@ jobs:
         run: uv run mypy src/microverse
 
       - name: Audit dependencies
-        run: uv run pip-audit
+        # The six ignored advisories all describe vulnerabilities in
+        # the Ollama *server* (Go daemon), not the Python client.
+        # OSV maps both under PyPI name "ollama" and pip-audit cannot
+        # disambiguate. None list a fix_version for the Python client;
+        # review when ollama 0.6.3+ ships.
+        run: >-
+          uv run pip-audit
+          --ignore-vuln PYSEC-2025-144
+          --ignore-vuln PYSEC-2025-145
+          --ignore-vuln PYSEC-2025-146
+          --ignore-vuln PYSEC-2025-147
+          --ignore-vuln PYSEC-2026-101
+          --ignore-vuln PYSEC-2026-102
 
       - name: Test
         run: uv run pytest -q -m 'not integration'
