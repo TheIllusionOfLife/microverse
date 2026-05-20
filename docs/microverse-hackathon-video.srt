@@ -4,7 +4,7 @@ Most AI agent demos die when the Wi-Fi does.
 
 2
 00:00:02,838 --> 00:00:09,224
-This one ran for twenty-four hours on a single laptop, entirely offline, on Gemma 4 through Ollama.
+This one ran for 24 hours on a single laptop, entirely offline, on Gemma 4 through Ollama.
 
 3
 00:00:09,224 --> 00:00:10,578
@@ -40,7 +40,7 @@ There is no fallback.
 
 11
 00:00:31,239 --> 00:00:35,829
-The single-model invariant lives in one line of config: gemma four twenty-six b.
+The single-model invariant lives in one line of config: gemma4:26b.
 
 12
 00:00:35,829 --> 00:00:45,467
@@ -48,7 +48,7 @@ We use Ollama's JSON Schema structured output for the Trader's artifact ranking,
 
 13
 00:00:45,467 --> 00:00:48,794
-Twenty-four hours of soaking, zero thinking-channel leaks.
+24 hours of soaking, zero thinking-channel leaks.
 
 14
 00:00:48,794 --> 00:00:50,469
@@ -64,11 +64,11 @@ Every artifact you see was generated on one Apple Silicon laptop over one wall-c
 
 17
 00:00:59,839 --> 00:01:03,252
-Thirteen thousand seven hundred and ninety four events.
+13,794 events.
 
 18
 00:01:03,252 --> 00:01:06,479
-Seven hundred and two multi-author workshop entries.
+702 multi-author workshop entries.
 
 19
 00:01:06,479 --> 00:01:13,243
@@ -128,7 +128,7 @@ Multi-turn scenes ship next.
 
 33
 00:01:58,532 --> 00:02:10,714
-Microverse Battery proves that the hard parts of multi-agent A I — durability, observability, governance, honest measurement — already work today on one laptop with Gemma 4 and Ollama.
+Microverse Battery proves that the hard parts of multi-agent AI — durability, observability, governance, honest measurement — already work today on one laptop with Gemma 4 and Ollama.
 
 34
 00:02:10,714 --> 00:02:12,435
@@ -145,3 +145,4 @@ Pull the model.
 37
 00:02:14,422 --> 00:02:15,812
 Run your own society.
+
