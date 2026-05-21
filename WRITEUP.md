@@ -257,8 +257,27 @@ for v1.0).
 
 ### Smoke validation (pre-soak)
 
-A 6-tick scene-gate-saturated smoke against live `gemma4:e4b` with
-`nomic-embed-text` pulled confirmed the structural contract:
+A 100-tick operational smoke against live `gemma4:e4b` (Phase A+B+C
+stack, `SNAPSHOT_EVERY=25` and `SNAPSHOT_RETENTION_COUNT=3` for
+visibility) returned:
+
+- 4 snapshots taken, 3 retained after prune (matches retention cap).
+- 2 timer-triggered harvest flushes + **12 transition-triggered**
+  flushes — 6× the timer-alone rate, which is the structural fix
+  for gate 7 (capacity invariant).
+- 97 contributes, 12 workshop.recycle cycles, no `snapshot_prune_fail`
+  or `episodic_optimize_fail` bumps.
+- Scenes did NOT fire in the default-roster (Aki + Cy) smoke because
+  `SCENE_MIN_PEERS=2` requires 3 agents — scenes activate once the
+  Watchdog spawns a Stranger, as designed.
+- `scripts/verify_kill_drill.py --watermark $W --scene-boundary any`
+  → `kill_drill_ok` (113 events, contiguous, all 1..113 survived).
+- `scripts/render_dashboard.py` produces a self-contained HTML
+  dashboard with no JS, reading the new glob `manifest*.jsonl`.
+
+A separate 6-tick scene-gate-saturated smoke (gate forced to 1.0,
+`SCENE_MIN_PEERS=1`) against live `gemma4:e4b` with
+`nomic-embed-text` pulled confirmed the gate-8 contract:
 
 - 6 scene.open events emitted (gate forced to 1.0 for the smoke).
 - 4 scenes completed all 3 turns; 2 partial (off-topic abort on
