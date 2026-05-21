@@ -379,6 +379,118 @@ def gate7_capacity_invariant(ep: sqlite3.Connection) -> dict:
     }
 
 
+def gate8_scene_semantic_dependence(
+    ep: sqlite3.Connection,
+    *,
+    band_low: float = 0.30,
+    band_high: float = 0.85,
+) -> dict:
+    """ADR 0005 Gate 7 (scene semantic dependence) — median cosine of
+    turn-N's embedding against the union of prior-turn embeddings
+    should fall in ``[band_low, band_high]``. Below band: non-sequitur
+    turns. Above band: echoing. The band is the structural guard that
+    scenes pass gate 1 (peer reference) for real rather than by lexical
+    fluke.
+
+    The embedding model (``config.EMBEDDING_MODEL`` =
+    ``nomic-embed-text``) must be pulled separately: if unavailable
+    the gate degrades to ``available=False`` with no pass/fail verdict
+    — the operator decides whether to halt or proceed.
+
+    Numbered ``gate8_*`` instead of ``gate7_*`` to coexist with the
+    existing ``gate7_capacity_invariant``. The ADR 0005 v0.4 acceptance
+    gates 1-7 in this script map to 1=g1, 2=g2, 3=g3, 4=g4, 5=g5, 6=g6,
+    7=g7 (capacity), and the scene-only sub-gate lives here as ``g8``.
+    """
+    # Lazy import: the spike script can run on a soak dir that has no
+    # scene events at all (pre-Phase-C data), and we should not fail
+    # on the embedding import in that case.
+    try:
+        from microverse.llm.embeddings import cosine, embed
+    except Exception as exc:
+        return {"available": False, "reason": f"import_failed: {exc}"}
+
+    # Pull every scene_id → ordered turn fragments.
+    scene_open_rows = list(
+        ep.execute("SELECT payload_json FROM events WHERE action='scene.open'").fetchall()
+    )
+    if not scene_open_rows:
+        return {"available": True, "scenes": 0, "pass": True, "reason": "no_scenes"}
+
+    scene_ids: list[str] = []
+    for r in scene_open_rows:
+        try:
+            payload = json.loads(r[0] or "{}")
+        except json.JSONDecodeError:
+            continue
+        sid = payload.get("scene_id")
+        if sid:
+            scene_ids.append(sid)
+
+    cos_t2 = []  # cosine(turn2, turn1)
+    cos_t3 = []  # cosine(turn3, mean-ish: cosine vs concatenation of t1+t2)
+    completed = 0
+    aborted = 0
+    for sid in scene_ids:
+        # Pull this scene's contributes in turn-index order.
+        rows = list(
+            ep.execute(
+                "SELECT payload_json FROM events WHERE action='contribute' ORDER BY id ASC"
+            ).fetchall()
+        )
+        turns: dict[int, str] = {}
+        for r in rows:
+            try:
+                p = json.loads(r[0] or "{}")
+            except json.JSONDecodeError:
+                continue
+            if p.get("scene_id") != sid:
+                continue
+            ti = p.get("turn_index")
+            txt = (p.get("fragment") or p.get("artifact") or "").strip()
+            if ti in (1, 2, 3) and txt:
+                turns[ti] = txt
+        if len(turns) < 3:
+            aborted += 1
+            continue
+        completed += 1
+        e1 = embed(turns[1])
+        e2 = embed(turns[2])
+        e3 = embed(turns[3])
+        if not e1 or not e2 or not e3:
+            # embedding unavailable
+            continue
+        cos_t2.append(cosine(e2, e1))
+        # turn3 vs t1+t2: treat the concatenation as one input.
+        e12 = embed(turns[1] + " " + turns[2])
+        if e12:
+            cos_t3.append(cosine(e3, e12))
+
+    def _median(xs: list[float]) -> float:
+        if not xs:
+            return 0.0
+        ys = sorted(xs)
+        n = len(ys)
+        return ys[n // 2] if n % 2 else 0.5 * (ys[n // 2 - 1] + ys[n // 2])
+
+    median_t2 = _median(cos_t2)
+    median_t3 = _median(cos_t3)
+    pass_t2 = band_low <= median_t2 <= band_high
+    pass_t3 = band_low <= median_t3 <= band_high
+    return {
+        "available": True,
+        "scenes_opened": len(scene_ids),
+        "scenes_completed": completed,
+        "scenes_aborted": aborted,
+        "cosine_turn2_vs_turn1_median": round(median_t2, 4),
+        "cosine_turn3_vs_turn1_2_median": round(median_t3, 4),
+        "band": [band_low, band_high],
+        "subgate_a_turn2_in_band": pass_t2,
+        "subgate_b_turn3_in_band": pass_t3,
+        "pass": pass_t2 and pass_t3,
+    }
+
+
 def summarize_contribute_total(ep: sqlite3.Connection) -> int:
     row = ep.execute("SELECT COUNT(*) FROM events WHERE action='contribute'").fetchone()
     return int(row[0])
@@ -415,6 +527,7 @@ def main(argv: list[str]) -> int:
     g5 = gate5_path3_invariant(metrics)
     g6 = gate6_acceptance_throughput(manifest, metrics)
     g7 = gate7_capacity_invariant(ep)
+    g8 = gate8_scene_semantic_dependence(ep)
 
     total_contributes = summarize_contribute_total(ep)
     g4_pass = (g4["fold_count"] / max(1, total_contributes)) < 0.01
@@ -437,6 +550,7 @@ def main(argv: list[str]) -> int:
         "gate_5_path3_invariant": g5,
         "gate_6_acceptance_throughput": g6,
         "gate_7_capacity_invariant": g7,
+        "gate_8_scene_semantic_dependence": g8,
     }
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0

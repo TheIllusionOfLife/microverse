@@ -81,6 +81,14 @@ class Action(BaseModel):
     # set; only meaningful when ``action == ActionKind.CONTRIBUTE``.
     # Defaults to None so v0.1.1 callers / fixtures round-trip.
     contribute_to: str | None = Field(default=None, max_length=100)
+    # v0.4 (ADR 0005 Decision 3): scene linkage. When a contribute is
+    # produced inside a scene micro-loop, scene_id matches the
+    # corresponding scene.open event's id, and turn_index is 1/2/3.
+    # Plain contributes outside a scene leave both as None. These ride
+    # in the episodic payload so the WorkshopProjection's replay sees
+    # the same scene grouping as the live tick.
+    scene_id: str | None = Field(default=None, max_length=64)
+    turn_index: int | None = Field(default=None, ge=1, le=3)
 
 
 def _rest_action() -> Action:
@@ -255,6 +263,22 @@ class PeerSpeech:
 
 
 @dataclass(frozen=True, slots=True)
+class SceneTurn:
+    """One prior turn inside the current scene, surfaced to the next
+    turn's persona as an explicit scene-scoped input.
+
+    ADR 0005:194 carve-out: even when turn 3's author == turn 1's author,
+    the agent sees their own turn-1 text VERBATIM here. This is NOT
+    autobiographical replay (the Path-3 invariant still holds for the
+    workshop view / lore / peer inbox) — it is explicit scene context,
+    surfaced exactly once per scene, with the prior author named.
+    """
+
+    author: str
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
 class WorldContext:
     """Snapshot of world state passed into ``Agent.think``.
 
@@ -301,6 +325,20 @@ class WorldContext:
     # (v0.1.1 callers or fresh data dir). Defaults preserve
     # backward-compat with every existing WorldContext() fixture.
     workshop_view: tuple[WIPView, ...] = ()
+    # v0.4 (ADR 0005 D3): explicit scene-scoped input. Populated by
+    # SceneRunner before turn-2 and turn-3 think() calls. Empty for
+    # single-tick (non-scene) actions. Path-3 carve-out: even when
+    # turn-3 author == turn-1 author, this tuple SHOWS that author's
+    # own turn-1 fragment — by explicit design, not via autobiographical
+    # replay. See ADR 0005:189-196.
+    scene_context: tuple[SceneTurn, ...] = ()
+    # v0.4 (Phase D): novelty hint when an agent's top-recent verb
+    # share crosses the diversity threshold. Persona renders this as
+    # one line; empty string means no hint is active. The hint is a
+    # NUDGE (the LLM may ignore it); the post-action diversifier in
+    # the agent will substitute the verb at a fixed rate if the LLM
+    # repeats the same dominant verb.
+    novelty_hint: str = ""
 
 
 class Agent(abc.ABC):

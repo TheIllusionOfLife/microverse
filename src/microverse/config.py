@@ -163,3 +163,14 @@ EPISODIC_OPTIMIZE_EVERY: int = 100_000
 # is preserved for the agent action loop. Embeddings are observability
 # infrastructure called only from spike_workshop_measure.py.
 EMBEDDING_MODEL: str = "nomic-embed-text"
+
+# v0.4 (ADR 0005 D3): probability a chosen agent's tick routes into a
+# 3-turn scene instead of a single-tick action. Conservative default
+# 0.15 — scenes are 3x LLM volume per artist-tick, so a 7-day soak
+# stays in latency budget. Raise to 0.25 after the v0.4 acceptance
+# soak confirms throughput holds.
+SCENE_GATE_P: float = 0.15
+# Minimum number of distinct peers besides the chosen agent for the
+# scene gate to fire. With only one peer the rotation degenerates to
+# A→B→A and the scene's "social fabric" claim weakens; gate it off.
+SCENE_MIN_PEERS: int = 2

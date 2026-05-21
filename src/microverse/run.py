@@ -52,6 +52,7 @@ from microverse.memory.semantic import SemanticMemory
 from microverse.ops.metrics import Metrics
 from microverse.ops.watchdog import Watchdog
 from microverse.world.clock import WorldClock
+from microverse.world.scene import SceneRunner
 from microverse.world.scheduler import WeightedScheduler
 from microverse.world.snapshot import SnapshotBusyError, maybe_snapshot, prune_snapshots
 from microverse.world.workshop import WorkshopProjection
@@ -310,6 +311,15 @@ def _commit_action(
         target = action.contribute_to
         payload["fragment"] = action.artifact
         payload["contribute_to"] = action.contribute_to
+        # Phase C (ADR 0005 D3): scene linkage. When the action was
+        # produced inside a scene micro-loop, these fields tag the
+        # contribute so downstream consumers (gate-7 producer, dashboard,
+        # kill-drill verifier) can group turns by scene_id. Plain
+        # contributes outside scenes carry both as None.
+        if action.scene_id is not None:
+            payload["scene_id"] = action.scene_id
+        if action.turn_index is not None:
+            payload["turn_index"] = action.turn_index
     ts = time.time()
     event_id = episodic.append(
         actor=agent.name,
@@ -531,6 +541,121 @@ def run(
                 workshop=workshop,
                 metrics=metrics,
             )
+            # Phase C (ADR 0005 D3): scene gate. With probability
+            # SCENE_GATE_P, route this agent's tick into a 3-turn scene
+            # against an open WIP instead of a single-tick action.
+            # Scenes are the load-bearing change for gate 1 (peer
+            # reference) — turn 2 and turn 3 see prior turns as
+            # explicit prompt INPUT, not via coercion. The scene's
+            # three turns count as this agent's tick for scheduler
+            # bookkeeping.
+            other_peers = [p for p in sched.agents if p.name != agent.name]
+            open_wip = next(
+                (w for w in workshop.wips() if w.phase != "complete"),
+                None,
+            )
+            scene_eligible = (
+                config.SCENE_GATE_P > 0
+                and open_wip is not None
+                and len(other_peers) >= config.SCENE_MIN_PEERS
+                and rng.random() < config.SCENE_GATE_P
+            )
+            if scene_eligible and open_wip is not None:
+                # Scene path. Build a SceneRunner with closures over
+                # current-tick state. The world_factory rebuilds
+                # WorldContext per turn so the just-committed prior
+                # turn shows up in scene_context (and through
+                # workshop_view on rebuild).
+                def _scene_world_factory(*, agent: Agent, scene_context: tuple) -> WorldContext:
+                    sc_topic = _derive_topic(episodic, agent)
+                    sc_peers = _compute_peers(sched, episodic, agent)
+                    sc_last_ts = last_tick_ts.setdefault(agent.name, time.time())
+                    sc_world_base = _build_per_tick_world_base(
+                        episodic=episodic,
+                        agent=agent,
+                        peers=sc_peers,
+                        last_tick_ts=sc_last_ts,
+                        engagement_hint="",
+                        required_target=None,
+                        metrics=metrics,
+                    )
+                    sc_world = build_context(
+                        world_base=sc_world_base,
+                        episodic=episodic,
+                        semantic=semantic,
+                        topic=sc_topic,
+                        receiver_name=agent.name,
+                        workshop=workshop,
+                        metrics=metrics,
+                    )
+                    from dataclasses import replace
+
+                    return replace(sc_world, scene_context=scene_context)
+
+                def _scene_commit(a: Agent, act: Action) -> None:
+                    _commit_action(episodic, a, act, workshop=workshop)
+                    if act.action == ActionKind.CONTRIBUTE and act.contribute_to:
+                        wip_target_counts[act.contribute_to] += 1
+                    _maybe_harvest(harvester, a, act)
+                    last_tick_ts[a.name] = time.time()
+
+                scene_runner = SceneRunner(
+                    episodic=episodic,
+                    commit_action=_scene_commit,
+                    world_factory=_scene_world_factory,
+                    rng=rng,
+                    metrics=metrics,
+                )
+                try:
+                    scene_runner.run(agent, open_wip.name, peers=other_peers)
+                except Exception:
+                    _logger.exception("scene runner crashed for %s", agent.name)
+                    metrics.bump("scene_runner_crash", agent=agent.name)
+                metrics.reset("consecutive_fail", agent=agent.name)
+                deadlock_breaks_since_success = 0
+                executed += 1
+                # Skip single-tick path for this tick.
+                # World clock + watchdog still run per-tick below via
+                # the shared trailing block.
+                _safe(
+                    "WorldClock.advance",
+                    lambda: clock.advance(episodic, ticks_elapsed=1),
+                )
+                if executed % WATCHDOG_EVERY == 0:
+                    _safe("watchdog.check", watchdog.check)
+                # Reuse the Phase B flush logic below by continuing to
+                # the bottom of the loop. Drain transitions just like
+                # the single-tick path would.
+                ticks_since_last_flush += 1
+                transitions = workshop.drain_complete_transitions()
+                timer_fire = executed % HARVEST_FLUSH_EVERY == 0
+                transition_fire = bool(transitions) and (
+                    ticks_since_last_flush >= transition_flush_throttle_ticks
+                )
+                if timer_fire or transition_fire:
+                    try:
+                        harvester.flush()
+                    except Exception:
+                        _logger.exception("harvester.flush failed")
+                        metrics.bump("harvest_flush_fail")
+                    if timer_fire:
+                        metrics.bump("harvest_flush_timer_triggered")
+                    if transition_fire and not timer_fire:
+                        metrics.bump("harvest_flush_transition_triggered")
+                    ticks_since_last_flush = 0
+                    total = sum(wip_target_counts.values())
+                    if total > 0:
+                        peak = max(wip_target_counts.values())
+                        concentration = int(peak * 100 / total)
+                    else:
+                        concentration = 0
+                    metrics.set_value("wip_target_concentration", concentration)
+                    wip_target_counts.clear()
+                sleep_s = tempo if tempo is not None else agent.tempo()
+                if sleep_s > 0:
+                    time.sleep(sleep_s)
+                continue
+
             try:
                 action = agent.think(world)
             except Exception:

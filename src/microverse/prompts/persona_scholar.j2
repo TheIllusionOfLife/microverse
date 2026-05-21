@@ -38,6 +38,16 @@ The village workshop currently holds:
 {% endfor -%}
 When you weave a fragment, write at least a few sentences (about 25 words) so the next contributor can build on more than a noun phrase. Fragments shorter than 120 characters are rejected; contributions to a complete WIP are rejected.
 {%- endif %}
+{% if world.scene_context -%}
+You are continuing a shared scene at the workshop. Read the prior turns and add the next:
+{% for turn in world.scene_context -%}
+  Turn {{ loop.index }} by {{ turn.author }}: "{{ turn.text }}"
+{% endfor -%}
+Your observation should respond to what was just said, not begin a new topic.
+{%- endif %}
+{% if world.novelty_hint -%}
+{{ world.novelty_hint }}
+{% endif %}
 {% if world.engagement_hint -%}
 {{ world.engagement_hint }}
 {% endif %}
