@@ -31,3 +31,19 @@ by excluding live-model integration tests. The tradeoff is that model quality,
 throughput, and long-soak validation depend on the operator's local Ollama
 setup. Future changes that add hosted models, embedding services, or remote
 storage should introduce a new ADR and update the security policy.
+
+## Subsequent decisions affecting this ADR
+
+- **ADR 0004 Decision 5 (v0.3)**: the production model swapped from
+  `gemma4:e4b` (9.6 GB) to `gemma4:26b` (17 GB). Same model family —
+  prompt format, tokenizer, and thinking-channel behavior are
+  preserved; only parameter count and required RAM change. The
+  `gemma4:e4b` tier remains supported as a low-RAM fallback documented
+  in README.md, but `gemma4:26b` is the production default through
+  `v1.0.0` and the soak that ships with the WRITEUP.
+- **ADR 0006 (v1.0)**: a second model, `nomic-embed-text`, is pulled
+  into the runtime as a **measurement-only** embedding model for gate
+  8 (scene semantic dependence). It is never called from
+  `agent.think()`; the single-model invariant for the agent action loop
+  remains intact. Operators who skip the `ollama pull nomic-embed-text`
+  step see gate 8 degrade to "unavailable" rather than a crash.

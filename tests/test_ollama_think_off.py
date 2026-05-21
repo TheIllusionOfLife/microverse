@@ -1,16 +1,18 @@
-"""Integration test for think=False on real Ollama gemma4:e4b.
+"""Integration test for think=False on real Ollama.
 
 Verifies the contract from PROMPT.md: callers of ollama_client.chat must
 never see thinking tokens. We test both branches:
 
   - think=True : confirm message.thinking populates (or skip the branch
-                 if Ollama doesn't classify gemma4:e4b as a thinking
-                 model — the README documents this case).
+                 if Ollama doesn't classify the configured model as a
+                 thinking model — the README documents this case).
   - think=False: confirm message.thinking is empty AND no <think> leak
                  in content.
 
 Run with: ``uv run pytest tests/test_ollama_think_off.py -q -m integration``
-Requires: ``ollama serve`` running locally with ``gemma4:e4b`` pulled.
+Requires: ``ollama serve`` running locally with the model configured at
+``microverse.config.MODEL`` (default ``gemma4:26b`` per ADR 0004 D5;
+``gemma4:e4b`` historically — both pass the think=False contract).
 """
 
 import pytest
@@ -53,8 +55,8 @@ def test_think_true_branch_or_skip():
 
     if not result["thinking"]:
         pytest.skip(
-            "gemma4:e4b returned empty thinking even with think=True; "
-            "Ollama does not classify this build as a thinking model. "
+            "configured model returned empty thinking even with think=True; "
+            "Ollama does not classify it as a thinking model. "
             "Documented in README; strip_thinking remains the contract."
         )
     assert isinstance(result["thinking"], str)

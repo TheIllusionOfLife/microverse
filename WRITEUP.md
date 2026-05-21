@@ -170,3 +170,138 @@ and any application that needs autonomous agentic generation to keep
 running when the network doesn't. The hard parts — durability,
 observability, governance, honest measurement, Gemma 4's structured
 output and thinking discipline — already work today on one laptop.
+
+---
+
+## v1.0 addendum (post-soak skeleton)
+
+This is the result of the v0.4→v1.0 build. The 7-day acceptance soak
+fills the numbers in; the structural claims here are stable regardless
+of outcome. Both branches sketched below — the writeup is honest about
+which branch the actual evidence supports when the soak completes.
+
+### What v1.0 ships beyond v0.3.2
+
+- **Transition-triggered harvester flush (ADR 0005 D2)**. The 50-tick
+  timer remains as a ceiling but the harvester now flushes
+  opportunistically when a WIP transitions to `complete`, subject to a
+  5-tick throttle. Counters `harvest_flush_timer_triggered` and
+  `harvest_flush_transition_triggered` attribute the trigger cause.
+  Designed to close ADR 0005 gate 7 (capacity invariant — Soak B
+  showed 240 violations / 288 samples; v1.0 target zero).
+- **Multi-turn scenes (ADR 0005 D3)**. The scene gate
+  (`config.SCENE_GATE_P=0.15`) routes ~15% of ticks into a 3-turn
+  sequence on the workshop affordance. Turn 2 sees turn 1's text
+  verbatim via `WorldContext.scene_context`; turn 3 sees both prior
+  turns. The contract is logged: `scene.open` carries the author
+  rotation (authoritative across replay), `contribute` events carry
+  `scene_id` + `turn_index`, `scene.abort` is written on parse
+  failure. Designed to close gate 1 (peer-reference rate — Soak A
+  0.014, Soak B 0.022, target ≥ 0.30) by structure rather than
+  coercion.
+- **Embedding-based Gate 8**. `nomic-embed-text` via
+  `ollama.embed()` produces fragment embeddings; the gates producer
+  computes median cosine for turn-2 vs turn-1 and turn-3 vs
+  turn-1+turn-2. Pass band [0.30, 0.85] is the structural guard
+  against scenes passing gate 1 by lexical fluke. Embedding model
+  is measurement infrastructure only; never called from
+  `agent.think()` — single-model invariant for the agent action loop
+  is preserved.
+- **Verb-diversity counter-pressure (ADR 0002 follow-up)**. A
+  per-agent novelty hint and a 30%-probability post-action
+  substitution lever push back against the craft-share attractor.
+  Carve-outs preserve the engagement-gate and JSON-fallback signals.
+  Not a claim to dissolve ADR 0002's model-level limit; a measurable
+  structural counter.
+- **Multi-week operational hardening**. `prune_snapshots`,
+  `manifest*.jsonl` rotation, `episodic.optimize()` (no VACUUM, no
+  long lock), and the `operate_soak.py` operator wrapper. A 7-day
+  soak does not fill disk and the dashboard remains readable.
+
+### The 7-day acceptance soak
+
+Run via `nohup uv run python scripts/operate_soak.py --duration 7d
+--data data/soak-v1 --harvest harvest/soak-v1 --seed 38 > soak.log
+2>&1 &`. Acceptance:
+
+- All seven ADR 0005 gates hold continuously (no 1-hour window in
+  which any drops below threshold).
+- Gate 3 (verb concentration) ≤ 70% per agent across 168 hours.
+- `data/snapshots/` < 5 GB and < 50 archives at every sample.
+- `data/episodic.sqlite` < 1 GB at end-of-soak.
+- `thinking_leak` total == 0.
+- No `harvest_flush_fail` / `snapshot_fail` regressions vs the v0.3
+  24h baseline scaled by 7.
+
+### Branch A — scenes close gate 1 cleanly
+
+If the 7-day soak passes all seven gates including peer-reference
+rate ≥ 0.30 and gate 8 cosine medians in [0.30, 0.85], v1.0 is the
+positive result: the harness-shape lever **did** close the residual
+gap that prompt patches could not, and the structural fix
+generalises across the 7-day timescale. Substitution-lever share
+shows up on the dashboard so the agency claim is honest about how
+much of the verb mix is LLM-chosen.
+
+### Branch B — gate 1 still falls short
+
+If gate 1 finishes between 0.20 and 0.30 (closer than ADR 0005's
+0.022 baseline but below the original threshold), the halt criterion
+in the plan applies: soften gate 1 threshold to the observed median
+rounded down to one decimal, publish that number with provenance in
+ADR 0006, and re-soak with the softened threshold. If even that
+fails, write up as a documented negative result — scenes moved the
+peer-reference rate but did not close it, and a cross-family or
+digest-style follow-up would be the next experiment (out of scope
+for v1.0).
+
+### Final numbers
+
+*(filled in at soak completion — placeholders below)*
+
+| Gate | Threshold | Soak A baseline (v0.3 e4b) | Soak B baseline (v0.3 26b) | v1.0 7-day |
+|------|-----------|----------------------------|----------------------------|------------|
+| 1 fragment-shape composite | composite | fail | fail | _TBD_ |
+| 2 WIP throughput / hr | ≥ 5 | 3.7 | 29.3 | _TBD_ |
+| 3 verb concentration | ≤ 70 % | 86.7 % | 57.4 % | _TBD_ |
+| 4 pipeline efficiency (fold rate) | < 1 % | 13.2 % | 61.6 % | _TBD_ |
+| 5 path-3 redactions | non-zero | 121 451 | 23 007 | _TBD_ |
+| 6 capacity invariant | open_slots ≥ 3 | 285 violations | 240 violations | _TBD_ |
+| 7 acceptance throughput | ≥ 50 % | 100 % (1/1) | 100 % (1/1) | _TBD_ |
+| 8 scene semantic dependence | median ∈ [0.30, 0.85] | n/a | n/a | _TBD_ |
+| thinking_leak total | == 0 | 0 | 0 | _TBD_ |
+| events committed | — | 19 878 | 14 113 | _TBD_ |
+| accepted WIPs | — | 89 | 702 | _TBD_ |
+
+### How to reproduce
+
+```bash
+git clone https://github.com/TheIllusionOfLife/microverse
+cd microverse && uv sync
+ollama pull gemma4:26b
+ollama pull nomic-embed-text   # gate 8 only; optional
+nohup uv run python scripts/operate_soak.py \
+    --data data/soak-v1 --harvest harvest/soak-v1 \
+    --duration 7d --seed 38 > soak.log 2>&1 &
+# after 7 days:
+uv run python scripts/spike_workshop_measure.py \
+    --data data/soak-v1 --harvest harvest/soak-v1 > gates.json
+uv run python scripts/render_dashboard.py \
+    --data data/soak-v1 --harvest harvest/soak-v1
+```
+
+The kill-drill verifier and the scene-boundary check are part of the
+acceptance:
+
+```bash
+W=$(sqlite3 data/soak-v1/episodic.sqlite 'SELECT COALESCE(MAX(id),0) FROM events')
+kill -9 $(pgrep -f microverse.run)
+# restart, then:
+uv run python scripts/verify_kill_drill.py \
+    --db data/soak-v1/episodic.sqlite \
+    --watermark "$W" --scene-boundary any
+```
+
+The expected output begins with `kill_drill_ok`. A failing run is the
+honest negative result: scene boundaries did not survive WAL replay,
+and v1.0 must patch the scene event contract before shipping.
