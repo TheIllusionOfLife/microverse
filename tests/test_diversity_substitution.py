@@ -63,6 +63,8 @@ def test_substitution_fires_when_hint_targets_dominant_verb(tmp_path: Path) -> N
         a = Artisan("Aki", metrics=metrics, rng=_ForceFire())  # type: ignore[arg-type]
         world = WorldContext(
             novelty_hint="You have leaned heavily on craft lately; consider speak.",
+            novelty_dominant_verb="craft",
+            novelty_suggested_verb="speak",
             peers_today=("Bo",),
         )
         action = _craft_action()
@@ -90,6 +92,8 @@ def test_substitution_skips_when_rng_draw_above_threshold(tmp_path: Path) -> Non
         a = Artisan("Aki", metrics=metrics, rng=_ForceSkip())  # type: ignore[arg-type]
         world = WorldContext(
             novelty_hint="You have leaned heavily on craft lately; consider speak.",
+            novelty_dominant_verb="craft",
+            novelty_suggested_verb="speak",
             peers_today=("Bo",),
         )
         action = _craft_action()
@@ -115,6 +119,8 @@ def test_substitution_preserves_fallback_rest(tmp_path: Path) -> None:
         a = Artisan("Aki", metrics=metrics, rng=_ForceFire())  # type: ignore[arg-type]
         world = WorldContext(
             novelty_hint="You have leaned heavily on rest lately; consider speak.",
+            novelty_dominant_verb="rest",
+            novelty_suggested_verb="speak",
             peers_today=("Bo",),
         )
         action = _fallback_rest_action()
@@ -141,6 +147,8 @@ def test_substitution_skips_contribute_target(tmp_path: Path) -> None:
         a = Artisan("Aki", metrics=metrics, rng=_ForceFire())  # type: ignore[arg-type]
         world = WorldContext(
             novelty_hint="You have leaned heavily on craft lately; consider contribute.",
+            novelty_dominant_verb="craft",
+            novelty_suggested_verb="contribute",
         )
         action = _craft_action()
         out = a._maybe_diversify(action, world)
@@ -165,6 +173,8 @@ def test_substitution_skips_when_llm_already_diversified(tmp_path: Path) -> None
         a = Artisan("Aki", metrics=metrics, rng=_ForceFire())  # type: ignore[arg-type]
         world = WorldContext(
             novelty_hint="You have leaned heavily on craft lately; consider speak.",
+            novelty_dominant_verb="craft",
+            novelty_suggested_verb="speak",
             peers_today=("Bo",),
         )
         # LLM already picked study — leave it.

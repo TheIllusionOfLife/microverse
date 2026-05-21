@@ -28,7 +28,14 @@ from __future__ import annotations
 
 import random
 
-from microverse.agents.base import Action, ActionKind, Agent, WorldContext, parse_action
+from microverse.agents.base import (
+    Action,
+    ActionKind,
+    Agent,
+    WorldContext,
+    apply_diversity_lever,
+    parse_action,
+)
 from microverse.config import (
     ARTISAN_REST_STREAK_LIMIT,
     LLM_MAX_TOKENS,
@@ -121,68 +128,19 @@ class Artisan(Agent):
         return self._maybe_enforce_engagement(action, world)
 
     def _maybe_diversify(self, action: Action, world: WorldContext) -> Action:
-        """Phase D Step 2 (structural counter-pressure for ADR 0002).
-
-        When ``world.novelty_hint`` is non-empty AND the parsed action's
-        verb matches the dominant verb the hint is trying to break out
-        of, substitute the action verb with the hint's suggested verb
-        at ``_DIVERSIFY_PROB`` (default 0.30). Uses a neutral thought so
-        a rationalisation cannot survive into future ticks.
-
-        Carve-outs (mirror engagement-gate and rate-limiter precedent):
-          - Fallback REST (parse failure / meta-leak-block) is left
-            alone — diversifying it would mask the underlying signal.
-          - When the hint suggests SPEAK we set target to None; the
-            engagement gate runs after and may overwrite.
-          - When the hint suggests CONTRIBUTE we DO NOT substitute,
-            because contributes require a configured WIP target and
-            non-empty fragment text — substituting blindly would
-            instantly hard-fold in the validator. The hint exists to
-            push the LLM toward CONTRIBUTE at compose time; if the LLM
-            doesn't bite, that is acceptable.
+        """Phase D Step 2 — delegate to the shared helper. The lever
+        logic itself lives in :func:`microverse.agents.base.apply_diversity_lever`
+        (Artisan and Scholar share it; only the replacement thought
+        differs). See its docstring for the full contract.
         """
-        from microverse.agents.base import ActionKind as _AK
-
-        if not world.novelty_hint:
-            return action
-        is_fallback_rest = action.action == _AK.REST and not action.thought
-        if is_fallback_rest:
-            return action
-        # Pull the suggested verb out of the hint. The run-loop wrote
-        # "You have leaned heavily on X lately; consider Y." — Y is
-        # the last word before the period.
-        hint = world.novelty_hint.rstrip(".").strip()
-        if "consider " not in hint:
-            return action
-        suggested = hint.split("consider ")[-1].strip().strip(".")
-        try:
-            target_verb = _AK(suggested)
-        except ValueError:
-            return action
-        # Only fire when the LLM did pick the dominant verb the hint
-        # was trying to break. The hint text encodes that as "leaned
-        # heavily on X" — extract X.
-        if "leaned heavily on " not in hint:
-            return action
-        dominant = hint.split("leaned heavily on ")[-1].split(" lately")[0].strip().strip(".")
-        if action.action.value != dominant:
-            return action
-        if target_verb == _AK.CONTRIBUTE:
-            return action
-        if self._rng.random() >= _DIVERSIFY_PROB:
-            return action
-        self._metrics.bump("diversity_lever_substituted", agent=self.name)
-        new_target: str | None = None
-        if target_verb == _AK.SPEAK and world.peers_today:
-            new_target = self._rng.choice(world.peers_today)
-        return action.model_copy(
-            update={
-                "thought": _DIVERSITY_REPLACEMENT_THOUGHT,
-                "action": target_verb,
-                "target": new_target,
-                "artifact": None,
-                "contribute_to": None,
-            }
+        return apply_diversity_lever(
+            action,
+            world,
+            rng=self._rng,
+            metrics=self._metrics,
+            agent_name=self.name,
+            replacement_thought=_DIVERSITY_REPLACEMENT_THOUGHT,
+            probability=_DIVERSIFY_PROB,
         )
 
     def _maybe_enforce_engagement(self, action: Action, world: WorldContext) -> Action:

@@ -23,7 +23,14 @@ from __future__ import annotations
 
 import random
 
-from microverse.agents.base import Action, ActionKind, Agent, WorldContext, parse_action
+from microverse.agents.base import (
+    Action,
+    ActionKind,
+    Agent,
+    WorldContext,
+    apply_diversity_lever,
+    parse_action,
+)
 from microverse.config import LLM_MAX_TOKENS, LLM_TIMEOUT_S, SAMPLING_FACTUAL
 from microverse.llm.ollama_client import chat
 from microverse.ops.metrics import Metrics
@@ -76,41 +83,16 @@ class Scholar(Agent):
         return self._maybe_enforce_engagement(action, world)
 
     def _maybe_diversify(self, action: Action, world: WorldContext) -> Action:
-        """Phase D substitution lever — same rule as Artisan but
-        scoped to Scholar's neutral thought. See diversity.py docstring
-        for the contract."""
-        if not world.novelty_hint:
-            return action
-        is_fallback_rest = action.action == ActionKind.REST and not action.thought
-        if is_fallback_rest:
-            return action
-        hint = world.novelty_hint.rstrip(".").strip()
-        if "consider " not in hint or "leaned heavily on " not in hint:
-            return action
-        suggested = hint.split("consider ")[-1].strip().strip(".")
-        try:
-            target_verb = ActionKind(suggested)
-        except ValueError:
-            return action
-        dominant = hint.split("leaned heavily on ")[-1].split(" lately")[0].strip().strip(".")
-        if action.action.value != dominant:
-            return action
-        if target_verb == ActionKind.CONTRIBUTE:
-            return action
-        if self._rng.random() >= _DIVERSIFY_PROB:
-            return action
-        self._metrics.bump("diversity_lever_substituted", agent=self.name)
-        new_target: str | None = None
-        if target_verb == ActionKind.SPEAK and world.peers_today:
-            new_target = self._rng.choice(world.peers_today)
-        return action.model_copy(
-            update={
-                "thought": _DIVERSITY_REPLACEMENT_THOUGHT,
-                "action": target_verb,
-                "target": new_target,
-                "artifact": None,
-                "contribute_to": None,
-            }
+        """Phase D substitution lever — delegate to the shared helper.
+        See :func:`microverse.agents.base.apply_diversity_lever`."""
+        return apply_diversity_lever(
+            action,
+            world,
+            rng=self._rng,
+            metrics=self._metrics,
+            agent_name=self.name,
+            replacement_thought=_DIVERSITY_REPLACEMENT_THOUGHT,
+            probability=_DIVERSIFY_PROB,
         )
 
     def _maybe_enforce_engagement(self, action: Action, world: WorldContext) -> Action:

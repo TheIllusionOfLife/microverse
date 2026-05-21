@@ -427,29 +427,32 @@ def gate8_scene_semantic_dependence(
         if sid:
             scene_ids.append(sid)
 
+    # Fetch ALL scene-tagged contributes once, group by scene_id in
+    # Python. Avoids O(N_scenes x N_events) pathological scans on long
+    # soaks (per Gemini PR review on #38).
+    turns_by_scene: dict[str, dict[int, str]] = {}
+    for (payload_json,) in ep.execute(
+        "SELECT payload_json FROM events WHERE action='contribute' ORDER BY id ASC"
+    ).fetchall():
+        try:
+            p = json.loads(payload_json or "{}")
+        except json.JSONDecodeError:
+            continue
+        sid = p.get("scene_id")
+        ti = p.get("turn_index")
+        if not sid or ti not in (1, 2, 3):
+            continue
+        txt = (p.get("fragment") or p.get("artifact") or "").strip()
+        if not txt:
+            continue
+        turns_by_scene.setdefault(sid, {})[int(ti)] = txt
+
     cos_t2 = []  # cosine(turn2, turn1)
     cos_t3 = []  # cosine(turn3, mean-ish: cosine vs concatenation of t1+t2)
     completed = 0
     aborted = 0
     for sid in scene_ids:
-        # Pull this scene's contributes in turn-index order.
-        rows = list(
-            ep.execute(
-                "SELECT payload_json FROM events WHERE action='contribute' ORDER BY id ASC"
-            ).fetchall()
-        )
-        turns: dict[int, str] = {}
-        for r in rows:
-            try:
-                p = json.loads(r[0] or "{}")
-            except json.JSONDecodeError:
-                continue
-            if p.get("scene_id") != sid:
-                continue
-            ti = p.get("turn_index")
-            txt = (p.get("fragment") or p.get("artifact") or "").strip()
-            if ti in (1, 2, 3) and txt:
-                turns[ti] = txt
+        turns = turns_by_scene.get(sid, {})
         if len(turns) < 3:
             aborted += 1
             continue

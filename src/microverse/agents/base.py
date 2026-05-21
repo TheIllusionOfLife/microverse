@@ -20,7 +20,7 @@ import json
 import re
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -339,6 +339,13 @@ class WorldContext:
     # the agent will substitute the verb at a fixed rate if the LLM
     # repeats the same dominant verb.
     novelty_hint: str = ""
+    # v0.4 (Phase D): the *structured* form of the same nudge. When
+    # the hint fires, these carry the dominant and suggested verbs
+    # directly so the agent's _maybe_diversify helper does not have
+    # to parse the human-readable hint string back (Gemini PR review
+    # on #38 flagged the string-parse round-trip as brittle).
+    novelty_dominant_verb: str = ""
+    novelty_suggested_verb: str = ""
 
 
 class Agent(abc.ABC):
@@ -370,3 +377,59 @@ class Agent(abc.ABC):
     @abc.abstractmethod
     def think(self, world: WorldContext) -> Action:  # pragma: no cover
         ...
+
+
+# Phase D Step 2 (shared between Artisan + Scholar — Gemini PR review
+# on #38 asked for the consolidation). The probability and replacement
+# thought are still per-agent (Artisan and Scholar have slightly
+# different neutral lines) but the decision logic now lives here.
+def apply_diversity_lever(
+    action: Action,
+    world: WorldContext,
+    *,
+    rng: Any,
+    metrics: Metrics,
+    agent_name: str,
+    replacement_thought: str,
+    probability: float,
+) -> Action:
+    """Substitute the action verb when the LLM ignored the novelty
+    hint. Returns the action unchanged when no hint is active, when
+    the parsed action is a fallback REST, when the hint suggests
+    CONTRIBUTE (we cannot fabricate WIP + fragment), or when the LLM
+    already diversified.
+
+    Reads structured fields ``WorldContext.novelty_dominant_verb`` and
+    ``novelty_suggested_verb`` — no hint-string parsing. Returns the
+    original action unchanged when those fields are empty (legacy
+    callers that set only ``novelty_hint`` get no-op behaviour, which
+    is the safe default).
+    """
+    if not world.novelty_dominant_verb or not world.novelty_suggested_verb:
+        return action
+    is_fallback_rest = action.action == ActionKind.REST and not action.thought
+    if is_fallback_rest:
+        return action
+    try:
+        target_verb = ActionKind(world.novelty_suggested_verb)
+    except ValueError:
+        return action
+    if action.action.value != world.novelty_dominant_verb:
+        return action
+    if target_verb == ActionKind.CONTRIBUTE:
+        return action
+    if rng.random() >= probability:
+        return action
+    metrics.bump("diversity_lever_substituted", agent=agent_name)
+    new_target: str | None = None
+    if target_verb == ActionKind.SPEAK and world.peers_today:
+        new_target = rng.choice(world.peers_today)
+    return action.model_copy(
+        update={
+            "thought": replacement_thought,
+            "action": target_verb,
+            "target": new_target,
+            "artifact": None,
+            "contribute_to": None,
+        }
+    )

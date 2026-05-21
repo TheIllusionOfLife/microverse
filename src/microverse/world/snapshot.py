@@ -288,11 +288,14 @@ def prune_snapshots(
     if max_bytes is not None:
         # After count prune, drop oldest until total under cap. The
         # newest archive is preserved even if it alone exceeds the cap.
-        def _total() -> int:
-            return sum(p.stat().st_size for p in candidates if p.exists())
-
-        while len(candidates) > 1 and _total() > max_bytes:
+        # Keep a running total so we don't re-stat the survivors every
+        # iteration (Gemini PR review on #38 flagged the original
+        # O(N^2) shape — switch to O(N)).
+        sizes = {p: (p.stat().st_size if p.exists() else 0) for p in candidates}
+        current_total = sum(sizes.values())
+        while len(candidates) > 1 and current_total > max_bytes:
             victim = candidates.pop(0)
+            current_total -= sizes.get(victim, 0)
             victim.unlink(missing_ok=True)
             deleted.append(victim)
 

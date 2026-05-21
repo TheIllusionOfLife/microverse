@@ -238,14 +238,16 @@ def _derive_weather(episodic: EpisodicMemory) -> str:
     return _last_weather_kind(episodic) or "clear"
 
 
-def _compute_novelty_hint(episodic: EpisodicMemory, agent: Agent) -> str:
+def _compute_novelty_hint(episodic: EpisodicMemory, agent: Agent) -> tuple[str, str, str]:
     """Phase D: when an agent's recent top-verb share crosses the
-    dominance threshold, return a one-line hint surfaced into the
-    persona prompt. Returns "" when no hint is active.
+    dominance threshold, return a tuple ``(hint_text, dominant_verb,
+    suggested_verb)``. All three strings are empty when no hint is
+    active.
 
-    The hint format is parsed by ``Artisan._maybe_diversify`` to
-    extract both the dominant verb and the suggested verb — keep the
-    "leaned heavily on X ... consider Y" template stable.
+    The hint text is the human-readable line the persona renders;
+    the verb strings are the *structured* form the agent's
+    ``_maybe_diversify`` consumes directly (no string parsing —
+    see Gemini PR review on #38).
     """
     from microverse.world.diversity import recent_verb_distribution, suggest_underused_verb
 
@@ -253,12 +255,13 @@ def _compute_novelty_hint(episodic: EpisodicMemory, agent: Agent) -> str:
     dist = recent_verb_distribution(episodic, agent.name, lookback=200)
     suggested = suggest_underused_verb(dist, available)
     if suggested is None:
-        return ""
+        return ("", "", "")
     total = sum(dist.values())
     if total == 0:
-        return ""
+        return ("", "", "")
     top_verb, _top_count = dist.most_common(1)[0]
-    return f"You have leaned heavily on {top_verb} lately; consider {suggested}."
+    hint = f"You have leaned heavily on {top_verb} lately; consider {suggested}."
+    return (hint, top_verb, suggested)
 
 
 def _build_per_tick_world_base(
@@ -271,6 +274,8 @@ def _build_per_tick_world_base(
     required_target: str | None = None,
     metrics: Metrics | None = None,
     novelty_hint: str = "",
+    novelty_dominant_verb: str = "",
+    novelty_suggested_verb: str = "",
 ) -> WorldContext:
     """Assemble the per-tick ``world_base`` for ``build_context``.
 
@@ -303,6 +308,8 @@ def _build_per_tick_world_base(
         engagement_hint=engagement_hint,
         required_target=required_target,
         novelty_hint=novelty_hint,
+        novelty_dominant_verb=novelty_dominant_verb,
+        novelty_suggested_verb=novelty_suggested_verb,
     )
 
 
@@ -545,9 +552,11 @@ def run(
                 metrics.bump("engagement_gate_fired", agent=agent.name)
             # Phase D: compute novelty_hint based on the agent's recent
             # verb mix. Surface only when dominance > threshold; the
-            # persona renders it as one line and the agent's
-            # _maybe_diversify may flip the verb at the configured rate.
-            novelty_hint = _compute_novelty_hint(episodic, agent)
+            # persona renders the text and the agent's _maybe_diversify
+            # reads the structured verbs directly (no string parsing).
+            novelty_hint, novelty_dominant_verb, novelty_suggested_verb = _compute_novelty_hint(
+                episodic, agent
+            )
             # Path-3: pull the agent's watermark. ``setdefault`` seeds
             # first-encounter to ``time.time()`` so a mid-run Stranger
             # does not see all weather/world events since process
@@ -562,6 +571,8 @@ def run(
                 required_target=required_target,
                 metrics=metrics,
                 novelty_hint=novelty_hint,
+                novelty_dominant_verb=novelty_dominant_verb,
+                novelty_suggested_verb=novelty_suggested_verb,
             )
             world = build_context(
                 world_base=world_base,
