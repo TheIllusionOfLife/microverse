@@ -134,3 +134,32 @@ MIN_FRAGMENT_CHARS: int = 120
 # artifact we want; the subfloor is the load-bearing guard.
 WIP_ACCEPTANCE_FLOOR: float = 0.55
 WIP_CONTRIBUTOR_FLOOR: int = 2
+
+# v0.4 (Phase A): operational retention bounds for multi-week soaks.
+# Without these, a 7-day soak fills disk via unbounded snapshots (~50
+# archives x ~50MB = 2.5 GB), unbounded manifest.jsonl growth, and an
+# ever-growing -wal sidecar on episodic.sqlite.
+#
+# SNAPSHOT_RETENTION_*: prune_snapshots() drops oldest archives until
+# BOTH bounds hold. Newest archive is always preserved even when over
+# the count cap (otherwise a single huge snapshot would orphan its own
+# tree).
+SNAPSHOT_RETENTION_COUNT: int = 24
+SNAPSHOT_RETENTION_BYTES: int = 5 * 1024**3  # 5 GiB
+
+# MANIFEST_ROTATE_BYTES: harvester rotates manifest.jsonl to
+# manifest-<UTC>.jsonl when the active file passes this size. Readers
+# (dashboard, gates producer) glob manifest*.jsonl.
+MANIFEST_ROTATE_BYTES: int = 256 * 1024 * 1024  # 256 MiB
+
+# EPISODIC_OPTIMIZE_EVERY: how often to call EpisodicMemory.optimize()
+# (wal_checkpoint(TRUNCATE) + PRAGMA optimize). Not a VACUUM — that
+# would lock the long-lived writer. 100k events ≈ one optimize per day
+# at Soak B throughput.
+EPISODIC_OPTIMIZE_EVERY: int = 100_000
+
+# v0.4 (Phase C): embedding model for gate-7 scene semantic dependence
+# measurement. NEVER used inside agent.think() — single-model invariant
+# is preserved for the agent action loop. Embeddings are observability
+# infrastructure called only from spike_workshop_measure.py.
+EMBEDDING_MODEL: str = "nomic-embed-text"

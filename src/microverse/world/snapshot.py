@@ -239,3 +239,61 @@ def maybe_snapshot(
     if interval <= 0 or tick == 0 or tick % interval != 0:
         return None
     return take_snapshot(data_dir, snapshots_dir)
+
+
+def prune_snapshots(
+    snapshots_dir: Path | str,
+    *,
+    max_count: int | None,
+    max_bytes: int | None,
+) -> list[Path]:
+    """Drop oldest archives until both bounds hold; never delete newest.
+
+    Archive filenames follow ``YYYYMMDDTHHMMSSZ-NNNNNN.tar.gz``, so a
+    lexical sort is also a time sort. ``*.tar.gz.tmp`` files are
+    in-flight writes — never counted, never deleted.
+
+    Invariants:
+      - When over ``max_count``, the oldest archives are deleted until
+        the count fits.
+      - When over ``max_bytes``, oldest are deleted (after count prune)
+        until the remaining total fits.
+      - The single newest archive always survives, even when the byte
+        cap is below its size. Otherwise prune could orphan a snapshot
+        mid-restore-prep.
+
+    Returns the list of paths that were deleted.
+    """
+    snapshots_dir = Path(snapshots_dir)
+    if not snapshots_dir.exists():
+        return []
+
+    archives = sorted(snapshots_dir.glob("*.tar.gz"))
+    if not archives:
+        return []
+
+    # Oldest-first ordering for prune candidacy; pop from the front.
+    candidates = list(archives)
+    deleted: list[Path] = []
+
+    if max_count is not None and len(candidates) > max_count:
+        n_to_drop = len(candidates) - max_count
+        for _ in range(n_to_drop):
+            if len(candidates) <= 1:  # newest is sacred
+                break
+            victim = candidates.pop(0)
+            victim.unlink(missing_ok=True)
+            deleted.append(victim)
+
+    if max_bytes is not None:
+        # After count prune, drop oldest until total under cap. The
+        # newest archive is preserved even if it alone exceeds the cap.
+        def _total() -> int:
+            return sum(p.stat().st_size for p in candidates if p.exists())
+
+        while len(candidates) > 1 and _total() > max_bytes:
+            victim = candidates.pop(0)
+            victim.unlink(missing_ok=True)
+            deleted.append(victim)
+
+    return deleted

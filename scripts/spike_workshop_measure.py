@@ -175,19 +175,35 @@ def gate1_fragment_shape(completed: dict[str, list[dict]], peer_names: set[str])
     }
 
 
+def _iter_manifest_records(harvest_dir: Path):
+    """Phase A: rotation may produce multiple manifest*.jsonl files.
+    Yield records from all of them (live + archives) in time order."""
+    manifests = sorted(harvest_dir.glob("manifest*.jsonl"))
+    for m in manifests:
+        try:
+            with m.open() as f:
+                for line in f:
+                    try:
+                        yield json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+        except OSError:
+            continue
+
+
 def gate2_wip_throughput(manifest_path: Path, ep: sqlite3.Connection) -> dict:
-    """Accepted WIPs per hour >= 5."""
-    if not manifest_path.exists():
+    """Accepted WIPs per hour >= 5.
+
+    ``manifest_path`` may be either the live `manifest.jsonl` or the
+    harvest directory itself; we accept both and iterate every
+    rotation-produced ``manifest*.jsonl`` under the parent dir."""
+    harvest_dir = manifest_path if manifest_path.is_dir() else manifest_path.parent
+    if not harvest_dir.exists():
         return {"accepted_wips": 0, "hours": 0.0, "rate_per_hour": 0.0, "pass": False}
     accepted = 0
-    with manifest_path.open() as f:
-        for line in f:
-            try:
-                rec = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if rec.get("action") == "wip" and rec.get("accepted") is True:
-                accepted += 1
+    for rec in _iter_manifest_records(harvest_dir):
+        if rec.get("action") == "wip" and rec.get("accepted") is True:
+            accepted += 1
     ts_row = ep.execute("SELECT MIN(ts), MAX(ts) FROM events").fetchone()
     hours = max(0.001, (ts_row[1] - ts_row[0]) / 3600.0) if ts_row[0] else 0.001
     rate = accepted / hours
@@ -286,19 +302,15 @@ def gate6_acceptance_throughput(
     """
     accepted = 0
     rejected = 0
-    if manifest_path.exists():
-        with manifest_path.open() as f:
-            for line in f:
-                try:
-                    rec = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if rec.get("action") != "wip":
-                    continue
-                if rec.get("accepted") is True:
-                    accepted += 1
-                else:
-                    rejected += 1
+    harvest_dir = manifest_path if manifest_path.is_dir() else manifest_path.parent
+    if harvest_dir.exists():
+        for rec in _iter_manifest_records(harvest_dir):
+            if rec.get("action") != "wip":
+                continue
+            if rec.get("accepted") is True:
+                accepted += 1
+            else:
+                rejected += 1
     subfloor_row = metrics.execute(
         "SELECT MAX(value) FROM metrics WHERE name='wip_contributor_subfloor'"
     ).fetchone()

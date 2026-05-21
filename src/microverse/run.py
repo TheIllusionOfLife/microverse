@@ -53,7 +53,7 @@ from microverse.ops.metrics import Metrics
 from microverse.ops.watchdog import Watchdog
 from microverse.world.clock import WorldClock
 from microverse.world.scheduler import WeightedScheduler
-from microverse.world.snapshot import SnapshotBusyError, maybe_snapshot
+from microverse.world.snapshot import SnapshotBusyError, maybe_snapshot, prune_snapshots
 from microverse.world.workshop import WorkshopProjection
 
 _logger = logging.getLogger(__name__)
@@ -571,13 +571,37 @@ def run(
                     concentration = 0
                 metrics.set_value("wip_target_concentration", concentration)
                 wip_target_counts.clear()
+            # Phase A: periodic SQLite hygiene on episodic. Cheap
+            # wal_checkpoint(TRUNCATE) + PRAGMA optimize via short-lived
+            # secondary connection. Best-effort; failures bump a metric.
+            if (
+                config.EPISODIC_OPTIMIZE_EVERY > 0
+                and executed > 0
+                and executed % config.EPISODIC_OPTIMIZE_EVERY == 0
+            ):
+                try:
+                    episodic.optimize()
+                except Exception:
+                    _logger.exception("episodic.optimize failed")
+                    metrics.bump("episodic_optimize_fail")
             try:
-                maybe_snapshot(
+                snap_path = maybe_snapshot(
                     executed,
                     interval=SNAPSHOT_EVERY,
                     data_dir=data_dir,
                     snapshots_dir=snapshots_dir,
                 )
+                if snap_path is not None:
+                    # Phase A: keep snapshots/ bounded under multi-week soaks.
+                    try:
+                        prune_snapshots(
+                            snapshots_dir,
+                            max_count=config.SNAPSHOT_RETENTION_COUNT,
+                            max_bytes=config.SNAPSHOT_RETENTION_BYTES,
+                        )
+                    except Exception:
+                        _logger.exception("snapshot prune failed")
+                        metrics.bump("snapshot_prune_fail")
             except SnapshotBusyError:
                 # A competing writer prevented wal_checkpoint(TRUNCATE)
                 # from completing cleanly. Skip this interval rather

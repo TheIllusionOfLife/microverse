@@ -156,6 +156,33 @@ class EpisodicMemory:
         row = self._conn.execute("SELECT COUNT(*) FROM events").fetchone()
         return int(row[0])
 
+    def optimize(self) -> None:
+        """WAL checkpoint (TRUNCATE) + PRAGMA optimize via a short-lived
+        secondary connection so the long-lived writer is not disturbed.
+
+        Called periodically during long soaks to reclaim the -wal sidecar
+        and refresh SQLite's query planner statistics. Not a VACUUM —
+        that would acquire an exclusive lock and block the writer.
+        Failures (BUSY etc.) are swallowed: this is best-effort hygiene,
+        not a durability boundary.
+        """
+        import sqlite3
+
+        try:
+            side = sqlite3.connect(str(self._path), timeout=5.0)
+        except sqlite3.Error:
+            return
+        try:
+            try:
+                side.execute("PRAGMA busy_timeout = 5000")
+                side.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                side.execute("PRAGMA optimize")
+            except sqlite3.Error:
+                # Hygiene op; do not propagate.
+                pass
+        finally:
+            side.close()
+
     def close(self) -> None:
         self._conn.close()
 

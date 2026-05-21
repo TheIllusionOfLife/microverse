@@ -49,6 +49,7 @@ import yaml
 from microverse.config import (
     HARVEST_CRAFT_CAP_PER_FLUSH,
     HARVEST_PENDING_TIMEOUT_S,
+    MANIFEST_ROTATE_BYTES,
     MAX_HARVEST_ATTEMPTS,
     WIP_ACCEPTANCE_FLOOR,
     WIP_CONTRIBUTOR_FLOOR,
@@ -561,6 +562,40 @@ class Harvester:
         _atomic_write_text(target, body)
         return target
 
+    def _active_manifest_path(self) -> Path:
+        """Return the live manifest path, rotating if the current file
+        exceeds ``MANIFEST_ROTATE_BYTES``.
+
+        On rotation the active ``manifest.jsonl`` is renamed to
+        ``manifest-<UTC>.jsonl`` (a frozen audit copy) and a fresh
+        ``manifest.jsonl`` becomes the next write target. Readers must
+        glob ``manifest*.jsonl`` to see the full history. A 7-day soak
+        at Soak B throughput accumulates ~500 KB/h of manifest, so
+        rotation is rare (about once a day under the 256 MiB default)
+        but bounded.
+        """
+        live = self._root / "manifest.jsonl"
+        if not live.exists():
+            return live
+        try:
+            size = live.stat().st_size
+        except OSError:
+            return live
+        if size <= MANIFEST_ROTATE_BYTES:
+            return live
+        # Rotate: rename the live file aside, return the fresh path.
+        ts = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        rotated = self._root / f"manifest-{ts}.jsonl"
+        if rotated.exists():
+            # Counter for sub-second rotations within the same UTC second.
+            for seq in range(1, 1000):
+                alt = self._root / f"manifest-{ts}-{seq:03d}.jsonl"
+                if not alt.exists():
+                    rotated = alt
+                    break
+        live.replace(rotated)
+        return self._root / "manifest.jsonl"
+
     def _append_manifest(
         self,
         candidate: ArtifactCandidate | WIPCandidate,
@@ -593,7 +628,10 @@ class Harvester:
         # Records are well below PIPE_BUF (4 KB on macOS/Linux), so a
         # single os.write under O_APPEND is atomic across concurrent
         # appenders. fsync ensures the data is on disk before we return.
-        with open(self._manifest, "a", encoding="utf-8") as f:
+        # Rotate via _active_manifest_path() each append so a long-soak
+        # writer can't outgrow MANIFEST_ROTATE_BYTES.
+        target = self._active_manifest_path()
+        with open(target, "a", encoding="utf-8") as f:
             f.write(line)
             f.flush()
             os.fsync(f.fileno())
