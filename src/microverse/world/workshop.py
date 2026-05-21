@@ -138,7 +138,27 @@ class WorkshopProjection:
 
     def __init__(self, episodic: EpisodicMemory) -> None:
         self._wips: dict[str, WIP] = {name: WIP(name=name) for name in CONFIGURED_WIPS}
+        # Phase B (ADR 0005 Decision 2): WIP names that transitioned
+        # into ``complete`` since the last drain. Run-loop reads via
+        # ``drain_complete_transitions()`` once per tick to trigger an
+        # opportunistic harvester flush (subject to a tick throttle).
+        # Edge signal, not level — re-applying contributes to an
+        # already-complete WIP does NOT re-bump.
+        self._pending_complete_transitions: set[str] = set()
         self._rebuild_from_episodic(episodic)
+        # Rebuild may have populated the transitions set from log replay.
+        # Discard those — the run-loop only cares about transitions that
+        # happen during live ticks, not historical ones at startup.
+        self._pending_complete_transitions.clear()
+
+    def drain_complete_transitions(self) -> set[str]:
+        """Return + clear the set of WIPs that transitioned into
+        ``complete`` since the last drain. Edge-triggered: a WIP that is
+        contributed-to again while already complete is not re-reported.
+        """
+        out = self._pending_complete_transitions
+        self._pending_complete_transitions = set()
+        return out
 
     def _rebuild_from_episodic(self, episodic: EpisodicMemory) -> None:
         """Cold rebuild from the event log. Idempotent.
@@ -208,6 +228,11 @@ class WorkshopProjection:
         self._recompute_phase(wip)
         if prev_phase != "complete" and wip.phase == "complete":
             wip.completed_ts = event.ts
+            # Phase B: edge-triggered transition signal for run-loop's
+            # opportunistic harvester flush. drain_complete_transitions()
+            # consumes the set; replay-time additions are cleared in
+            # __init__ after _rebuild_from_episodic.
+            self._pending_complete_transitions.add(wip.name)
 
     def _apply_recycle(self, event: Event) -> None:
         wip = self._wips.get(event.target or "")

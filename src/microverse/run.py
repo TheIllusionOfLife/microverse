@@ -450,6 +450,13 @@ def run(
     # contribute targets).
     wip_target_counts: Counter[str] = Counter()
 
+    # Phase B (ADR 0005 Decision 2): transition-triggered harvest flush.
+    # Tracks ticks since the most recent flush so the throttle (≥5 ticks
+    # between transition-triggered flushes) is respected without losing
+    # the 50-tick timer ceiling.
+    transition_flush_throttle_ticks = 5
+    ticks_since_last_flush = 0
+
     def _safe(label: str, fn: Callable[[], object]) -> None:
         try:
             fn()
@@ -550,12 +557,27 @@ def run(
             if executed % WATCHDOG_EVERY == 0:
                 _safe("watchdog.check", watchdog.check)
 
-            if executed % HARVEST_FLUSH_EVERY == 0:
+            # Phase B (ADR 0005 D2): edge-triggered flush on WIP
+            # completion. The 50-tick timer is retained as a ceiling
+            # so artifact-only flushes still happen in windows with no
+            # WIP completions.
+            ticks_since_last_flush += 1
+            transitions = workshop.drain_complete_transitions()
+            timer_fire = executed % HARVEST_FLUSH_EVERY == 0
+            transition_fire = bool(transitions) and (
+                ticks_since_last_flush >= transition_flush_throttle_ticks
+            )
+            if timer_fire or transition_fire:
                 try:
                     harvester.flush()
                 except Exception:
                     _logger.exception("harvester.flush failed")
                     metrics.bump("harvest_flush_fail")
+                if timer_fire:
+                    metrics.bump("harvest_flush_timer_triggered")
+                if transition_fire and not timer_fire:
+                    metrics.bump("harvest_flush_transition_triggered")
+                ticks_since_last_flush = 0
                 # ADR 0005 D1 rerouting guard: publish the current
                 # ``wip_target_concentration`` and reset the window.
                 # Sampling at the flush boundary aligns the window
