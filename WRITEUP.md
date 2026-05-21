@@ -255,6 +255,25 @@ peer-reference rate but did not close it, and a cross-family or
 digest-style follow-up would be the next experiment (out of scope
 for v1.0).
 
+### Smoke validation (pre-soak)
+
+A 6-tick scene-gate-saturated smoke against live `gemma4:e4b` with
+`nomic-embed-text` pulled confirmed the structural contract:
+
+- 6 scene.open events emitted (gate forced to 1.0 for the smoke).
+- 4 scenes completed all 3 turns; 2 partial (off-topic abort on
+  the middle turn).
+- Gate 8 cosine(turn2, turn1) median = **0.770**. In band [0.30, 0.85].
+- Gate 8 cosine(turn3, turn1+turn2) median = **0.805**. In band.
+- Gate 8 PASS — turn 2 and turn 3 read their predecessors semantically,
+  not by lexical fluke.
+
+This is structural, pre-soak validation. The 7-day acceptance soak
+fills in the gate 1 peer-reference rate (the load-bearing lexical
+counterpart), gate 2 throughput, and the long-horizon operational
+health markers. But the scene mechanic itself works on the live
+local stack as designed.
+
 ### Final numbers
 
 *(filled in at soak completion — placeholders below)*
