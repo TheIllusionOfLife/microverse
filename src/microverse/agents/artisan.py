@@ -58,6 +58,11 @@ _EMPTY_CRAFT_REPLACEMENT_THOUGHT = (
 # future change that re-enables thought feedback should not allow the
 # disobeyed monologue to seed the next tick.
 _ENGAGEMENT_REPLACEMENT_THOUGHT = "I turn from my work to greet a neighbor."
+# Phase D: substitution probability when the LLM ignores novelty_hint
+# and re-emits the dominant verb. 0.30 ≈ 1-in-3, balanced between
+# "agent has agency" and "lever actually moves the share."
+_DIVERSIFY_PROB = 0.30
+_DIVERSITY_REPLACEMENT_THOUGHT = "I try something other than my usual rhythm today."
 
 
 class Artisan(Agent):
@@ -104,9 +109,81 @@ class Artisan(Agent):
         # through it as rest.
         action = self._maybe_coerce_empty_craft(action)
         action = self._maybe_rate_limit(action, world)
+        # Phase D: post-action verb-diversity substitution. When the LLM
+        # ignored the novelty_hint and re-emitted the dominant verb, flip
+        # a coin to substitute it. Bumps diversity_lever_substituted so
+        # the dashboard / WRITEUP can show the share of lever-flipped
+        # vs LLM-chosen verbs. Skips when no hint is active (the
+        # run-loop only sets novelty_hint above the dominance threshold).
+        action = self._maybe_diversify(action, world)
         # Engagement gate runs LAST so it overrides any earlier coercion
         # (e.g. the rest rate-limiter picking a different peer).
         return self._maybe_enforce_engagement(action, world)
+
+    def _maybe_diversify(self, action: Action, world: WorldContext) -> Action:
+        """Phase D Step 2 (structural counter-pressure for ADR 0002).
+
+        When ``world.novelty_hint`` is non-empty AND the parsed action's
+        verb matches the dominant verb the hint is trying to break out
+        of, substitute the action verb with the hint's suggested verb
+        at ``_DIVERSIFY_PROB`` (default 0.30). Uses a neutral thought so
+        a rationalisation cannot survive into future ticks.
+
+        Carve-outs (mirror engagement-gate and rate-limiter precedent):
+          - Fallback REST (parse failure / meta-leak-block) is left
+            alone — diversifying it would mask the underlying signal.
+          - When the hint suggests SPEAK we set target to None; the
+            engagement gate runs after and may overwrite.
+          - When the hint suggests CONTRIBUTE we DO NOT substitute,
+            because contributes require a configured WIP target and
+            non-empty fragment text — substituting blindly would
+            instantly hard-fold in the validator. The hint exists to
+            push the LLM toward CONTRIBUTE at compose time; if the LLM
+            doesn't bite, that is acceptable.
+        """
+        from microverse.agents.base import ActionKind as _AK
+
+        if not world.novelty_hint:
+            return action
+        is_fallback_rest = action.action == _AK.REST and not action.thought
+        if is_fallback_rest:
+            return action
+        # Pull the suggested verb out of the hint. The run-loop wrote
+        # "You have leaned heavily on X lately; consider Y." — Y is
+        # the last word before the period.
+        hint = world.novelty_hint.rstrip(".").strip()
+        if "consider " not in hint:
+            return action
+        suggested = hint.split("consider ")[-1].strip().strip(".")
+        try:
+            target_verb = _AK(suggested)
+        except ValueError:
+            return action
+        # Only fire when the LLM did pick the dominant verb the hint
+        # was trying to break. The hint text encodes that as "leaned
+        # heavily on X" — extract X.
+        if "leaned heavily on " not in hint:
+            return action
+        dominant = hint.split("leaned heavily on ")[-1].split(" lately")[0].strip().strip(".")
+        if action.action.value != dominant:
+            return action
+        if target_verb == _AK.CONTRIBUTE:
+            return action
+        if self._rng.random() >= _DIVERSIFY_PROB:
+            return action
+        self._metrics.bump("diversity_lever_substituted", agent=self.name)
+        new_target: str | None = None
+        if target_verb == _AK.SPEAK and world.peers_today:
+            new_target = self._rng.choice(world.peers_today)
+        return action.model_copy(
+            update={
+                "thought": _DIVERSITY_REPLACEMENT_THOUGHT,
+                "action": target_verb,
+                "target": new_target,
+                "artifact": None,
+                "contribute_to": None,
+            }
+        )
 
     def _maybe_enforce_engagement(self, action: Action, world: WorldContext) -> Action:
         """Layer-G slice 3 (R2.b): if the runtime set ``required_target``

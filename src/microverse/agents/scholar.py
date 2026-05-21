@@ -21,6 +21,8 @@ differ for each helper).
 
 from __future__ import annotations
 
+import random
+
 from microverse.agents.base import Action, ActionKind, Agent, WorldContext, parse_action
 from microverse.config import LLM_MAX_TOKENS, LLM_TIMEOUT_S, SAMPLING_FACTUAL
 from microverse.llm.ollama_client import chat
@@ -30,6 +32,9 @@ from microverse.prompts import render
 _PERSONA_TEMPLATE = "persona_scholar.j2"
 
 _ENGAGEMENT_REPLACEMENT_THOUGHT = "I set my notes aside to greet a neighbor."
+# Phase D: mirror Artisan's substitution constants for scholar.
+_DIVERSIFY_PROB = 0.30
+_DIVERSITY_REPLACEMENT_THOUGHT = "I try a different rhythm today."
 
 
 class Scholar(Agent):
@@ -43,9 +48,11 @@ class Scholar(Agent):
         *,
         soul_tokens: int = 70,
         metrics: Metrics | None = None,
+        rng: random.Random | None = None,
     ) -> None:
         super().__init__(name, soul_tokens=soul_tokens)
         self._metrics = metrics or Metrics(":memory:")
+        self._rng = rng or random.Random()
 
     def render_prompt(self, world: WorldContext) -> str:
         return render(self.persona_template, name=self.name, world=world)
@@ -65,7 +72,46 @@ class Scholar(Agent):
             agent=self.name,
             workshop=self._workshop,
         )
+        action = self._maybe_diversify(action, world)
         return self._maybe_enforce_engagement(action, world)
+
+    def _maybe_diversify(self, action: Action, world: WorldContext) -> Action:
+        """Phase D substitution lever — same rule as Artisan but
+        scoped to Scholar's neutral thought. See diversity.py docstring
+        for the contract."""
+        if not world.novelty_hint:
+            return action
+        is_fallback_rest = action.action == ActionKind.REST and not action.thought
+        if is_fallback_rest:
+            return action
+        hint = world.novelty_hint.rstrip(".").strip()
+        if "consider " not in hint or "leaned heavily on " not in hint:
+            return action
+        suggested = hint.split("consider ")[-1].strip().strip(".")
+        try:
+            target_verb = ActionKind(suggested)
+        except ValueError:
+            return action
+        dominant = hint.split("leaned heavily on ")[-1].split(" lately")[0].strip().strip(".")
+        if action.action.value != dominant:
+            return action
+        if target_verb == ActionKind.CONTRIBUTE:
+            return action
+        if self._rng.random() >= _DIVERSIFY_PROB:
+            return action
+        self._metrics.bump("diversity_lever_substituted", agent=self.name)
+        new_target: str | None = None
+        if target_verb == ActionKind.SPEAK and world.peers_today:
+            new_target = self._rng.choice(world.peers_today)
+        return action.model_copy(
+            update={
+                "thought": _DIVERSITY_REPLACEMENT_THOUGHT,
+                "action": target_verb,
+                "target": new_target,
+                "artifact": None,
+                "contribute_to": None,
+            }
+        )
 
     def _maybe_enforce_engagement(self, action: Action, world: WorldContext) -> Action:
         """Shared with Artisan (semantics identical). Coerce a non-
