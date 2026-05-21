@@ -608,7 +608,12 @@ def run(
                 # WorldContext per turn so the just-committed prior
                 # turn shows up in scene_context (and through
                 # workshop_view on rebuild).
-                def _scene_world_factory(*, agent: Agent, scene_context: tuple) -> WorldContext:
+                def _scene_world_factory(
+                    *,
+                    agent: Agent,
+                    scene_context: tuple,
+                    scene_wip_name: str = "",
+                ) -> WorldContext:
                     sc_topic = _derive_topic(episodic, agent)
                     sc_peers = _compute_peers(sched, episodic, agent)
                     sc_last_ts = last_tick_ts.setdefault(agent.name, time.time())
@@ -632,7 +637,11 @@ def run(
                     )
                     from dataclasses import replace
 
-                    return replace(sc_world, scene_context=scene_context)
+                    return replace(
+                        sc_world,
+                        scene_context=scene_context,
+                        scene_wip_name=scene_wip_name,
+                    )
 
                 def _scene_commit(a: Agent, act: Action) -> None:
                     _commit_action(episodic, a, act, workshop=workshop)

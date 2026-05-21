@@ -49,11 +49,20 @@ def _contrib_action(wip: str, text: str) -> Action:
 
 
 def _world_factory_factory(seed_world: WorldContext):
-    def _factory(*, agent: Agent, scene_context: tuple[SceneTurn, ...]) -> WorldContext:
+    def _factory(
+        *,
+        agent: Agent,
+        scene_context: tuple[SceneTurn, ...],
+        scene_wip_name: str = "",
+    ) -> WorldContext:
         # Fresh WorldContext per turn with scene_context populated.
         from dataclasses import replace
 
-        return replace(seed_world, scene_context=scene_context)
+        return replace(
+            seed_world,
+            scene_context=scene_context,
+            scene_wip_name=scene_wip_name,
+        )
 
     return _factory
 

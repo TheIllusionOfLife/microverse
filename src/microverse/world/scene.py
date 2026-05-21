@@ -169,6 +169,7 @@ class SceneRunner:
                 world: WorldContext = self._world_for(
                     agent=agent,
                     scene_context=scene_context,
+                    scene_wip_name=wip_name,
                 )
             except Exception as exc:
                 _logger.exception("scene world_factory failed")

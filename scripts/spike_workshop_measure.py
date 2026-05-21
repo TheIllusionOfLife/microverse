@@ -518,7 +518,7 @@ def main(argv: list[str]) -> int:
     peer_names = {
         r["actor"]
         for r in ep.execute(
-            "SELECT DISTINCT actor FROM events WHERE actor NOT IN ('world','harvester')"
+            "SELECT DISTINCT actor FROM events WHERE actor NOT IN ('world','harvester','scene')"
         )
     }
     completed = _fetch_completed_wips(ep)

@@ -332,6 +332,12 @@ class WorldContext:
     # own turn-1 fragment — by explicit design, not via autobiographical
     # replay. See ADR 0005:189-196.
     scene_context: tuple[SceneTurn, ...] = ()
+    # v0.4 (ADR 0005 D3): the WIP the current scene is built around.
+    # The persona renders it as an instruction so the LLM contributes
+    # to the SAME WIP all 3 turns; the scene runner aborts otherwise.
+    # Empty when not in scene mode. Set by SceneRunner via the run-
+    # loop's world_factory closure.
+    scene_wip_name: str = ""
     # v0.4 (Phase D): novelty hint when an agent's top-recent verb
     # share crosses the diversity threshold. Persona renders this as
     # one line; empty string means no hint is active. The hint is a
