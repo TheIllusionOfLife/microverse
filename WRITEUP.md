@@ -275,9 +275,31 @@ visibility) returned:
 - `scripts/render_dashboard.py` produces a self-contained HTML
   dashboard with no JS, reading the new glob `manifest*.jsonl`.
 
+A partial 200-tick smoke with **Watchdog-driven Stranger spawn** at
+the *production* SCENE_GATE_P=0.15 ran for ~45 ticks before being
+terminated; the partial gate analysis is the strongest pre-soak data
+point on the v1.0 trajectory:
+
+| Gate | v0.3 baseline | 200-tick partial |
+|------|----------------|-------------------|
+| 1 peer-reference rate | 0.022 | **0.188** (9× improved, target ≥0.30) |
+| 2 WIP throughput / hr | 29.3 (B) | **67.9** PASS (target ≥5) |
+| 3 verb concentration | fail | PASS |
+| 4 fold rate | 0.616 | **0.028** (22× improved, target <0.01) |
+| 5 path-3 invariant | pass | PASS |
+| 6 acceptance throughput | pass | PASS |
+| 7 capacity invariant | 240 violations | **PASS** (min_open_slots=3) |
+| 8 scene semantic dependence | n/a | **PASS** (0.728 / 0.782 in band) |
+
+**6 of 8 gates PASS** at production scene-gate (0.15), with the
+remaining two (gate 1 lexical peer-reference, gate 4 sub-1% fold)
+showing 9× and 22× improvement respectively over the v0.3 baseline.
+The 7-day acceptance soak is expected to land both.
+
 An 80-tick smoke with **Watchdog-driven Stranger spawn** (diversity
 floor raised to 1.0 so two Strangers immigrate; SCENE_GATE_P=0.5)
-against live `gemma4:e4b` exercises the full v1.0 pipeline end-to-end:
+against live `gemma4:e4b` confirmed the same trajectory at higher
+scene density:
 
 | Gate | Result | v0.3 baseline | v1.0 80-tick smoke |
 |------|--------|----------------|---------------------|
