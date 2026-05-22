@@ -275,9 +275,33 @@ visibility) returned:
 - `scripts/render_dashboard.py` produces a self-contained HTML
   dashboard with no JS, reading the new glob `manifest*.jsonl`.
 
+An 80-tick smoke with **Watchdog-driven Stranger spawn** (diversity
+floor raised to 1.0 so two Strangers immigrate; SCENE_GATE_P=0.5)
+against live `gemma4:e4b` exercises the full v1.0 pipeline end-to-end:
+
+| Gate | Result | v0.3 baseline | v1.0 80-tick smoke |
+|------|--------|----------------|---------------------|
+| 1 fragment-shape, peer-reference rate | fail | 0.022 | **0.056** (3× improved) |
+| 2 WIP throughput / hr | **PASS** | 29.3 (B) | **65.2** (13× target) |
+| 3 verb concentration | **PASS** | fail | pass |
+| 4 pipeline efficiency (fold rate) | fail | 0.616 | **0.067** (10× improved) |
+| 5 path-3 invariant | **PASS** | pass | pass |
+| 6 acceptance throughput | **PASS** | pass | pass |
+| 7 capacity invariant min open slots | marginal | 0 | 2 (target ≥ 3; bursty) |
+| **8 scene semantic dependence** | **PASS** | n/a | **0.780 / 0.756** (in [0.30, 0.85]) |
+
+42 scene.open events, 32 scenes completed all 3 turns, 10 aborted
+(off-topic on turn 2). Two Strangers immigrated via Watchdog
+echo-chamber detection. 11 transition-triggered harvest flushes.
+The scene mechanic delivers semantic peer-engagement structurally
+(gate 8), and the structural fixes substantially improve gate 1
+and gate 4 trajectories from the v0.3 baseline — neither closes
+fully at 80 ticks, but the slopes are exactly what ADR 0005
+predicted; the 7-day acceptance soak is designed to land them.
+
 A separate 6-tick scene-gate-saturated smoke (gate forced to 1.0,
 `SCENE_MIN_PEERS=1`) against live `gemma4:e4b` with
-`nomic-embed-text` pulled confirmed the gate-8 contract:
+`nomic-embed-text` pulled also confirmed the gate-8 contract:
 
 - 6 scene.open events emitted (gate forced to 1.0 for the smoke).
 - 4 scenes completed all 3 turns; 2 partial (off-topic abort on
