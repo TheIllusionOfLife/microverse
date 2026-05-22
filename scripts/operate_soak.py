@@ -21,6 +21,7 @@ on early termination.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import shutil
@@ -168,12 +169,26 @@ def main(argv: list[str] | None = None) -> int:
         f"operate_soak: pid={proc.pid} duration_s={duration_s:.0f} health_log={health_log}\n"
     )
 
+    # Forward operator SIGTERM (e.g. systemd / nohup kill) to the child
+    # so the runtime gets the same graceful-shutdown signal it would
+    # have received directly. SIGINT is handled separately via the
+    # KeyboardInterrupt branch (Python translates the signal into the
+    # exception for the main thread).
+    def _forward_sigterm(_signum: int, _frame: object) -> None:
+        sys.stderr.write("operate_soak: SIGTERM received, forwarding to child\n")
+        with contextlib.suppress(ProcessLookupError):
+            proc.send_signal(signal.SIGTERM)
+
+    signal.signal(signal.SIGTERM, _forward_sigterm)
+
     next_sample = time.time()
+    exit_code = 0
     try:
         while True:
             now = time.time()
             if proc.poll() is not None:
                 sys.stderr.write(f"operate_soak: child exited with code {proc.returncode}\n")
+                exit_code = proc.returncode or 0
                 break
             if now >= deadline:
                 sys.stderr.write("operate_soak: deadline reached, signaling SIGTERM\n")
@@ -183,6 +198,7 @@ def main(argv: list[str] | None = None) -> int:
                 except subprocess.TimeoutExpired:
                     sys.stderr.write("operate_soak: child slow to exit, sending SIGKILL\n")
                     proc.kill()
+                exit_code = proc.returncode or 0
                 break
             if now >= next_sample:
                 record = _sample_health(args.data, args.harvest, proc.pid)
@@ -198,7 +214,18 @@ def main(argv: list[str] | None = None) -> int:
             proc.wait(timeout=60)
         except subprocess.TimeoutExpired:
             proc.kill()
-    return 0
+        exit_code = proc.returncode or 0
+    finally:
+        # Belt-and-suspenders: never leave an orphan child process if
+        # the loop exits unexpectedly (uncaught exception, etc.).
+        if proc.poll() is None:
+            with contextlib.suppress(ProcessLookupError):
+                try:
+                    proc.terminate()
+                    proc.wait(timeout=30)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+    return exit_code
 
 
 if __name__ == "__main__":

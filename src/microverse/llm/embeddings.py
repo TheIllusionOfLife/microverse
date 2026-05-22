@@ -2,7 +2,7 @@
 
 NOT called from ``agent.think()``. Used exclusively by the gates
 producer in ``scripts/spike_workshop_measure.py`` to compute
-turn-to-turn cosine similarity for ADR 0005 Gate 7 (scene semantic
+turn-to-turn cosine similarity for ADR 0005 Gate 8 (scene semantic
 dependence). The single-model invariant for the agent action loop
 remains intact: agents see exactly one model, ``config.MODEL``.
 
@@ -12,12 +12,15 @@ The embedding model (``config.EMBEDDING_MODEL``, default
     ollama pull nomic-embed-text
 
 If the model is missing, :func:`embed` returns an empty list and
-records ``embedding_unavailable`` to stderr — gate 7 then degrades to
+records ``embedding_unavailable`` to stderr — gate 8 then degrades to
 unknown rather than asserting on a nonexistent oracle.
 
-A small ``lru_cache`` keyed on a SHA-256 of the text avoids re-embedding
-identical fragments across multiple gate runs (e.g. when the spike
-script is re-invoked).
+A small ``lru_cache`` deduplicates re-embedding identical fragments
+across multiple gate runs (e.g. when the spike script is re-invoked).
+The cache function takes ``(text_hash, text)`` and Python's
+``lru_cache`` keys on both, but the SHA-256 hash dominates the key's
+identity in practice — equal inputs produce equal hashes, so a repeat
+call hits the cache exactly when the text is unchanged.
 """
 
 from __future__ import annotations
@@ -47,8 +50,10 @@ def _hash(text: str) -> str:
 
 @functools.lru_cache(maxsize=_CACHE_MAX)
 def _embed_by_hash(_text_hash: str, text: str) -> tuple[float, ...]:
-    """Cached inner. ``text_hash`` is the cache key (collision-resistant);
-    ``text`` is the actual input passed to Ollama."""
+    """Cached inner. ``lru_cache`` keys on the (hash, text) tuple — the
+    hash is collision-resistant and dominates identity; ``text`` rides
+    alongside as the value to actually pass to Ollama on a cache miss.
+    """
     try:
         resp: Any = ollama.embed(model=EMBEDDING_MODEL, input=text)
     except Exception as e:

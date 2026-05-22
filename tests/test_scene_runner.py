@@ -291,6 +291,58 @@ def test_replay_determinism_via_scene_open_payload(tmp_path: Path) -> None:
         metrics.close()
 
 
+def test_scene_open_logged_before_first_think(tmp_path: Path) -> None:
+    """ADR 0006 ordering invariant: ``scene.open`` MUST be durably
+    written to episodic BEFORE the first ``think()`` runs. Replay sees
+    the author rotation as authoritative; if think() raced ahead and
+    crashed before the open lands, the replay author list would be
+    derived from the (mutable) scheduler instead, breaking determinism.
+    """
+    em = EpisodicMemory(tmp_path / "episodic.sqlite")
+    metrics = Metrics(tmp_path / "metrics.sqlite")
+    try:
+        wip = CONFIGURED_WIPS[0]
+
+        class _InspectAgent(_FakeAgent):
+            def __init__(self, name: str, episodic_ref: EpisodicMemory) -> None:
+                super().__init__(
+                    name,
+                    plan=[_contrib_action(wip, f"{name} turn fragment for ordering test.")],
+                )
+                self._episodic = episodic_ref
+                self.saw_open_before_think = False
+
+            def think(self, world: WorldContext) -> Action:
+                # Inspect the log from inside the FIRST think() and
+                # confirm the scene.open event has already landed.
+                events = self._episodic.last(20)
+                actions = [e.action for e in events]
+                if "scene.open" in actions:
+                    self.saw_open_before_think = True
+                return super().think(world)
+
+        aki = _InspectAgent("Aki", em)
+        bo = _FakeAgent("Bo", plan=[_contrib_action(wip, "Bo turn 2.")])
+        runner = SceneRunner(
+            episodic=em,
+            commit_action=_commit_action_factory(em),
+            world_factory=_world_factory_factory(WorldContext()),
+            rng=random.Random(0),
+            metrics=metrics,
+        )
+        # Solo run so Aki is the only think()-er we need to inspect on
+        # turn 1; the carve-out path runs turn 3 as Aki too.
+        runner.run(aki, wip, peers=[bo])
+
+        assert aki.saw_open_before_think, (
+            "scene.open must be durable in episodic BEFORE first think() runs "
+            "(ADR 0006 ordering invariant)."
+        )
+    finally:
+        em.close()
+        metrics.close()
+
+
 def test_pick_authors_falls_back_when_only_one_peer() -> None:
     """A→B→A when only one distinct peer exists."""
     out = pick_authors("Aki", ["Bo"], rng=random.Random(0))

@@ -184,7 +184,6 @@ engagement-gate. It does NOT claim to dissolve ADR 0002.
 
 ## Reference
 
-- Plan: `/Users/yuyamukai/.claude/plans/ok-so-do-everything-abundant-seahorse.md`
 - Parent: ADR 0005 (proposed scenes; this ADR ships them).
 - Predecessor: ADR 0002 (verb attractor; this ADR adds counter-pressure).
 - Predecessor: ADR 0003 (workshop substrate + Path-3; scene carve-out

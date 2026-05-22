@@ -268,6 +268,13 @@ def prune_snapshots(
     if not snapshots_dir.exists():
         return []
 
+    # Reject negative bounds: a negative cap would over-prune (None or
+    # 0 are the documented "no cap" / "drop everything possible" cases).
+    if max_count is not None and max_count < 0:
+        raise ValueError(f"max_count must be >= 0, got {max_count}")
+    if max_bytes is not None and max_bytes < 0:
+        raise ValueError(f"max_bytes must be >= 0, got {max_bytes}")
+
     archives = sorted(snapshots_dir.glob("*.tar.gz"))
     if not archives:
         return []

@@ -200,6 +200,14 @@ def parse_action(
                 # immersion breaks.
                 metrics.bump("meta_leak_block", agent=agent)
                 return _rest_action()
+            # ADR 0006: scene_id / turn_index are stamped at runtime by
+            # ``SceneRunner`` — never accepted from the LLM. Strip any
+            # forged values here so a contribute outside a scene cannot
+            # masquerade as part of one (which would pollute the
+            # gate-8 scene grouping in spike_workshop_measure.py).
+            if action.scene_id is not None or action.turn_index is not None:
+                metrics.bump("scene_meta_forged", agent=agent)
+                action = action.model_copy(update={"scene_id": None, "turn_index": None})
             action, folded = _validate_contribute(
                 action, metrics=metrics, agent=agent, workshop=workshop
             )
@@ -228,6 +236,13 @@ def parse_action(
             ):
                 metrics.bump("meta_leak_block", agent=agent)
                 return _rest_action()
+            # ADR 0006: see strict-pass note above. Strip forged scene
+            # metadata from json-repaired actions too.
+            if repaired_action.scene_id is not None or repaired_action.turn_index is not None:
+                metrics.bump("scene_meta_forged", agent=agent)
+                repaired_action = repaired_action.model_copy(
+                    update={"scene_id": None, "turn_index": None}
+                )
             validated, folded = _validate_contribute(
                 repaired_action, metrics=metrics, agent=agent, workshop=workshop
             )

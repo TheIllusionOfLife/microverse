@@ -150,17 +150,29 @@ def verify(
                 ti = p.get("turn_index")
                 if ti in (1, 2, 3):
                     contribs.setdefault(sid, set()).add(int(ti))
+        # A scene is closed iff (a) it has an abort marker, OR (b) all
+        # three turns landed. Partial scenes without an abort are a
+        # kill-safety violation: the contract says either all 3
+        # contributes follow scene.open or a scene.abort is logged.
         orphans: list[str] = []
+        partials: list[str] = []
         for sid in opens:
             if sid in aborts:
                 continue
-            if contribs.get(sid):
-                continue
-            # Open with no contribute AND no abort. Orphan.
-            orphans.append(sid)
+            got = contribs.get(sid, set())
+            if not got:
+                orphans.append(sid)
+            elif got != {1, 2, 3}:
+                partials.append(sid)
         if orphans:
             print(
                 f"kill_drill_FAIL: orphan scene.open without contributes or abort: {orphans[:10]}",
+                file=sys.stderr,
+            )
+            return 1
+        if partials:
+            print(
+                f"kill_drill_FAIL: partial scenes (1<turns<3) without abort: {partials[:10]}",
                 file=sys.stderr,
             )
             return 1

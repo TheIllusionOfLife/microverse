@@ -476,10 +476,23 @@ def gate8_scene_semantic_dependence(
         n = len(ys)
         return ys[n // 2] if n % 2 else 0.5 * (ys[n // 2 - 1] + ys[n // 2])
 
+    # If we had complete scenes but no embedding samples landed, the
+    # embedding model is unavailable — degrade to unknown rather than
+    # report a false fail (CodeRabbit + Codex on #38).
+    if completed > 0 and not cos_t2 and not cos_t3:
+        return {
+            "available": False,
+            "reason": "embedding_unavailable",
+            "scenes_opened": len(scene_ids),
+            "scenes_completed": completed,
+            "scenes_aborted": aborted,
+            "band": [band_low, band_high],
+        }
+
     median_t2 = _median(cos_t2)
     median_t3 = _median(cos_t3)
-    pass_t2 = band_low <= median_t2 <= band_high
-    pass_t3 = band_low <= median_t3 <= band_high
+    pass_t2 = bool(cos_t2) and band_low <= median_t2 <= band_high
+    pass_t3 = bool(cos_t3) and band_low <= median_t3 <= band_high
     return {
         "available": True,
         "scenes_opened": len(scene_ids),
@@ -487,6 +500,8 @@ def gate8_scene_semantic_dependence(
         "scenes_aborted": aborted,
         "cosine_turn2_vs_turn1_median": round(median_t2, 4),
         "cosine_turn3_vs_turn1_2_median": round(median_t3, 4),
+        "samples_turn2": len(cos_t2),
+        "samples_turn3": len(cos_t3),
         "band": [band_low, band_high],
         "subgate_a_turn2_in_band": pass_t2,
         "subgate_b_turn3_in_band": pass_t3,

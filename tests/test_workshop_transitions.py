@@ -28,6 +28,46 @@ def test_drain_empty_when_no_completions(tmp_path: Path) -> None:
         em.close()
 
 
+def test_has_complete_transitions_peeks_without_clearing(tmp_path: Path) -> None:
+    """has_complete_transitions() must NOT consume the edge signal.
+    The run-loop's flush gate needs a peek so a throttle-blocked tick
+    can re-check the edge on the next eligible flush.
+    """
+    wp, em = _make_workshop(tmp_path)
+    try:
+        from microverse.memory.episodic import Event
+        from microverse.world.workshop import COMPLETE_FRAGMENT_FLOOR, CONFIGURED_WIPS
+
+        wip_name = CONFIGURED_WIPS[0]
+        text = "x" * 200
+        for i in range(COMPLETE_FRAGMENT_FLOOR + 1):
+            ev_id = em.append(
+                actor=f"agent{i % 3}",
+                action="contribute",
+                target=wip_name,
+                payload={"fragment": text, "thought": "", "artifact": text},
+            )
+            wp.on_event(
+                Event(
+                    id=ev_id,
+                    ts=0.0,
+                    actor=f"agent{i % 3}",
+                    action="contribute",
+                    target=wip_name,
+                    payload={"fragment": text, "thought": "", "artifact": text},
+                )
+            )
+
+        # Peek does not clear.
+        assert wp.has_complete_transitions() is True
+        assert wp.has_complete_transitions() is True
+        # Drain consumes.
+        assert wip_name in wp.drain_complete_transitions()
+        assert wp.has_complete_transitions() is False
+    finally:
+        em.close()
+
+
 def test_drain_returns_completed_wip(tmp_path: Path) -> None:
     """When a WIP transitions into 'complete', drain returns its name."""
     wp, em = _make_workshop(tmp_path)

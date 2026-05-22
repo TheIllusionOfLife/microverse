@@ -374,6 +374,55 @@ def _commit_action(
     return event_id
 
 
+def _run_periodic_maintenance(
+    *,
+    executed: int,
+    episodic: EpisodicMemory,
+    metrics: Metrics,
+    data_dir: Path,
+    snapshots_dir: Path,
+) -> None:
+    """Phase A: episodic optimize + snapshot take + prune.
+
+    Runs after every tick (both scene and single-tick paths). Each
+    sub-step gates itself on cadence, so the common case is a no-op
+    that only stat()-checks the tick counter.
+    """
+    if (
+        config.EPISODIC_OPTIMIZE_EVERY > 0
+        and executed > 0
+        and executed % config.EPISODIC_OPTIMIZE_EVERY == 0
+    ):
+        try:
+            episodic.optimize()
+        except Exception:
+            _logger.exception("episodic.optimize failed")
+            metrics.bump("episodic_optimize_fail")
+    try:
+        snap_path = maybe_snapshot(
+            executed,
+            interval=SNAPSHOT_EVERY,
+            data_dir=data_dir,
+            snapshots_dir=snapshots_dir,
+        )
+        if snap_path is not None:
+            try:
+                prune_snapshots(
+                    snapshots_dir,
+                    max_count=config.SNAPSHOT_RETENTION_COUNT,
+                    max_bytes=config.SNAPSHOT_RETENTION_BYTES,
+                )
+            except Exception:
+                _logger.exception("snapshot prune failed")
+                metrics.bump("snapshot_prune_fail")
+    except SnapshotBusyError:
+        _logger.warning("snapshot skipped: WAL checkpoint busy")
+        metrics.bump("snapshot_skip_busy")
+    except Exception:
+        _logger.exception("snapshot failed")
+        metrics.bump("snapshot_fail")
+
+
 def _maybe_harvest(harvester: Harvester, agent: Agent, action: Action) -> None:
     if not action.artifact:
         return
@@ -675,15 +724,17 @@ def run(
                 if executed % WATCHDOG_EVERY == 0:
                     _safe("watchdog.check", watchdog.check)
                 # Reuse the Phase B flush logic below by continuing to
-                # the bottom of the loop. Drain transitions just like
-                # the single-tick path would.
+                # the bottom of the loop. Peek transitions without
+                # draining so a throttle-blocked tick does not lose
+                # the edge signal — drain only when actually flushing.
                 ticks_since_last_flush += 1
-                transitions = workshop.drain_complete_transitions()
+                has_transitions = workshop.has_complete_transitions()
                 timer_fire = executed % HARVEST_FLUSH_EVERY == 0
-                transition_fire = bool(transitions) and (
+                transition_fire = has_transitions and (
                     ticks_since_last_flush >= transition_flush_throttle_ticks
                 )
                 if timer_fire or transition_fire:
+                    workshop.drain_complete_transitions()
                     try:
                         harvester.flush()
                     except Exception:
@@ -702,6 +753,16 @@ def run(
                         concentration = 0
                     metrics.set_value("wip_target_concentration", concentration)
                     wip_target_counts.clear()
+                # Periodic SQLite hygiene + snapshot pruning must run on
+                # the scene path too — a scene-heavy soak otherwise
+                # never optimizes the DB or prunes archives.
+                _run_periodic_maintenance(
+                    executed=executed,
+                    episodic=episodic,
+                    metrics=metrics,
+                    data_dir=data_dir,
+                    snapshots_dir=snapshots_dir,
+                )
                 sleep_s = tempo if tempo is not None else agent.tempo()
                 if sleep_s > 0:
                     time.sleep(sleep_s)
@@ -736,14 +797,16 @@ def run(
             # Phase B (ADR 0005 D2): edge-triggered flush on WIP
             # completion. The 50-tick timer is retained as a ceiling
             # so artifact-only flushes still happen in windows with no
-            # WIP completions.
+            # WIP completions. Peek transitions without draining so a
+            # throttle-blocked tick does not lose the edge signal.
             ticks_since_last_flush += 1
-            transitions = workshop.drain_complete_transitions()
+            has_transitions = workshop.has_complete_transitions()
             timer_fire = executed % HARVEST_FLUSH_EVERY == 0
-            transition_fire = bool(transitions) and (
+            transition_fire = has_transitions and (
                 ticks_since_last_flush >= transition_flush_throttle_ticks
             )
             if timer_fire or transition_fire:
+                workshop.drain_complete_transitions()
                 try:
                     harvester.flush()
                 except Exception:
@@ -769,54 +832,13 @@ def run(
                     concentration = 0
                 metrics.set_value("wip_target_concentration", concentration)
                 wip_target_counts.clear()
-            # Phase A: periodic SQLite hygiene on episodic. Cheap
-            # wal_checkpoint(TRUNCATE) + PRAGMA optimize via short-lived
-            # secondary connection. Best-effort; failures bump a metric.
-            if (
-                config.EPISODIC_OPTIMIZE_EVERY > 0
-                and executed > 0
-                and executed % config.EPISODIC_OPTIMIZE_EVERY == 0
-            ):
-                try:
-                    episodic.optimize()
-                except Exception:
-                    _logger.exception("episodic.optimize failed")
-                    metrics.bump("episodic_optimize_fail")
-            try:
-                snap_path = maybe_snapshot(
-                    executed,
-                    interval=SNAPSHOT_EVERY,
-                    data_dir=data_dir,
-                    snapshots_dir=snapshots_dir,
-                )
-                if snap_path is not None:
-                    # Phase A: keep snapshots/ bounded under multi-week soaks.
-                    try:
-                        prune_snapshots(
-                            snapshots_dir,
-                            max_count=config.SNAPSHOT_RETENTION_COUNT,
-                            max_bytes=config.SNAPSHOT_RETENTION_BYTES,
-                        )
-                    except Exception:
-                        _logger.exception("snapshot prune failed")
-                        metrics.bump("snapshot_prune_fail")
-            except SnapshotBusyError:
-                # A competing writer prevented wal_checkpoint(TRUNCATE)
-                # from completing cleanly. Skip this interval rather
-                # than ship a possibly-torn archive; the next interval
-                # will try again.
-                _logger.warning("snapshot skipped: WAL checkpoint busy")
-                metrics.bump("snapshot_skip_busy")
-            except Exception:
-                # Anything else (sqlite3.OperationalError "disk I/O
-                # error", a transient FS failure, OS-level truncate
-                # racing tar) must NOT kill the loop. WAL is the
-                # durability boundary; snapshots are cold backups, so
-                # missing one interval is acceptable. A 24h soak
-                # crashed here once when this branch only caught
-                # SnapshotBusyError.
-                _logger.exception("snapshot failed")
-                metrics.bump("snapshot_fail")
+            _run_periodic_maintenance(
+                executed=executed,
+                episodic=episodic,
+                metrics=metrics,
+                data_dir=data_dir,
+                snapshots_dir=snapshots_dir,
+            )
 
             sleep_s = tempo if tempo is not None else agent.tempo()
             if sleep_s > 0:

@@ -45,32 +45,31 @@ def _read_metrics_snapshot(db: Path) -> list[tuple[str, str | None, int, float]]
 
 def _read_recent_artifacts(harvest_root: Path, limit: int = 25) -> list[dict[str, object]]:
     # Phase A: glob manifest*.jsonl so rotated audit archives still
-    # contribute to the dashboard's most-recent view.
-    manifests = sorted(harvest_root.glob("manifest*.jsonl"))
+    # contribute to the dashboard's most-recent view. Walk newest
+    # manifest first; within each file walk newest record first
+    # (manifest is append-only, so end-of-file == latest record).
+    manifests = sorted(
+        harvest_root.glob("manifest*.jsonl"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
     if not manifests:
         return []
-    # Read newest manifest first (live `manifest.jsonl` sorts last among
-    # `manifest-*.jsonl` archives + the live file, but we want newest
-    # records first, so iterate in reverse-mtime order).
-    manifests.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-    lines: list[str] = []
+    recs: list[dict[str, object]] = []
     for m in manifests:
         try:
-            lines.extend(m.read_text().splitlines())
+            file_lines = m.read_text().splitlines()
         except OSError:
             continue
-        if len(lines) >= limit * 4:
-            break
-    recs: list[dict[str, object]] = []
-    for line in reversed(lines[-limit * 4 :]):  # over-pull, then filter
-        try:
-            r = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if r.get("accepted"):
-            recs.append(r)
-        if len(recs) >= limit:
-            break
+        for line in reversed(file_lines):
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if r.get("accepted"):
+                recs.append(r)
+            if len(recs) >= limit:
+                return recs
     return recs
 
 

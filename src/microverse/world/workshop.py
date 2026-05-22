@@ -151,10 +151,22 @@ class WorkshopProjection:
         # happen during live ticks, not historical ones at startup.
         self._pending_complete_transitions.clear()
 
+    def has_complete_transitions(self) -> bool:
+        """Peek the pending transition set without clearing it. Lets the
+        run-loop's flush gate check the throttle before consuming the
+        edge signal: if the throttle is closed, the edges stay buffered
+        for the next eligible flush instead of being silently dropped.
+        """
+        return bool(self._pending_complete_transitions)
+
     def drain_complete_transitions(self) -> set[str]:
         """Return + clear the set of WIPs that transitioned into
         ``complete`` since the last drain. Edge-triggered: a WIP that is
         contributed-to again while already complete is not re-reported.
+
+        Callers MUST gate the drain on actually firing the flush — see
+        ``has_complete_transitions`` for the peek-without-clear variant.
+        Draining without flushing loses the edge signal permanently.
         """
         out = self._pending_complete_transitions
         self._pending_complete_transitions = set()
