@@ -476,16 +476,22 @@ def gate8_scene_semantic_dependence(
         n = len(ys)
         return ys[n // 2] if n % 2 else 0.5 * (ys[n // 2 - 1] + ys[n // 2])
 
-    # If we had complete scenes but no embedding samples landed, the
-    # embedding model is unavailable — degrade to unknown rather than
-    # report a false fail (CodeRabbit + Codex on #38).
-    if completed > 0 and not cos_t2 and not cos_t3:
+    # If we had complete scenes but either cosine stream is empty, the
+    # gate cannot be evaluated symmetrically — degrade to unknown
+    # rather than report a false fail (CodeRabbit + Codex on #38). The
+    # turn3-vs-(turn1+turn2) stream can be empty independently of the
+    # turn2-vs-turn1 stream (the concatenation may exceed the embedding
+    # model's input cap even when individual turns embed fine), so we
+    # require both streams present before computing the gate.
+    if completed > 0 and (not cos_t2 or not cos_t3):
         return {
             "available": False,
             "reason": "embedding_unavailable",
             "scenes_opened": len(scene_ids),
             "scenes_completed": completed,
             "scenes_aborted": aborted,
+            "samples_turn2": len(cos_t2),
+            "samples_turn3": len(cos_t3),
             "band": [band_low, band_high],
         }
 

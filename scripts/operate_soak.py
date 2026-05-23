@@ -198,7 +198,12 @@ def main(argv: list[str] | None = None) -> int:
                 except subprocess.TimeoutExpired:
                     sys.stderr.write("operate_soak: child slow to exit, sending SIGKILL\n")
                     proc.kill()
-                exit_code = proc.returncode or 0
+                    # Reap the SIGKILL'd child so returncode is set;
+                    # otherwise it stays None and an "or 0" fallback
+                    # would silently report success on forced kill.
+                    with contextlib.suppress(subprocess.TimeoutExpired):
+                        proc.wait(timeout=30)
+                exit_code = proc.returncode if proc.returncode is not None else 137
                 break
             if now >= next_sample:
                 record = _sample_health(args.data, args.harvest, proc.pid)
@@ -214,7 +219,9 @@ def main(argv: list[str] | None = None) -> int:
             proc.wait(timeout=60)
         except subprocess.TimeoutExpired:
             proc.kill()
-        exit_code = proc.returncode or 0
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                proc.wait(timeout=30)
+        exit_code = proc.returncode if proc.returncode is not None else 130
     finally:
         # Belt-and-suspenders: never leave an orphan child process if
         # the loop exits unexpectedly (uncaught exception, etc.).

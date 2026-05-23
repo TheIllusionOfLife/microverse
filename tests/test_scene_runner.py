@@ -310,15 +310,17 @@ def test_scene_open_logged_before_first_think(tmp_path: Path) -> None:
                     plan=[_contrib_action(wip, f"{name} turn fragment for ordering test.")],
                 )
                 self._episodic = episodic_ref
-                self.saw_open_before_think = False
+                self.saw_open_before_first_think: bool | None = None
 
             def think(self, world: WorldContext) -> Action:
-                # Inspect the log from inside the FIRST think() and
-                # confirm the scene.open event has already landed.
-                events = self._episodic.last(20)
-                actions = [e.action for e in events]
-                if "scene.open" in actions:
-                    self.saw_open_before_think = True
+                # Capture state on the FIRST think() only — later turns
+                # would trivially see scene.open and mask a real
+                # ordering bug where the open is written between turn 1
+                # and turn 2.
+                if self.saw_open_before_first_think is None:
+                    events = self._episodic.last(20)
+                    actions = [e.action for e in events]
+                    self.saw_open_before_first_think = "scene.open" in actions
                 return super().think(world)
 
         aki = _InspectAgent("Aki", em)
@@ -334,7 +336,7 @@ def test_scene_open_logged_before_first_think(tmp_path: Path) -> None:
         # turn 1; the carve-out path runs turn 3 as Aki too.
         runner.run(aki, wip, peers=[bo])
 
-        assert aki.saw_open_before_think, (
+        assert aki.saw_open_before_first_think is True, (
             "scene.open must be durable in episodic BEFORE first think() runs "
             "(ADR 0006 ordering invariant)."
         )

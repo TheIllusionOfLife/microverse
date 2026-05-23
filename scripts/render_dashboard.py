@@ -48,11 +48,17 @@ def _read_recent_artifacts(harvest_root: Path, limit: int = 25) -> list[dict[str
     # contribute to the dashboard's most-recent view. Walk newest
     # manifest first; within each file walk newest record first
     # (manifest is append-only, so end-of-file == latest record).
-    manifests = sorted(
-        harvest_root.glob("manifest*.jsonl"),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
+    # Gather (mtime, path) tolerating concurrent rotation: a file may
+    # disappear between glob() and stat() if the harvester rotates
+    # mid-read. Skip those rather than crash the whole dashboard render.
+    entries: list[tuple[float, Path]] = []
+    for p in harvest_root.glob("manifest*.jsonl"):
+        try:
+            entries.append((p.stat().st_mtime, p))
+        except OSError:
+            continue
+    entries.sort(key=lambda e: e[0], reverse=True)
+    manifests = [p for _mtime, p in entries]
     if not manifests:
         return []
     recs: list[dict[str, object]] = []
