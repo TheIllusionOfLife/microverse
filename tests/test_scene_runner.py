@@ -345,6 +345,29 @@ def test_scene_open_logged_before_first_think(tmp_path: Path) -> None:
         metrics.close()
 
 
+def test_scene_min_peers_default_allows_default_roster() -> None:
+    """Production regression for v1.0-RC1: SCENE_MIN_PEERS MUST be set
+    so the scene gate can fire under the default 2-agent roster.
+
+    Without this constraint the gate predicate is unreachable
+    (other_peers per tick is length 1 for a 2-agent roster), and
+    Gate 8 (scene semantic dependence — the headline v1.0
+    measurement) has no data. Empirically: the 46-hour v1.0 acceptance
+    soak with SCENE_MIN_PEERS=2 produced ZERO scenes.
+
+    A future roster expansion that supports 3-distinct-peer scenes by
+    default may raise this; the test then needs to be revised, but
+    the raise must come WITH a roster change in the same commit.
+    """
+    from microverse import config
+
+    assert config.SCENE_MIN_PEERS <= 1, (
+        f"SCENE_MIN_PEERS={config.SCENE_MIN_PEERS} makes the scene gate "
+        "unreachable with the default 2-agent roster. Either lower this "
+        "back to <=1 or grow _build_roster() to >=3 agents in the same change."
+    )
+
+
 def test_pick_authors_falls_back_when_only_one_peer() -> None:
     """A→B→A when only one distinct peer exists."""
     out = pick_authors("Aki", ["Bo"], rng=random.Random(0))

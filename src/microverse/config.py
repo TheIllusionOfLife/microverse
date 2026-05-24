@@ -171,6 +171,14 @@ EMBEDDING_MODEL: str = "nomic-embed-text"
 # soak confirms throughput holds.
 SCENE_GATE_P: float = 0.15
 # Minimum number of distinct peers besides the chosen agent for the
-# scene gate to fire. With only one peer the rotation degenerates to
-# A→B→A and the scene's "social fabric" claim weakens; gate it off.
-SCENE_MIN_PEERS: int = 2
+# scene gate to fire. The default roster is 2 agents (Aki + Cy), so
+# other_peers per tick is length 1 — gating at >= 2 makes the scene
+# gate unreachable in production (proven empirically by the v1.0 RC
+# soak: 46 h of ticks produced zero scenes). The 1-peer rotation
+# A->B->A is explicitly supported by ``pick_authors`` and covered by
+# tests; ADR 0006 documents turn 3's scene_context for the
+# same-author case as explicit scene input (NOT autobiographical
+# replay). Gate 8 still measures real semantic dependence under this
+# rotation: turn 2 reads turn 1, turn 3 reads turn 1+2. Raising this
+# back to >= 2 requires growing the default roster first.
+SCENE_MIN_PEERS: int = 1
