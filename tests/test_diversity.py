@@ -80,3 +80,71 @@ def test_suggest_underused_verb_filters_to_available() -> None:
     dist = Counter({"craft": 8, "travel": 0, "speak": 2})
     available = ["craft", "speak"]  # travel deliberately excluded
     assert suggest_underused_verb(dist, available) == "speak"
+
+
+def test_compute_novelty_hint_ignores_scene_contributes_end_to_end(tmp_path: Path) -> None:
+    """End-to-end regression for the dead diversity lever.
+
+    In the 5.5-day soak the recent window was ~94% scene ``contribute``,
+    so ``_compute_novelty_hint`` returned dominant=contribute — which a
+    single-tick action (never ``contribute``) can never match, so the
+    lever never fired. With contribute excluded, the dominant verb is
+    the agent's actual free-choice attractor (``craft`` here) and the
+    suggested substitute is a different free verb, so the precondition
+    ``action.verb == dominant_verb`` becomes satisfiable.
+    """
+    import random
+
+    from microverse.agents.artisan import Artisan
+    from microverse.ops.metrics import Metrics
+    from microverse.run import _compute_novelty_hint
+
+    metrics = Metrics(tmp_path / "metrics.sqlite")
+    em = EpisodicMemory(tmp_path / "episodic.sqlite")
+    try:
+        # Scene-heavy log: 60 contributes then a craft burst of 12 with a
+        # couple of speaks — exactly the soak's shape.
+        for _ in range(60):
+            em.append(actor="Aki", action="contribute", target=None, payload={})
+        for _ in range(12):
+            em.append(actor="Aki", action="craft", target=None, payload={})
+        for _ in range(2):
+            em.append(actor="Aki", action="speak", target="Cy", payload={})
+
+        agent = Artisan("Aki", metrics=metrics, rng=random.Random(0))
+        hint, dominant, suggested = _compute_novelty_hint(em, agent)
+    finally:
+        em.close()
+        metrics.close()
+
+    assert dominant == "craft", f"expected free-verb dominant, got {dominant!r}"
+    assert suggested not in {"", "contribute"}, f"bad suggestion {suggested!r}"
+    assert dominant in hint
+
+
+def test_recent_verb_distribution_excludes_scene_contributes(tmp_path: Path) -> None:
+    """The diversity lever targets FREE-choice verbs. Scene ``contribute``
+    events flood a scene-heavy log and must be excluded, otherwise the
+    dominant verb resolves to ``contribute`` (which the lever can never
+    substitute) and the lever is structurally dead. Regression test for
+    the 5.5-day soak where ``diversity_lever_substituted`` stayed 0
+    because dominant=contribute never matched a single-tick action.
+    """
+    em = EpisodicMemory(tmp_path / "episodic.sqlite")
+    try:
+        # A scene-heavy agent: 30 scene contributes interleaved with a
+        # craft burst of 6 and 2 speaks.
+        for _ in range(30):
+            em.append(actor="aki", action="contribute", target=None, payload={})
+        for _ in range(6):
+            em.append(actor="aki", action="craft", target=None, payload={})
+        for _ in range(2):
+            em.append(actor="aki", action="speak", target="bo", payload={})
+
+        dist = recent_verb_distribution(em, "aki", lookback=200, exclude={"contribute"})
+    finally:
+        em.close()
+    # contribute is excluded entirely; the free-choice mix survives so
+    # the dominant verb (craft) now matches the single-tick action.
+    assert "contribute" not in dist
+    assert dist == Counter({"craft": 6, "speak": 2})

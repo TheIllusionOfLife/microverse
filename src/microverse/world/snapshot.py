@@ -22,10 +22,54 @@ import shutil
 import sqlite3
 import tarfile
 import threading
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 _logger = logging.getLogger(__name__)
+
+
+@dataclass
+class SnapshotGuard:
+    """Circuit breaker for the cold-backup snapshot path.
+
+    Snapshots are best-effort cold backups; the WAL is the durability
+    boundary (see module docstring). A persistent failure mode — e.g.
+    ``wal_checkpoint(TRUNCATE)`` raising SQLITE_IOERR on some
+    macOS/APFS configurations — otherwise retries every snapshot
+    interval for the life of the run. That floods the log with
+    thousands of identical tracebacks AND, because each failed
+    checkpoint perturbs the WAL/-shm sidecars, makes ad-hoc reader
+    connections observe a stale ``MAX(ts)`` that reads as a false
+    stall. After ``max_consecutive_failures`` consecutive failures the
+    breaker trips and the caller skips snapshots for the rest of the
+    run. A single successful snapshot resets the streak.
+
+    Transient ``SnapshotBusyError`` (a competing writer) is NOT a hard
+    failure and should not be fed to :meth:`record_failure` — it is
+    expected contention that clears on its own.
+    """
+
+    max_consecutive_failures: int = 5
+    consecutive_failures: int = 0
+    disabled: bool = False
+
+    def record_success(self) -> None:
+        """Reset the failure streak after a clean snapshot."""
+        self.consecutive_failures = 0
+
+    def record_failure(self) -> bool:
+        """Count one hard failure. Return True iff this call trips the
+        breaker (transitions ``disabled`` False→True). Idempotent once
+        disabled: further calls return False and do not increment."""
+        if self.disabled:
+            return False
+        self.consecutive_failures += 1
+        if self.consecutive_failures >= self.max_consecutive_failures:
+            self.disabled = True
+            return True
+        return False
+
 
 # SQLite extended error codes. Stable across SQLite versions.
 # https://www.sqlite.org/rescode.html
@@ -37,9 +81,9 @@ class SnapshotBusyError(RuntimeError):
 
     The caller should treat this as a transient failure (try again
     next interval) rather than archive a possibly-torn DB. Carrying a
-    distinct exception type lets ``run.py``'s ``maybe_snapshot`` site
-    catch this specifically and bump a metric without swallowing
-    unrelated errors.
+    distinct exception type lets ``run.py``'s snapshot site catch this
+    specifically — bumping ``snapshot_skip_busy`` WITHOUT feeding the
+    SnapshotGuard breaker — and avoids swallowing unrelated errors.
     """
 
 

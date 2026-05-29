@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from microverse.run import run
 
@@ -238,7 +238,7 @@ def test_run_exits_after_consecutive_deadlock_breaks(tmp_path: Path):
 def test_run_survives_snapshot_disk_io_error(tmp_path: Path):
     """A 24h soak crashed at hour 4 because sqlite3.OperationalError
     ('disk I/O error') was raised from PRAGMA wal_checkpoint(TRUNCATE)
-    inside maybe_snapshot, but the snapshot site only caught
+    inside take_snapshot, but the snapshot site only caught
     SnapshotBusyError. The OperationalError escaped, killed the loop,
     and 451 trailing rest events were lost. The loop must absorb
     arbitrary snapshot exceptions with a metric bump."""
@@ -256,7 +256,10 @@ def test_run_survives_snapshot_disk_io_error(tmp_path: Path):
     with (
         patch("microverse.run.time.sleep", side_effect=lambda *_a, **_k: None),
         patch("microverse.agents.artisan.chat", return_value=rest_only),
-        patch("microverse.run.maybe_snapshot", side_effect=raise_io),
+        # SNAPSHOT_EVERY=1 forces a snapshot attempt every tick so the
+        # 3-tick smoke actually exercises the failure path.
+        patch("microverse.run.SNAPSHOT_EVERY", 1),
+        patch("microverse.run.take_snapshot", side_effect=raise_io),
     ):
         executed = run(
             ticks=3,
@@ -275,6 +278,55 @@ def test_run_survives_snapshot_disk_io_error(tmp_path: Path):
         ).fetchone()[0]
     assert max_val is not None, "snapshot_fail metric not persisted"
     assert max_val >= 1, f"expected snapshot_fail >= 1, got {max_val}"
+
+
+def test_run_snapshot_circuit_breaker_trips_and_stops_retrying(tmp_path: Path):
+    """A persistent snapshot failure (e.g. SQLITE_IOERR every interval)
+    must not be retried forever. The 5.5-day v1-2 soak logged 9106
+    identical snapshot failures; each failed checkpoint also perturbed
+    the WAL/-shm so ad-hoc readers saw a stale MAX(ts) — a false stall.
+    After SnapshotGuard.max_consecutive_failures (5) consecutive
+    failures the breaker trips: take_snapshot is no longer called and a
+    snapshot_disabled metric is bumped exactly once."""
+    import sqlite3
+
+    def raise_io(*_args: object, **_kwargs: object) -> None:
+        raise sqlite3.OperationalError("disk I/O error")
+
+    rest_only = {
+        "content": '{"thought": "x", "action": "rest", "target": null, "artifact": null}',
+        "thinking": "",
+        "raw": {},
+    }
+
+    snap = MagicMock(side_effect=raise_io)
+    with (
+        patch("microverse.run.time.sleep", side_effect=lambda *_a, **_k: None),
+        patch("microverse.agents.artisan.chat", return_value=rest_only),
+        patch("microverse.run.SNAPSHOT_EVERY", 1),
+        patch("microverse.run.take_snapshot", snap),
+    ):
+        executed = run(
+            ticks=10,
+            seed=0,
+            tempo=0,
+            data_dir=tmp_path / "data",
+            harvest_dir=tmp_path / "harvest",
+            solo=True,
+        )
+
+    assert executed == 10
+    # Default breaker trips on the 5th consecutive failure; after that
+    # the snapshot block is skipped, so take_snapshot is called exactly
+    # 5 times across 10 ticks — not once per tick.
+    assert snap.call_count == 5, f"expected 5 attempts before trip, got {snap.call_count}"
+
+    with sqlite3.connect(str(tmp_path / "data" / "metrics.sqlite")) as conn:
+        disabled = conn.execute(
+            "SELECT MAX(value) FROM metrics WHERE name='snapshot_disabled'"
+        ).fetchone()[0]
+    assert disabled is not None, "snapshot_disabled metric not persisted"
+    assert disabled >= 1, f"expected snapshot_disabled bump, got {disabled}"
 
 
 def test_run_recovers_from_all_paused_via_consecutive_fail_reset(tmp_path: Path):

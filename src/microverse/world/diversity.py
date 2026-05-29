@@ -37,6 +37,7 @@ def recent_verb_distribution(
     agent_name: str,
     *,
     lookback: int = 200,
+    exclude: frozenset[str] | set[str] | None = None,
 ) -> Counter[str]:
     """Counter of action verbs in the most recent ``lookback`` actions
     by ``agent_name``. Other agents' actions are filtered out.
@@ -44,21 +45,35 @@ def recent_verb_distribution(
     are also ignored — only ``action`` values that match a verb enum
     survive (any string is allowed; the caller can filter further).
 
+    ``exclude`` drops the named verbs entirely (they neither count
+    toward the distribution nor consume ``lookback`` budget). The
+    diversity lever passes ``{"contribute"}`` here: scene contributes
+    are coerced workshop actions, not free verb choices, and a
+    scene-heavy log otherwise pins the dominant verb to ``contribute``
+    — which the lever can never substitute — leaving the lever dead.
+
     Uses ``EpisodicMemory.last(lookback * K)`` and filters in Python
-    so we don't add a new SQL helper. K=4 gives plenty of headroom
-    when the agent shares the log with peers + world events.
+    so we don't add a new SQL helper. K is widened when ``exclude`` is
+    set so an agent whose log is dominated by an excluded verb (e.g. a
+    scene-heavy artisan that is ~90% contributes) still surfaces a
+    usable sample of its free-choice verbs.
     """
+    excluded = frozenset(exclude) if exclude else frozenset()
     # Pull a generous window — the events table mixes agents and world
     # events, so we may need to over-pull to find `lookback` of THIS
-    # agent's own actions. K=4 is a soft ceiling; if not enough are
-    # found, return whatever we have.
-    rows: Any = episodic.last(max(lookback * 4, 200))
+    # agent's own actions. Widen the multiplier when excluding verbs so
+    # a contribute-dominated log still yields free-choice actions. The
+    # cap is a soft ceiling; if not enough are found, return what we have.
+    over_pull = 16 if excluded else 4
+    rows: Any = episodic.last(max(lookback * over_pull, 200))
     verbs: list[str] = []
     for ev in rows:
         if ev.actor != agent_name:
             continue
         # Skip non-agent actions (scene.open, workshop.recycle, etc).
         if "." in ev.action:
+            continue
+        if ev.action in excluded:
             continue
         verbs.append(ev.action)
         if len(verbs) >= lookback:

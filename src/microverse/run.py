@@ -24,7 +24,8 @@ Phase 2 wiring:
     candidates and ``flush()`` applies p70 percentile selection. The
     tick loop calls ``flush()`` every ``HARVEST_FLUSH_EVERY`` ticks.
   - Cold-backup snapshots taken every ``SNAPSHOT_EVERY`` ticks via
-    :func:`microverse.world.snapshot.maybe_snapshot`.
+    :func:`microverse.world.snapshot.take_snapshot`, gated by a
+    :class:`~microverse.world.snapshot.SnapshotGuard` circuit breaker.
 """
 
 from __future__ import annotations
@@ -54,7 +55,12 @@ from microverse.ops.watchdog import Watchdog
 from microverse.world.clock import WorldClock
 from microverse.world.scene import SceneRunner
 from microverse.world.scheduler import WeightedScheduler
-from microverse.world.snapshot import SnapshotBusyError, maybe_snapshot, prune_snapshots
+from microverse.world.snapshot import (
+    SnapshotBusyError,
+    SnapshotGuard,
+    prune_snapshots,
+    take_snapshot,
+)
 from microverse.world.workshop import WorkshopProjection
 
 _logger = logging.getLogger(__name__)
@@ -251,8 +257,15 @@ def _compute_novelty_hint(episodic: EpisodicMemory, agent: Agent) -> tuple[str, 
     """
     from microverse.world.diversity import recent_verb_distribution, suggest_underused_verb
 
-    available = ["speak", "craft", "study", "rest", "contribute"]
-    dist = recent_verb_distribution(episodic, agent.name, lookback=200)
+    # ``contribute`` is excluded from BOTH the distribution and the
+    # substitution candidates. Scene contributes are coerced workshop
+    # actions, not free verb choices: counting them pins the dominant
+    # verb to ``contribute`` (a scene-heavy agent is ~90% contributes),
+    # which the lever can never substitute (apply_diversity_lever's
+    # CONTRIBUTE carve-out), so the lever silently never fires. The
+    # 5.5-day soak proved this — diversity_lever_substituted stayed 0.
+    available = ["speak", "craft", "study", "rest"]
+    dist = recent_verb_distribution(episodic, agent.name, lookback=200, exclude={"contribute"})
     suggested = suggest_underused_verb(dist, available)
     if suggested is None:
         return ("", "", "")
@@ -381,12 +394,21 @@ def _run_periodic_maintenance(
     metrics: Metrics,
     data_dir: Path,
     snapshots_dir: Path,
+    snapshot_guard: SnapshotGuard,
 ) -> None:
     """Phase A: episodic optimize + snapshot take + prune.
 
     Runs after every tick (both scene and single-tick paths). Each
     sub-step gates itself on cadence, so the common case is a no-op
     that only stat()-checks the tick counter.
+
+    ``snapshot_guard`` is a circuit breaker: a persistent snapshot
+    failure (e.g. SQLITE_IOERR on ``wal_checkpoint(TRUNCATE)`` seen in
+    a 5.5-day soak, 9106 times) otherwise floods the log with identical
+    tracebacks and perturbs the WAL/-shm enough to make ad-hoc readers
+    see a stale ``MAX(ts)`` — a false stall. After a few consecutive
+    failures the breaker trips and snapshots are skipped for the rest
+    of the run; the WAL remains the durability boundary.
     """
     if (
         config.EPISODIC_OPTIMIZE_EVERY > 0
@@ -398,13 +420,13 @@ def _run_periodic_maintenance(
         except Exception:
             _logger.exception("episodic.optimize failed")
             metrics.bump("episodic_optimize_fail")
+
+    snapshot_due = SNAPSHOT_EVERY > 0 and executed > 0 and executed % SNAPSHOT_EVERY == 0
+    if not snapshot_due or snapshot_guard.disabled:
+        return
     try:
-        snap_path = maybe_snapshot(
-            executed,
-            interval=SNAPSHOT_EVERY,
-            data_dir=data_dir,
-            snapshots_dir=snapshots_dir,
-        )
+        snap_path = take_snapshot(data_dir, snapshots_dir)
+        snapshot_guard.record_success()
         if snap_path is not None:
             try:
                 prune_snapshots(
@@ -416,11 +438,23 @@ def _run_periodic_maintenance(
                 _logger.exception("snapshot prune failed")
                 metrics.bump("snapshot_prune_fail")
     except SnapshotBusyError:
+        # Transient writer contention — expected, clears on its own.
+        # Does NOT count toward the breaker.
         _logger.warning("snapshot skipped: WAL checkpoint busy")
         metrics.bump("snapshot_skip_busy")
-    except Exception:
-        _logger.exception("snapshot failed")
+    except Exception as e:
+        # Hard failure (e.g. SQLITE_IOERR). Log at WARNING without a
+        # full traceback so a persistent fault does not flood the soak
+        # log thousands of times, and feed the breaker.
         metrics.bump("snapshot_fail")
+        _logger.warning("snapshot failed (%s): %s", type(e).__name__, e)
+        if snapshot_guard.record_failure():
+            _logger.warning(
+                "snapshot disabled after %d consecutive failures; "
+                "WAL remains the durability boundary",
+                snapshot_guard.max_consecutive_failures,
+            )
+            metrics.bump("snapshot_disabled")
 
 
 def _maybe_harvest(harvester: Harvester, agent: Agent, action: Action) -> None:
@@ -513,6 +547,10 @@ def run(
     max_ticks = ticks if ticks is not None else config.MAX_TICKS_DEFAULT
     executed = 0
     consecutive_skips = 0
+    # Cold-backup snapshot circuit breaker. Trips after a few
+    # consecutive failures so a persistent SQLITE_IOERR on
+    # wal_checkpoint(TRUNCATE) cannot flood the log or starve readers.
+    snapshot_guard = SnapshotGuard()
     # Bounded by config.MAX_CONSECUTIVE_DEADLOCK_BREAKS; the exit path
     # below bumps deadlock_break_exit and breaks the loop. Reset to 0
     # in the success branch right after metrics.reset(consecutive_fail).
@@ -762,6 +800,7 @@ def run(
                     metrics=metrics,
                     data_dir=data_dir,
                     snapshots_dir=snapshots_dir,
+                    snapshot_guard=snapshot_guard,
                 )
                 sleep_s = tempo if tempo is not None else agent.tempo()
                 if sleep_s > 0:
@@ -838,6 +877,7 @@ def run(
                 metrics=metrics,
                 data_dir=data_dir,
                 snapshots_dir=snapshots_dir,
+                snapshot_guard=snapshot_guard,
             )
 
             sleep_s = tempo if tempo is not None else agent.tempo()
