@@ -314,10 +314,8 @@ def _recent_agent_events(
     """The most recent ``lookback`` events the agent took or that were
     addressed to it, in chronological order. Feeds the belief summarizer.
     """
-    rows = episodic.last(max(lookback * 4, 100))
-    own = [e for e in rows if e.actor == agent_name or e.target == agent_name]
-    own = own[:lookback]
-    own.reverse()  # episodic.last is newest-first; flip to chronological
+    own = episodic.involving(agent_name, limit=lookback)
+    own.reverse()  # episodic.involving is newest-first; flip to chronological
     return own
 
 

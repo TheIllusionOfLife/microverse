@@ -41,8 +41,13 @@ class IdentityStore:
 
     def __init__(self, path: str | Path) -> None:
         self._conn = open_sqlite_wal(path)
-        self._conn.execute(_SCHEMA)
-        self._conn.commit()
+        try:
+            self._conn.execute(_SCHEMA)
+            self._conn.commit()
+        except Exception:
+            # Don't leak the just-opened connection if schema setup fails.
+            self._conn.close()
+            raise
 
     def get(self, agent_name: str) -> str:
         """Return the stored beliefs for ``agent_name``, or ``""`` if the

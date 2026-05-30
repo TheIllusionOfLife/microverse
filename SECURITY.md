@@ -28,7 +28,12 @@ potentially sensitive and untrusted:
 - do not commit runtime databases, harvested artifacts, logs, or snapshots;
 - review generated artifacts before sharing them;
 - do not run generated code or shell snippets without inspection;
-- avoid putting secrets in prompts, lore, artifacts, metrics, or logs.
+- avoid putting secrets in prompts, lore, artifacts, metrics, or logs;
+- `data/identity.sqlite` caches each agent's summarized beliefs; it is keyed by
+  agent name and regenerated from the episodic log. Reusing a `data/` directory
+  across unrelated runs with the same agent names will seed a new run with the
+  prior run's beliefs until the next summarization. Wipe `data/` as a unit when
+  starting a genuinely fresh world.
 
 ## Dependency And CI Security
 

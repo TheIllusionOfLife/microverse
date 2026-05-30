@@ -152,6 +152,32 @@ class EpisodicMemory:
             for r in rows
         ]
 
+    def involving(self, name: str, *, limit: int = 100) -> list[Event]:
+        """Return the most recent ``limit`` events where ``name`` is the
+        actor OR the target, newest-first.
+
+        A per-actor query (rather than filtering a global ``last(N)``
+        window in Python) so a rarely-scheduled agent's own history is
+        never starved by a burst of other agents' events. Feeds the
+        belief summarizer (ADR 0007 Phase 1, Stage C).
+        """
+        rows = self._conn.execute(
+            "SELECT id, ts, actor, action, target, payload_json "
+            "FROM events WHERE actor = ? OR target = ? ORDER BY id DESC LIMIT ?",
+            (name, name, limit),
+        ).fetchall()
+        return [
+            Event(
+                id=r[0],
+                ts=r[1],
+                actor=r[2],
+                action=r[3],
+                target=r[4],
+                payload=json.loads(r[5]) if r[5] else {},
+            )
+            for r in rows
+        ]
+
     def speak_edge_counts(self) -> dict[tuple[str, str], int]:
         """Full-history ``(actor, target) -> count`` for every targeted
         ``speak`` event. The relationship ledger (ADR 0007 Phase 1)

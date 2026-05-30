@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from microverse.config import BELIEF_MAX_CHARS, LLM_MAX_TOKENS, LLM_TIMEOUT_S, SAMPLING_FACTUAL
+from microverse.config import BELIEF_MAX_CHARS, BELIEF_MAX_TOKENS, LLM_TIMEOUT_S, SAMPLING_FACTUAL
 from microverse.llm.ollama_client import chat
 from microverse.llm.thinking import strip_thinking
 from microverse.prompts import render
@@ -56,7 +56,7 @@ class BeliefSummarizer:
             result = chat(
                 messages=[{"role": "user", "content": prompt}],
                 think=False,
-                options={**self.sampling, "num_predict": LLM_MAX_TOKENS},
+                options={**self.sampling, "num_predict": BELIEF_MAX_TOKENS},
                 timeout_s=LLM_TIMEOUT_S,
             )
         except Exception:

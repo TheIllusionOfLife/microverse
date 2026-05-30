@@ -190,3 +190,24 @@ os.kill(os.getpid(), 9)
     rows = reopened.last(5)
     assert sorted(r.payload["n"] for r in rows) == [0, 1, 2, 3, 4]
     reopened.close()
+
+
+def test_involving_returns_actor_or_target_newest_first(tmp_path: Path) -> None:
+    """``involving`` is the per-actor query feeding the belief summarizer:
+    events where the name is actor OR target, newest-first, bounded."""
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
+        ep.append(actor="Aki", action="craft", target=None, payload={"n": 0})
+        ep.append(actor="Cy", action="speak", target="Aki", payload={"n": 1})
+        ep.append(actor="Cy", action="craft", target=None, payload={"n": 2})  # not Aki
+        ep.append(actor="Aki", action="speak", target="Cy", payload={"n": 3})
+        rows = ep.involving("Aki")
+    ns = [r.payload["n"] for r in rows]
+    assert ns == [3, 1, 0]  # newest-first, excludes the Cy-only craft
+
+
+def test_involving_respects_limit(tmp_path: Path) -> None:
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
+        for i in range(10):
+            ep.append(actor="Aki", action="craft", target=None, payload={"n": i})
+        rows = ep.involving("Aki", limit=3)
+    assert [r.payload["n"] for r in rows] == [9, 8, 7]

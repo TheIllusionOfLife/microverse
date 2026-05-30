@@ -180,6 +180,10 @@ EPISODIC_OPTIMIZE_EVERY: int = 100_000
 BELIEF_UPDATE_INTERVAL: int = 200
 BELIEF_LOOKBACK: int = 60
 BELIEF_MAX_CHARS: int = 280
+# A belief is one short sentence; a tight token cap bounds both the
+# truncation waste and the worst-case per-call latency of the
+# synchronous out-of-world summarization pass.
+BELIEF_MAX_TOKENS: int = 96
 
 # v0.4 (Phase C): embedding model for gate-7 scene semantic dependence
 # measurement. NEVER used inside agent.think() — single-model invariant
