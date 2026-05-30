@@ -33,13 +33,25 @@ contribution. The documented limits are documented honestly — see
 
 ## Status
 
-`v0.3.1` ships the core simulation loop, the shared-workshop artifact
-substrate (ADR 0003), the residual-shape-attractor structural fixes
-(ADR 0004), and ADR 0005 Decision 1 — hide complete workshop entries
-from the persona prompt — as experimental mitigation for the v0.4
-harness-shape roadmap. The soak gate evidence is committed at the repo
-root (`soak-24h-v03-e4b-gates.json`, `soak-24h-v03-26b-gates.json`);
-the soak event databases under `data/` are gitignored and reproducible
+`v1.0.0` is the full-vision build. It ships the core simulation loop
+(v0.1), shared-workshop artifact substrate (ADR 0003, v0.2),
+residual-shape structural fixes (ADR 0004, v0.3), ADR 0005 Decision 1
+(v0.3.1) AND the v0.4 pieces that ADR 0005 designed but did not yet
+ship: transition-triggered harvester flush (Decision 2), 3-turn
+scenes as the workshop unit of artifact (Decision 3), a measurement
+embedding model for Gate 8 scene semantic dependence, and Phase D's
+verb-diversity counter-pressure against ADR 0002's attractor.
+
+The infrastructure substrate also gained operational hardening for
+multi-week soaks: bounded snapshot retention, manifest.jsonl rotation,
+periodic episodic.sqlite hygiene, and an operator wrapper
+(`scripts/operate_soak.py`) for the 7-day acceptance soak.
+
+The soak gate evidence is committed at the repo root
+(`soak-24h-v03-e4b-gates.json`, `soak-24h-v03-26b-gates.json` for the
+v0.3 baseline). The v1.0 7-day soak is operator-run; the documented
+acceptance criteria for it live in `WRITEUP.md` and ADR 0006. The
+soak event databases under `data/` are gitignored and reproducible
 from a local run. The rendered dashboard for the 26b soak ships at
 `docs/index.html` (live via GitHub Pages).
 
@@ -62,14 +74,21 @@ from a local run. The rendered dashboard for the 26b soak ships at
 - macOS on Apple Silicon (M-series). Linux should work; not exercised.
 - Python 3.12 managed through `uv`.
 - Ollama running locally.
-- `gemma4:26b` (17 GB) pulled in Ollama. The smaller `gemma4:e4b` (9.6 GB)
-  also works and is documented in ADR 0002 / ADR 0004; the v0.3 production
-  default is `gemma4:26b` per `src/microverse/config.py`.
+- `gemma4:26b` (17 GB) pulled in Ollama (production default through
+  `v1.0.0` per ADR 0004 Decision 5). The smaller `gemma4:e4b` (9.6 GB)
+  also works and is the low-RAM fallback tier; both pass the
+  `think=False` contract.
+- `nomic-embed-text` pulled in Ollama. Used **only** by the gates
+  producer for ADR 0005 Gate 8 (scene semantic dependence). Never
+  called from `agent.think()` — the single-model invariant for the
+  agent action loop is preserved. Skip the pull and Gate 8 degrades
+  to "unavailable" without crashing the runtime.
 
 ```bash
-ollama pull gemma4:26b      # production default for v0.3
-ollama pull gemma4:e4b      # optional, used by the v0.3.1 acceptance smoke
-ollama serve                 # skip if Ollama is already running as a service
+ollama pull gemma4:26b           # production default through v1.0
+ollama pull gemma4:e4b           # optional low-RAM tier
+ollama pull nomic-embed-text     # required only for Gate 8 measurement
+ollama serve                     # skip if Ollama is already running as a service
 ```
 
 ## Quickstart

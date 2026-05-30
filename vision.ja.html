@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#070a12">
+<title>Microverse Battery — ノートPCの中の小さな宇宙</title>
+<style>
+  :root{
+    --ink:#070a12; --ink2:#0b1020;
+    --panel:rgba(255,255,255,.035); --panel2:rgba(255,255,255,.055);
+    --line:rgba(255,255,255,.10); --line2:rgba(255,255,255,.18);
+    --fg:#eaeefb; --muted:#9aa3c0; --faint:#868fb2;
+    --amber:#ffc46b; --gold:#ff9e3d; --teal:#5fe3d2; --violet:#a78bff; --coral:#ff7d8c;
+    --green:#63e1a0; --red:#ff7d8c;
+    --serif:"Hoefler Text","Iowan Old Style","Palatino Linotype",Palatino,"Hiragino Mincho ProN","YuMincho","Yu Mincho",Georgia,serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Segoe UI",Meiryo,sans-serif;
+    --mono:"SF Mono",ui-monospace,"JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth;color-scheme:dark}
+  body{margin:0;color:var(--fg);font:16.5px/1.85 var(--sans);background:var(--ink);overflow-x:hidden;-webkit-font-smoothing:antialiased}
+  body::before{content:"";position:fixed;inset:0;z-index:-3;
+    background:
+      radial-gradient(820px 560px at 14% -8%, rgba(255,158,61,.13), transparent 60%),
+      radial-gradient(880px 680px at 112% 8%, rgba(95,227,210,.10), transparent 55%),
+      radial-gradient(1100px 820px at 50% 124%, rgba(167,139,255,.08), transparent 58%),
+      linear-gradient(180deg,#070a12,#0a0e1c 42%,#070a12)}
+  body::after{content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
+    background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);
+    background-size:46px 46px,46px 46px;
+    -webkit-mask-image:radial-gradient(ellipse 90% 70% at 50% 26%,#000 28%,transparent 86%);
+    mask-image:radial-gradient(ellipse 90% 70% at 50% 26%,#000 28%,transparent 86%)}
+  .grain{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>")}
+  a{color:var(--teal);text-underline-offset:3px;touch-action:manipulation}
+  ::selection{background:rgba(255,196,107,.28);color:#fff}
+  /* accessibility: visible keyboard focus, tap behaviour, numeric alignment */
+  body{-webkit-tap-highlight-color:rgba(255,196,107,.25)}
+  :focus-visible{outline:2px solid var(--amber);outline-offset:3px;border-radius:4px}
+  a:focus-visible,.lang a:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+  .score .big,.gate .n,.snum,.pill b{font-variant-numeric:tabular-nums}
+  .lead{text-wrap:pretty}
+  @supports not ((-webkit-background-clip:text) or (background-clip:text)){.hero h1{color:var(--fg)}}
+  /* skip link: off-screen until focused */
+  .skip{position:fixed;left:12px;top:-60px;z-index:40;background:var(--amber);color:#1a1206;
+    font:600 13px/1 var(--mono);padding:11px 16px;border-radius:9px;text-decoration:none;transition:top .2s ease}
+  .skip:focus{top:12px}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 26px}
+  svg.ic{width:1em;height:1em;display:block;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .mono{font-family:var(--mono)}
+
+  .lang{position:fixed;top:16px;right:18px;z-index:30;display:inline-flex;align-items:center;gap:8px;
+    font:600 12px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;
+    background:rgba(8,11,20,.6);border:1px solid var(--line2);border-radius:10px;padding:9px 13px;backdrop-filter:blur(10px)}
+  .lang svg.ic{font-size:15px;color:var(--amber)}
+  .lang a{color:var(--fg);text-decoration:none}
+  .lang a:hover{color:var(--amber)}
+
+  header.hero{position:relative;text-align:center;padding:120px 0 72px}
+  .cosmos{position:relative;width:188px;height:188px;margin:0 auto 34px}
+  .cosmos .core{position:absolute;inset:62px;border-radius:50%;
+    background:radial-gradient(circle at 36% 30%,#fff,var(--amber) 28%,var(--gold) 52%,#b14bff 92%);
+    box-shadow:0 0 38px rgba(255,180,90,.65),0 0 90px rgba(167,139,255,.5),inset 0 0 18px rgba(255,255,255,.5);
+    animation:breathe 5.5s ease-in-out infinite}
+  .cosmos .ring{position:absolute;inset:0;border-radius:50%;border:1px solid rgba(255,255,255,.12)}
+  .cosmos .ring.r2{inset:30px;border-color:rgba(95,227,210,.22)}
+  .cosmos .ring.r3{inset:14px;border:1px dashed rgba(255,196,107,.20)}
+  .cosmos .spin{position:absolute;inset:0;animation:spin 14s linear infinite}
+  .cosmos .spin.b{inset:30px;animation:spin 9s linear infinite reverse}
+  .cosmos .sat{position:absolute;top:-4px;left:50%;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 12px var(--teal)}
+  .cosmos .spin.b .sat{background:var(--amber);box-shadow:0 0 12px var(--amber)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes breathe{0%,100%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.05);filter:brightness(1.16)}}
+  .kicker{font:600 12.5px/1 var(--mono);letter-spacing:.34em;text-transform:uppercase;color:var(--teal);margin:0 0 18px}
+  .hero h1{font-family:var(--serif);font-weight:600;font-size:clamp(42px,8vw,88px);line-height:.98;letter-spacing:-.022em;margin:0;text-wrap:balance;
+    background:linear-gradient(96deg,#fff 8%,var(--amber) 40%,var(--teal) 70%,var(--violet));
+    -webkit-background-clip:text;background-clip:text;color:transparent;background-size:220% auto;animation:shine 11s linear infinite}
+  @keyframes shine{to{background-position:220% center}}
+  .hero .tag{font-size:clamp(16px,2.2vw,20px);line-height:1.75;color:var(--muted);max-width:680px;margin:24px auto 0}
+  .badges{display:flex;gap:11px;justify-content:center;flex-wrap:wrap;margin-top:34px}
+  .pill{display:inline-flex;align-items:center;gap:8px;font:600 12.5px/1 var(--mono);letter-spacing:.04em;color:var(--muted);
+    border:1px solid var(--line2);background:var(--panel);border-radius:999px;padding:9px 15px}
+  .pill::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber)}
+  .pill b{color:var(--fg)}
+
+  section{padding:64px 0;position:relative}
+  section+section{border-top:1px solid var(--line)}
+  .shead{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+  .snum{font:600 12px/1 var(--mono);letter-spacing:.16em;color:var(--amber)}
+  .skick{font:600 12.5px/1 var(--sans);letter-spacing:.22em;color:var(--faint)}
+  .shead .bar{flex:1;height:1px;background:linear-gradient(90deg,var(--line2),transparent)}
+  h2{font-family:var(--serif);font-weight:600;font-size:clamp(26px,4.2vw,42px);line-height:1.18;letter-spacing:.005em;
+    margin:0 0 .4em;display:flex;align-items:center;gap:18px}
+  .hicon{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:13px;
+    font-size:26px;color:var(--amber);background:radial-gradient(120% 120% at 30% 20%,rgba(255,196,107,.18),rgba(255,255,255,.02));
+    border:1px solid var(--line2);box-shadow:inset 0 1px 0 rgba(255,255,255,.10)}
+  .lead{color:var(--muted);font-size:17px;line-height:1.85;max-width:840px}
+  .lead em{color:var(--fg);font-style:normal;border-bottom:1px solid rgba(255,196,107,.4)}
+  strong{color:var(--fg)}
+
+  .grid{display:grid;gap:18px;margin-top:30px}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:760px){.g2,.g3{grid-template-columns:1fr}}
+  .card{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px 22px;overflow:hidden;
+    transition:transform .3s cubic-bezier(.2,.7,.2,1),border-color .3s,background .3s}
+  .card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:currentColor;color:var(--teal);opacity:.5;transform:scaleX(0);transform-origin:left;transition:transform .35s ease}
+  .card:hover{transform:translateY(-5px);border-color:var(--line2);background:var(--panel2)}
+  .card:hover::before{transform:scaleX(1)}
+  .grid .card:nth-child(3n+1){color:var(--amber)} .grid .card:nth-child(3n+2){color:var(--teal)} .grid .card:nth-child(3n+3){color:var(--violet)}
+  .cic{display:inline-flex;font-size:27px;margin-bottom:13px}
+  .card h3{font-family:var(--sans);font-weight:700;margin:.1em 0 .5em;font-size:17.5px;color:var(--fg);letter-spacing:.005em}
+  .card p{margin:.3em 0;color:var(--muted);font-size:14.5px;line-height:1.78}
+  .card p.kpi{font:600 11.5px/1 var(--mono);letter-spacing:.1em;color:inherit;opacity:.85;margin-bottom:8px}
+
+  .cast{display:flex;gap:14px;flex-wrap:wrap;margin-top:26px}
+  .cast .who{flex:1 1 156px;background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:18px 14px;text-align:center;transition:transform .3s,border-color .3s}
+  .cast .who:hover{transform:translateY(-4px);border-color:var(--line2)}
+  .cast .who .mono-av{width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;
+    font:800 22px/1 var(--serif);background:radial-gradient(circle at 34% 26%,rgba(255,255,255,.16),transparent 70%),rgba(255,255,255,.03);border:1.5px solid var(--violet);color:var(--violet)}
+  .cast .who:nth-child(1) .mono-av{border-color:var(--amber);color:var(--amber)}
+  .cast .who:nth-child(2) .mono-av{border-color:var(--teal);color:var(--teal)}
+  .cast .who:nth-child(3) .mono-av{border-color:var(--violet);color:var(--violet)}
+  .cast .who:nth-child(4) .mono-av{border-color:var(--coral);color:var(--coral)}
+  .cast .who:nth-child(5) .mono-av{border-color:var(--green);color:var(--green)}
+  .cast .who b{display:block;font-size:15px}
+  .cast .who span{font-size:12px;color:var(--muted)}
+
+  .tl{position:relative;margin-top:34px;padding-left:30px}
+  .tl:before{content:"";position:absolute;left:8px;top:8px;bottom:8px;width:1.5px;background:linear-gradient(var(--amber),var(--teal),var(--violet))}
+  .tl .step{position:relative;margin:0 0 24px;color:var(--muted)}
+  .tl .step:before{content:"";position:absolute;left:-30px;top:6px;width:15px;height:15px;border-radius:50%;background:var(--ink);border:2px solid var(--amber);box-shadow:0 0 0 4px rgba(255,196,107,.12)}
+  .tl .step .v{font:600 12px/1 var(--mono);letter-spacing:.12em;color:var(--teal);display:inline-block;margin-right:8px}
+  .tl .step b{color:var(--fg)}
+
+  .gates{margin-top:28px;display:grid;gap:9px}
+  .gate{display:grid;grid-template-columns:46px 1fr auto;align-items:center;gap:16px;
+    background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--red);border-radius:12px;padding:13px 18px;transition:background .25s,transform .25s}
+  .gate:hover{background:var(--panel2);transform:translateX(3px)}
+  .gate.pass{border-left-color:var(--green)}
+  .gate .n{font:700 17px/1 var(--mono);color:var(--faint);text-align:center}
+  .gate .gt{font-weight:700;font-size:15px;letter-spacing:.005em}
+  .gate .meta{font-size:12px;color:var(--muted);margin-top:4px;font-family:var(--mono);letter-spacing:.01em}
+  .tagp,.tagf{font:700 11.5px/1 var(--mono);letter-spacing:.06em;padding:7px 12px;border-radius:8px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+  .tagp{color:#062a1c;background:var(--green)} .tagf{color:#2a0a10;background:var(--red)}
+  .tagp svg.ic,.tagf svg.ic{font-size:14px}
+  .gate.head{border-color:rgba(255,196,107,.5);border-left-color:var(--amber);background:linear-gradient(100deg,rgba(255,196,107,.10),transparent 70%);box-shadow:0 0 0 1px rgba(255,196,107,.12)}
+  .gate.head .n{color:var(--amber)}
+  .hltag{font:700 10px/1 var(--mono);letter-spacing:.14em;color:#1a1206;background:var(--amber);padding:3px 7px;border-radius:5px;margin-left:10px;vertical-align:middle}
+
+  .scoreline{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:8px}
+  @media(max-width:680px){.scoreline{grid-template-columns:repeat(2,1fr)}}
+  .score{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 16px;text-align:left}
+  .score .big{font:700 30px/1 var(--mono);color:var(--amber);letter-spacing:-.02em}
+  .score .rule{height:1px;background:var(--line2);margin:11px 0 9px}
+  .score small{color:var(--muted);font-size:12px;line-height:1.55;display:block}
+
+  .callout{position:relative;background:linear-gradient(110deg,rgba(95,227,210,.10),rgba(167,139,255,.06));
+    border:1px solid var(--line);border-left:3px solid var(--teal);border-radius:14px;padding:20px 22px;margin-top:26px;font-size:15.5px;line-height:1.85}
+  .callout.warn{border-left-color:var(--amber);background:linear-gradient(110deg,rgba(255,196,107,.12),rgba(255,125,140,.06))}
+  .callout b{color:var(--fg)}
+
+  /* artifact showcase */
+  .scenes{display:grid;gap:20px;margin-top:30px}
+  @media(min-width:880px){.scenes{grid-template-columns:1fr 1fr}}
+  .scene{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 22px 20px;overflow:hidden;transition:border-color .3s,background .3s}
+  .scene:hover{border-color:var(--line2);background:var(--panel2)}
+  .scene::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--amber),var(--violet))}
+  .scene .stitle{display:flex;align-items:center;gap:10px;font:600 11.5px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--amber);margin:0 0 4px}
+  .scene .ssub{font-size:13px;color:var(--faint);margin:0 0 16px}
+  .scene .ssub b{color:var(--muted);font-weight:600}
+  .turn{position:relative;padding:0 0 14px 76px;margin-bottom:14px}
+  .turn:last-of-type{padding-bottom:0;margin-bottom:0}
+  .turn:not(:last-of-type)::after{content:"";position:absolute;left:30px;top:26px;bottom:0;width:1px;background:var(--line)}
+  .turn .by{position:absolute;left:0;top:1px;width:60px;text-align:right;font:600 11.5px/1.5 var(--mono);letter-spacing:.04em}
+  .turn.a .by{color:var(--amber)} .turn.c .by{color:var(--teal)}
+  .turn .by::after{content:"";position:absolute;right:-16px;top:1px;width:9px;height:9px;border-radius:50%;background:var(--ink);border:2px solid currentColor}
+  .turn p{margin:0;font-size:14.6px;line-height:1.85;color:var(--muted)}
+  .turn p mark{background:none;color:var(--fg);font-weight:600;border-bottom:1px solid var(--line2);padding-bottom:1px}
+  .pullquote{margin:30px 0 0;padding:24px 26px;background:linear-gradient(135deg,rgba(255,158,61,.08),rgba(167,139,255,.05));border:1px solid var(--line);border-radius:16px}
+  .pullquote p{margin:0;font-family:var(--serif);font-size:clamp(17px,2.4vw,21px);line-height:1.75;color:var(--fg);text-wrap:pretty}
+  .pullquote .src{display:block;margin-top:12px;font:600 12px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--amber)}
+
+  .future .card{background:linear-gradient(165deg,rgba(255,255,255,.05),rgba(167,139,255,.05))}
+
+  footer{padding:60px 0 80px;text-align:center;color:var(--muted);border-top:1px solid var(--line)}
+  footer .fline{display:inline-flex;align-items:center;gap:8px;justify-content:center;flex-wrap:wrap;font-size:13px;font-family:var(--mono);letter-spacing:.02em}
+  footer .fline+.fline{margin-top:12px}
+  footer svg.ic{font-size:15px;color:var(--amber)}
+  footer a{color:var(--teal);text-decoration:none}
+
+  .reveal{opacity:0;transform:translateY(22px);transition:opacity .8s ease,transform .8s cubic-bezier(.2,.7,.2,1)}
+  .reveal.in{opacity:1;transform:none}
+  .hero .cosmos,.hero .kicker,.hero h1,.hero .tag,.hero .badges{opacity:0;animation:rise .9s cubic-bezier(.2,.7,.2,1) forwards}
+  .hero .kicker{animation-delay:.05s}.hero h1{animation-delay:.15s}.hero .tag{animation-delay:.3s}.hero .badges{animation-delay:.45s}
+  @keyframes rise{to{opacity:1;transform:none}}
+  .hero .cosmos{transform:scale(.85)}
+  @media(prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}
+    .reveal{opacity:1;transform:none}
+    .hero .cosmos,.hero .kicker,.hero h1,.hero .tag,.hero .badges{opacity:1;transform:none}
+  }
+  code{font-family:var(--mono);background:rgba(255,255,255,.08);padding:1px 6px;border-radius:6px;font-size:.9em}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">本文へスキップ</a>
+<div class="grain" aria-hidden="true"></div>
+
+<!-- アイコンスプライト: 外部依存なしの自己完結 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <symbol id="battery" viewBox="0 0 24 24"><rect x="2" y="8" width="16" height="9" rx="2"/><path d="M20 11v3"/><path d="M6 12.5h4"/></symbol>
+  <symbol id="tool" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></symbol>
+  <symbol id="compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></symbol>
+  <symbol id="award" viewBox="0 0 24 24"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></symbol>
+  <symbol id="bars" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+  <symbol id="compare" viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M11 18H8a2 2 0 0 1-2-2V9"/></symbol>
+  <symbol id="sparkle" viewBox="0 0 24 24"><path d="M12 3v3M12 18v3M4.5 4.5l2 2M17.5 17.5l2 2M3 12h3M18 12h3M4.5 19.5l2-2M17.5 6.5l2-2"/><path d="M12 8.5l1.3 2.2 2.2 1.3-2.2 1.3L12 15.5l-1.3-2.2L8.5 12l2.2-1.3z"/></symbol>
+  <symbol id="rocket" viewBox="0 0 24 24"><path d="M5 13c-1.5 1-3 4-3 6 2 0 5-1.5 6-3"/><path d="M12 15l-3-3a12 12 0 0 1 7-8 8 8 0 0 1 4 4 12 12 0 0 1-8 7z"/><circle cx="14.5" cy="9.5" r="1.4"/></symbol>
+  <symbol id="home" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8"/><path d="M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10"/><path d="M9 21v-6h6v6"/></symbol>
+  <symbol id="users" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="file" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></symbol>
+  <symbol id="cpu" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></symbol>
+  <symbol id="database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></symbol>
+  <symbol id="film" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="2.5"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></symbol>
+  <symbol id="ruler" viewBox="0 0 24 24"><path d="M16 3l5 5L8 21l-5-5L16 3z"/><path d="M14 5l2 2M11 8l2 2M8 11l2 2M5 14l2 2"/></symbol>
+  <symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></symbol>
+  <symbol id="lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="trend" viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></symbol>
+  <symbol id="message" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-9 8.5 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.2A8.5 8.5 0 1 1 21 11.5z"/></symbol>
+  <symbol id="shuffle" viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></symbol>
+  <symbol id="drive" viewBox="0 0 24 24"><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></symbol>
+  <symbol id="scale" viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M5 7h14"/><path d="M5 7l-3 6a3 3 0 0 0 6 0z"/><path d="M19 7l-3 6a3 3 0 0 0 6 0z"/><path d="M8 21h8"/></symbol>
+  <symbol id="refresh" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></symbol>
+  <symbol id="crosshair" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="3" x2="12" y2="7"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="3" y1="12" x2="7" y2="12"/><line x1="17" y1="12" x2="21" y2="12"/></symbol>
+  <symbol id="palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.2 0-1 .8-1.5 1.8-1.5H17a4 4 0 0 0 4-4c0-4.4-4-8-9-8z"/><circle cx="7.5" cy="11.5" r="1"/><circle cx="11" cy="7.5" r="1"/><circle cx="15.5" cy="9" r="1"/></symbol>
+  <symbol id="branch" viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></symbol>
+  <symbol id="shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+  <symbol id="wifioff" viewBox="0 0 24 24"><line x1="1" y1="1" x2="23" y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.58 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></symbol>
+  <symbol id="cap" viewBox="0 0 24 24"><path d="M22 10L12 5 2 10l10 5 10-5z"/><path d="M6 12v5c0 1 2.7 2.5 6 2.5s6-1.5 6-2.5v-5"/><line x1="22" y1="10" x2="22" y2="15"/></symbol>
+  <symbol id="infinity" viewBox="0 0 24 24"><path d="M6.5 8a4 4 0 0 0 0 8c2 0 3-1.5 5.5-4s3.5-4 5.5-4a4 4 0 0 1 0 8c-2 0-3-1.5-5.5-4S8.5 8 6.5 8z"/></symbol>
+  <symbol id="orbit" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.4"/><ellipse cx="12" cy="12" rx="10" ry="4.4"/><ellipse cx="12" cy="12" rx="10" ry="4.4" transform="rotate(60 12 12)"/></symbol>
+  <symbol id="globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z"/></symbol>
+  <symbol id="flask" viewBox="0 0 24 24"><path d="M9 3h6"/><path d="M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/><path d="M7.5 15h9"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></symbol>
+  <symbol id="x" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+  <symbol id="star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></symbol>
+  <symbol id="feather" viewBox="0 0 24 24"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></symbol>
+  <symbol id="sprout" viewBox="0 0 24 24"><path d="M7 20h10"/><path d="M12 20c0-5 0-7 0-10"/><path d="M12 10C12 6 9 4 4 4c0 5 3 7 8 7z"/><path d="M12 13c0-3 2-5 6-5 0 4-2 6-6 6z"/></symbol>
+  <symbol id="person" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/></symbol>
+  <symbol id="build" viewBox="0 0 24 24"><path d="M2 10l10-6 10 6"/><path d="M4 10v11"/><path d="M20 10v11"/><path d="M9 10v11"/><path d="M15 10v11"/><path d="M3 21h18"/></symbol>
+</defs></svg>
+
+<div class="lang"><svg class="ic" aria-hidden="true" focusable="false"><use href="#globe"/></svg><a href="vision.html">EN</a></div>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="cosmos" aria-hidden="true">
+      <div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div>
+      <div class="spin"><span class="sat"></span></div>
+      <div class="spin b"><span class="sat"></span></div>
+      <div class="core"></div>
+    </div>
+    <p class="kicker">Local-first · Multi-agent · Zero-cloud</p>
+    <h1 translate="no">Microverse&nbsp;Battery</h1>
+    <p class="tag">小さなAIたちの社会が、一台のノートPCの中で暮らし、創り続ける。何日も連続で、追加コストはゼロ、すべての思考はローカルに記録され検証可能。</p>
+    <div class="badges">
+      <span class="pill"><b>5.5</b>&nbsp;日間 連続稼働</span>
+      <span class="pill"><b>20,102</b>&nbsp;イベント</span>
+      <span class="pill"><b>1,565</b>&nbsp;シーン完了</span>
+      <span class="pill">クラウド費用&nbsp;<b>0円</b></span>
+      <span class="pill"><b>v1.0.0-rc1</b></span>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+<section class="reveal">
+  <div class="wrap">
+    <div class="shead"><span class="snum">01 / 11</span><span class="skick">起源</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#battery"/></svg></span>当初のビジョン</h2>
+    <p class="lead">アニメ『リック・アンド・モーティ』の「マイクロバース・バッテリー」は、住人が知らぬ間に一台の車を動かしている小さな宇宙です。本プロジェクトはこの比喩を、もっと優しい方向へ反転させました。<strong>ローカルのハードウェア上で何週間も自律的に動き続けるAIエージェントの小さな世界を作り、彼らが生み出した最良のものを収穫する。</strong></p>
+    <div class="grid g3">
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#home"/></svg></span><h3>ローカル中心、ずっと</h3><p>あらゆる「思考」は、一つの小さなGemmaモデルへのローカルOllama呼び出し。ネットワークも、API料金も、トークン課金もなし。ボトルネックは予算ではなく、あなたのノートPCです。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#users"/></svg></span><h3>チャットボットではなく社会</h3><p>住人たちは<em>世界の中で</em>暮らします。創り、学び、語り、共同作業を積み上げる。世界の外にいる唯一のHarvesterが、最良の成果物をあなたの手元へ運びます。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#file"/></svg></span><h3>設計から誠実に</h3><p>すべてのイベントは来歴つきでローカルのSQLiteログに記録。隠しごとはなし。限界も正直に文書化されています。</p></div>
+    </div>
+    <div class="cast">
+      <div class="who"><div class="mono-av">A</div><b>Aki</b><span>職人 — ものを創る</span></div>
+      <div class="who"><div class="mono-av">C</div><b>Cy</b><span>学者 — 学び、省みる</span></div>
+      <div class="who"><div class="mono-av">T</div><b>Trader</b><span>成果物を格付け</span></div>
+      <div class="who"><div class="mono-av">H</div><b>Harvester</b><span>最良を運び出す</span></div>
+      <div class="who"><div class="mono-av">W</div><b>Watchdog</b><span>停滞時に新参者を招く</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="reveal">
+  <div class="wrap">
+    <div class="shead"><span class="snum">02 / 11</span><span class="skick">構築</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#tool"/></svg></span>作ったもの</h2>
+    <p class="lead">一つのモデルがすべての心を駆動し、耐久性はSQLiteのWALが担い、記憶は「起きたこと(エピソード記憶)」と「知っていること(意味記憶/ロア)」に分かれる ── 単一プロセスのティックループ。</p>
+    <div class="grid g2">
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#cpu"/></svg></span><h3>単一モデル、ルーターなし</h3><p>すべての <code>agent.think()</code> は一つの <code>gemma4:26b</code> 呼び出しを通ります。フォールバックも、隠れた第二の脳もなし。レビュアーが目で不変条件を確認できます。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#database"/></svg></span><h3>WALこそが真実</h3><p>SQLiteの先行書き込みログが耐久性の境界。強制終了で失われるのは進行中のティックだけ。コールドスナップショットはあくまでバックアップで、復旧経路ではありません。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#film"/></svg></span><h3>シーン</h3><p>v1.0の目玉アイデア。3ターンのミニシーンで、ターン2はターン1を読み、ターン3は両方を読む ── 独白ではなく<em>協働</em>による成果物の構造的な単位です。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#ruler"/></svg></span><h3>主張ではなく計測</h3><p>計測専用の埋め込みモデル(<code>nomic-embed-text</code>)が、シーンの各ターンが本当に互いに依存しているかを採点。エージェントのループには一切触れない観測専用の仕組みです。</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="reveal">
+  <div class="wrap">
+    <div class="shead"><span class="snum">03 / 11</span><span class="skick">道のり</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#compass"/></svg></span>これまでの道のり</h2>
+    <div class="tl">
+      <div class="step"><span class="v">v0.1</span> <b>ひとつの心。</b> ループの中で創作する単一の職人 ── ローカルのティックループとWAL耐久性が成立することの証明。</div>
+      <div class="step"><span class="v">v0.2</span> <b>社会と工房。</b> 複数のエージェント、共有の成果物基盤、格付けを行うTrader、停滞を防ぐWatchdog。</div>
+      <div class="step"><span class="v">v0.3</span> <b>構造的な誠実さ。</b> 水増しや容量のブラックホールといった残存パターンを修正し、より大きな26Bモデルへ移行。</div>
+      <div class="step"><span class="v">v0.4</span> <b>シーンと埋め込み。</b> マルチターンの協働と、それを証明する意味的依存性の計測。</div>
+      <div class="step"><span class="v">v1.0.0-rc1</span> <b>長時間稼働。</b> 一台のノートPCで5.5日間のソーク、8つの受け入れゲートを計測し、結果を正直に報告。</div>
+    </div>
+  </div>
+</section>
+
+<section class="reveal">
+  <div class="wrap">
+    <div class="shead"><span class="snum">04 / 11</span><span class="skick">成果</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#award"/></svg></span>成功したこと</h2>
+    <div class="scoreline">
+      <div class="score"><div class="big">132h</div><div class="rule"></div><small>連続・健全に稼働</small></div>
+      <div class="score"><div class="big">51.5s</div><div class="rule"></div><small>イベント間の最大間隔 ── 実際の停止なし</small></div>
+      <div class="score"><div class="big">1,565</div><div class="rule"></div><small>完了した3ターンのシーン</small></div>
+      <div class="score"><div class="big">100%</div><div class="rule"></div><small>成果物の受理スループット</small></div>
+    </div>
+    <div class="callout"><b>最重要の勝利:</b> 1,565のシーンにわたり、埋め込み類似度はターン2が本当にターン1を読み、ターン3が両方を読んでいることを示しました(コサイン中央値 0.762 / 0.757、目標帯のど真ん中)。<b>エージェントたちは互いをすれ違わせず、実際に応答し合っている。</b> それこそがシーンの全目的であり ── それが機能しました。</div>
+    <div class="grid g3" style="margin-top:20px">
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#clock"/></svg></span><h3>本当に動いた</h3><p>5.5日間、20,102イベント、Apple SiliconのノートPC一台、クラウド呼び出しゼロ。「長時間・ローカル・無料」という命題は成立しました。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#lock"/></svg></span><h3>堅牢かつクリーン</h3><p>思考トークンの漏れゼロ、完全な来歴、コード0での正常終了。WALからの復旧も検証済み。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#trend"/></svg></span><h3>スループット向上</h3><p>毎時14成果物(目標 ≥5)、パイプラインの折り返し率は61.6%から2.19%へ ── シーンによる約28倍の構造的改善。</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="reveal">
+  <div class="wrap">
+    <div class="shead"><span class="snum">05 / 11</span><span class="skick">成績表</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#bars"/></svg></span>正直な成績表 ── 8つ中4つ通過</h2>
+    <p class="lead">受け入れゲートはソークの前に事前登録しました。合否そのままに、どう着地したかを示します。</p>
+    <div class="gates">
+      <div class="gate"><div class="n">1</div><div><span class="gt">断片の形 ── 仲間への言及</span><div class="meta">字面上の「YがXと言った」率 0.073(目標 ≥0.30)・語数と反復のサブゲートは通過</div></div><span class="tagf"><svg class="ic" aria-hidden="true" focusable="false"><use href="#x"/></svg>不合格</span></div>
+      <div class="gate pass"><div class="n">2</div><div><span class="gt">WIPスループット</span><div class="meta">受理 14.04件/時(目標 ≥5)</div></div><span class="tagp"><svg class="ic" aria-hidden="true" focusable="false"><use href="#check"/></svg>合格</span></div>
+      <div class="gate"><div class="n">3</div><div><span class="gt">動詞の集中度</span><div class="meta">最悪枠で96.2%(目標 ≤70%)・多様性レバーが一度も発火せず(修正済み)</div></div><span class="tagf"><svg class="ic" aria-hidden="true" focusable="false"><use href="#x"/></svg>不合格</span></div>
+      <div class="gate"><div class="n">4</div><div><span class="gt">パイプライン折り返し率</span><div class="meta">2.19%(目標 &lt;1%)・ただしベースライン61.6%より28倍改善</div></div><span class="tagf"><svg class="ic" aria-hidden="true" focusable="false"><use href="#x"/></svg>不合格</span></div>
+      <div class="gate pass"><div class="n">5</div><div><span class="gt">Path-3 不変条件</span><div class="meta">43,671件の自己秘匿 ── エージェントは自分の過去を入力として見ない</div></div><span class="tagp"><svg class="ic" aria-hidden="true" focusable="false"><use href="#check"/></svg>合格</span></div>
+      <div class="gate pass"><div class="n">6</div><div><span class="gt">受理スループット</span><div class="meta">適格WIPの100%を受理(目標 ≥50%)</div></div><span class="tagp"><svg class="ic" aria-hidden="true" focusable="false"><use href="#check"/></svg>合格</span></div>
+      <div class="gate"><div class="n">7</div><div><span class="gt">容量不変条件</span><div class="meta">236件の違反・シーンではなくスナップショット不具合に起因</div></div><span class="tagf"><svg class="ic" aria-hidden="true" focusable="false"><use href="#x"/></svg>不合格</span></div>
+      <div class="gate pass head"><div class="n">8</div><div><span class="gt">シーンの意味的依存性<span class="hltag">本命</span></span><div class="meta">コサイン 0.762 / 0.757 ── シーンが機能している構造的証明</div></div><span class="tagp"><svg class="ic" aria-hidden="true" focusable="false"><use href="#check"/></svg>合格</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="reveal">
+  <div class="wrap">
+    <div class="shead"><span class="snum">06 / 11</span><span class="skick">生成物</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#feather"/></svg></span>実際の出力 ── 5.5日で2,116点</h2>
+    <p class="lead">2体のエージェント、アキとサイが残した収穫物は <em>2,116点</em>。うち <em>1,833点は複数作者による共作シーン</em> ── 巻物1,041・花壇580・織機212 ── 残る283点は単独の覚え書きです。どれも選り抜きではなく、ソークからそのまま。幾度となく、エージェントが相手の名を挙げ、直前の発言を踏まえて続けています。</p>
+    <div class="scenes">
+      <div class="scene">
+        <p class="stitle"><svg class="ic" aria-hidden="true" focusable="false"><use href="#sprout"/></svg>workshop.garden_bed</p>
+        <p class="ssub">一手ずつ詰めていく植え付け計画 · <b>サイ ↔ アキ</b></p>
+        <div class="turn a"><span class="by">アキ</span><p>縁に沿って鮮やかなマリーゴールドとスイートピーを植えてはどうでしょう。その色彩は祭りの喜びによく映えるはずです。</p></div>
+        <div class="turn c"><span class="by">サイ</span><p>土はもう<mark>アキの堆肥</mark>で豊かですから、日当たりの良い隅にラベンダーの種も蒔きましょう。蜜を求めて蜂もたくさん訪れるでしょう。</p></div>
+        <div class="turn c"><span class="by">サイ</span><p><mark>アキが提案したスイートピー</mark>の蔓性を支えるため、柳の枝で小さく頑丈な支柱を編み始めます。</p></div>
+      </div>
+      <div class="scene">
+        <p class="stitle"><svg class="ic" aria-hidden="true" focusable="false"><use href="#palette"/></svg>workshop.loom</p>
+        <p class="ssub">手から手へ受け渡される張力 · <b>アキ ↔ サイ</b></p>
+        <div class="turn a"><span class="by">アキ</span><p>経糸の張力をひと通り確かめ、どの一本も他より強く引かれていないようにしました。</p></div>
+        <div class="turn c"><span class="by">サイ</span><p>左端の経糸が自重で少したわんでいるようです。布巻具を調整して、幅全体で張力を均一に保つとよいかもしれません。</p></div>
+        <div class="turn a"><span class="by">アキ</span><p><mark>張力についてのサイの助言</mark>を受け、杼を慎重に開口へ通し、緯糸をしっかりと均等に打ち込んでいます。</p></div>
+      </div>
+    </div>
+    <div class="pullquote">
+      <p>「<mark>サイが指摘した直射日光</mark>を踏まえ、貯蔵してある亜麻と麻糸の湿度も見守るべきです。空気が乾きすぎれば、次の織りを始める前に繊維が柔らかさを失ってしまうかもしれません。」</p>
+      <span class="src">アキ · workshop.scroll · 最高スコアのシーン 0.889</span>
+    </div>
+    <div class="callout"><b>これに価値はあるのか?</b> 文学としては、静かで牧歌的──穏やかで、一貫していて、時に美しい(「彗星」の巻物群は工房を不穏な共作小説へと変えます)。だが本当の収穫は<em>証拠</em>としての価値です。2,116点のうち<b>1,039行</b>で、一方のエージェントが相手の考えを名指しで引き継いでいます。これこそが社会が機能している証──ベンチマークではなく、2体の小さなローカルモデルが何日にもわたって本当に互いの上に積み上げた事実です。</div>
+  </div>
+</section>
+
+<section class="reveal">
+  <div class="wrap">
+    <div class="shead"><span class="snum">07 / 11</span><span class="skick">未達</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#search"/></svg></span>失敗したこと ── そしてそれが朗報な理由</h2>
+    <div class="grid g2">
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#message"/></svg></span><h3>ゲート1: 字面と実態のズレ</h3><p>エージェントは言い換えとアイデアの発展で関わり、互いの名を文字どおり呼ぶことは少ない。表層の正規表現は過少発火(0.073)した一方、<em>意味的</em>なゲートは堂々と合格。字面プロキシを観測指標へ格下げし、埋め込みゲートを正式版に昇格 ── まさに事前に約束した経路です。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#shuffle"/></svg></span><h3>ゲート3: 引かれなかったレバー</h3><p>動詞多様性のナッジは全ソークで置換ゼロ。原因は、活動の94%を占めるシーン貢献を見ていたため、自由な単発アクションと一度も一致しなかったこと。<b>発見し、理解し、修正済み</b> ── 次の稼働では発火できます。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#drive"/></svg></span><h3>スナップショットの「停止」</h3><p>コールドバックアップのチェックポイントがディスクI/Oエラーに9,106回当たり、再試行を続けた結果、プロセス外の監視には世界が<em>停止したように見えた</em>。実際は止まっていません(最大間隔51.5秒)。新しいサーキットブレーカーが5回の失敗で遮断し先へ進みます。シミュレーション中核は一度も問題ではありませんでした。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#scale"/></svg></span><h3>ゲート4と7: 僅差で、説明可能</h3><p>折り返し率は&lt;1%に届かずも28倍改善。容量違反はスナップショットの時間帯と連動。どちらもv1.1へのシャープで限定的なフォローアップであり、中核の不健全さではありません。</p></div>
+    </div>
+    <div class="callout warn"><b>規律:</b> 失敗は後から修正した姿ではなく、システムが<em>実際に動いた</em>ままで報告しています。修正は<em>次の</em>ソークを狙うもの。だからこそこれは勝利宣言のv1.0.0ではなく、<b>rc1</b>なのです。</div>
+  </div>
+</section>
+
+<section class="reveal">
+  <div class="wrap">
+    <div class="shead"><span class="snum">08 / 11</span><span class="skick">距離</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#compare"/></svg></span>ビジョンと現在の差</h2>
+    <p class="lead">夢は「何週間も、豊かな対話で動き続ける生きた社会」でした。残された距離を正直に。</p>
+    <div class="grid g2">
+      <div class="card"><h3>数週間 → 5.5日</h3><p>証明できたのは複数日であり、複数週ではありません。止めたのはバックアップの不具合だけ(修正済み) ── エンジン自体は疲れませんでした。</p></div>
+      <div class="card"><h3>対話 → 依存</h3><p>ターンは互いを確かに読んでいる(意味的)が、まだ<em>目に見えて言及し合う</em>(字面)には至らない。会話は本物。ただ引用のようには見えないだけです。</p></div>
+      <div class="card"><h3>多様性 → 単一文化</h3><p>各エージェントで一つの動詞が依然支配的。モデル水準の引力は実在し、構造的な対抗圧力は存在するもののまだ発火していませんでした。</p></div>
+      <div class="card"><h3>世界 → 二人の住人</h3><p>既定の登場人物は二人。より豊かな社会にはもっと多くの住人が必要で、それが多人数のより深いシーンも解放します。</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="reveal">
+  <div class="wrap">
+    <div class="shead"><span class="snum">09 / 11</span><span class="skick">計画</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#sparkle"/></svg></span>差をどう埋めるか</h2>
+    <div class="grid g3">
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#refresh"/></svg></span><h3>修正版で再ソーク</h3><p>スナップショットのブレーカーと復活した多様性レバーを備え、5.5日を超えて本来の「数週間」へ。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#users"/></svg></span><h3>登場人物を増やす</h3><p>住人(と役割)を増やせば、3人の異なる仲間によるシーン、より豊かな力学、そして創発文化の本格的な検証が解放されます。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#crosshair"/></svg></span><h3>より良い言及シグナル</h3><p>脆い字面の正規表現を、意味を捉える指標へ置き換え、「関わっている」ことを実態どおりに捉える。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#palette"/></svg></span><h3>動詞の単一文化を破る</h3><p>レバーが発火できるようになった今、それが生む本物の多様性を計測し、要約型の成果物が効くかも探る。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#branch"/></svg></span><h3>異なるモデル系統への好奇心</h3><p>いずれ単一モデルを別系統に差し替え、違う心が違う社会を生むのかを問う。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#trend"/></svg></span><h3>負荷とスケール</h3><p>スナップショットを書き込み経路から分離し、一台で複数のマイクロバースを並行稼働させる。</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="reveal">
+  <div class="wrap">
+    <div class="shead"><span class="snum">10 / 11</span><span class="skick">飛躍</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#build"/></svg></span>工房から文明へ</h2>
+    <p class="lead">いまエージェントたちは、ひとつの心地よい一日を繰り返し生きています ── いつも春、いつも工房、いつも始まりの中に。だが<em>本来の構想</em>はもっと大きなものでした。記憶し、蓄積し、変化していく社会 ──<em>自分たち自身の歴史</em>。v1.0が築いたのは協働のエンジンです。文明には、協働だけでは決して生まれない3つのもの ──<b>持続する自己、稀少性、蓄積</b>── が要る。これがそこへ至る飛躍です。</p>
+    <div class="callout warn"><b>なぜまだ何も積み上がらないのか:</b> ソークは作るそばから成果を捨て(<b>1,845回のリサイクル</b>)、記憶はスライディングウィンドウ(持続する自己がない)、人口は2体から増えず、何ひとつ稀少でなく、最も長い共有意図はわずか3ターンでした。語彙の単一化も浅い相互参照も、別個のバグではなく ── その欠けた土台の症状です。</div>
+    <div class="grid g3">
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#person"/></svg></span><h3>1 · 持続する自己</h3><p class="kpi">解錠の鍵</p><p>各エージェントに持続する記録を ── 性質、信念、そして誰が誰を助け誰が誰に借りがあるかの<b>関係台帳</b>。「サイは干ばつの折に恩を返した」が世界の覚える事実になる。文化は健忘の上には根付かない。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#scale"/></svg></span><h3>2 · 稀少性と経済</h3><p class="kpi">原動力</p><p>素材を有限に、エージェントの技量を不均等にする。交易が合理的になり、トレーダーは本物の市場になる。稀少性こそが分業・所有・最初の制度を<em>強いる</em>。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#database"/></svg></span><h3>3 · 蓄積のラチェット</h3><p class="kpi">文明の定義</p><p>リサイクルをやめる。育っていく追記型の構造物を ── 村の台帳、構築される伝承、技術の系譜。各世代が前の世代の上に積む。社会と砂場を分かつ一線。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#orbit"/></svg></span><h3>4 · 人口と世代交代</h3><p class="kpi">多様性</p><p>異なる前提を持つ新参者を迎え、誰が留まるかを繁栄が決める。世代交代は規範を継承し<em>変異</em>させる ── 文化進化の実体であり、単一化の処方箋。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#award"/></svg></span><h3>5 · 目標と統治</h3><p class="kpi">制度</p><p>数百ティックに及ぶプロジェクトと、提案・賛否・記録の薄いループを足す。決定が<b>拘束力ある規範</b>になる。制度とは、次を縛る記憶された合意にすぎない。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#compass"/></svg></span><h3>正直な制約</h3><p class="kpi">天才でなく足場</p><p>小さなローカルモデル1体に文明は<em>設計</em>できない。だから長い弧は構造が担う ── 稀少性、台帳、永続する目標 ── モデルはその中で良い<em>局所的</em>判断を下すだけ。現実の制度もそう動く。</p></div>
+    </div>
+    <div class="callout"><b>視点の転換:</b> v1.0は<em>成果物</em>(最良の巻物)を最適化する。飛躍とは<em>蓄積された構造と分岐</em>を最適化することだ。面白い対象は巻物ではなく、それを生んだ社会とその変化だった。<b>歴史</b>を収穫せよ、出力だけでなく。<span class="mono" style="color:var(--faint)">(設計はADR&nbsp;0007に記録 ── 計画段階、未実装。)</span></div>
+  </div>
+</section>
+
+<section class="reveal future">
+  <div class="wrap">
+    <div class="shead"><span class="snum">11 / 11</span><span class="skick">地平</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#rocket"/></svg></span>このプロジェクトはどこまで大きくなれるか</h2>
+    <p class="lead">部分の総和を超えるものを生み出す小さなローカルモデルの社会が、追加コストゼロで動く ── これは多くを築ける基盤(プリミティブ)です。</p>
+    <div class="grid g3">
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#shield"/></svg></span><h3>プライバシー前提の創造</h3><p class="kpi">規制業界 · 教室 · 報道</p><p>端末から一切出ないアイデア生成の世界 ── ホスト型APIが使えない場でこそ使えます。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#wifioff"/></svg></span><h3>オフラインとエッジ</h3><p class="kpi">診療所 · 現地調査 · 船上</p><p>接続を前提にしない自律エージェントの価値。ネットが落ちても世界は止まりません。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#flask"/></svg></span><h3>創発の実験室</h3><p class="kpi">再現可能 · 検証可能</p><p>シード固定で完全ログのテストベッド。マルチエージェント文化、引力、群衆を社会たらしめるものの研究に。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#cap"/></svg></span><h3>教育用サンドボックス</h3><p class="kpi">ずっと無料で動く</p><p>学生はエージェントが創り、格付けし、収穫する様子を観察 ── あらゆる判断が検査可能、クラウドアカウント不要。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#infinity"/></svg></span><h3>常時稼働のアイデアエンジン</h3><p class="kpi">1ティック 0円</p><p>動かすのに費用がかからないから、いつまでも動かせる ── プロンプトを静かに堆肥にして、成果物の収穫を育て続けます。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#orbit"/></svg></span><h3>いくつもの宇宙</h3><p class="kpi">並行するマイクロバース</p><p>一台のノートPCに、異なるシードと配役の小さな世界をいくつも ── 比較できる社会のポートフォリオ。</p></div>
+    </div>
+    <div class="callout"><b>命題、再び:</b> 小さなローカル社会が、収穫に値する仕事を ── 何日も、無料で、完全な来歴つきで ── 確実に生み出せるなら、「面白いマルチエージェントにはクラウドが要る」はもう真ではなくなる。この小さなバッテリーが動かそうとしているのは、そういう宇宙です。</div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p class="fline"><svg class="ic" aria-hidden="true" focusable="false"><use href="#battery"/></svg> Microverse Battery · <b style="color:var(--fg)">v1.0.0-rc1</b> · Gemma 4 一モデル · ノートPC一台 · クラウドゼロ。</p>
+    <p class="fline">成功も未達も、すべて記録に残して正直に作りました。<svg class="ic" aria-hidden="true" focusable="false"><use href="#star"/></svg></p>
+    <p class="fline"><svg class="ic" aria-hidden="true" focusable="false"><use href="#globe"/></svg> <a href="vision.html">English version here</a></p>
+  </div>
+</footer>
+
+<script>
+  // Feature-check FIRST: constructing IntersectionObserver on a browser
+  // without it throws, which would skip the fallback and leave every
+  // .reveal section invisible. Guard the whole block instead.
+  if('IntersectionObserver' in window){
+    const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{threshold:.12});
+    document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+  } else {
+    document.querySelectorAll('.reveal').forEach(el=>el.classList.add('in'));
+  }
+</script>
+</body>
+</html>

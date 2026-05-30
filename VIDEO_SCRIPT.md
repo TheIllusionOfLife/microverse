@@ -100,3 +100,40 @@
   visual continuity as the Kaggle preview card.
 - **Hosting:** YouTube, set to "Public" (judges must view without login).
   Copy the watch URL into the Kaggle writeup's Project Links section.
+
+---
+
+## v1.0 follow-up segment (optional 4-minute extended cut)
+
+If the runtime allows a 4-minute extended cut for post-hackathon
+publication, insert a 60-second segment between shots F and G covering
+the v1.0 work. Keep the original 3-minute cut as the hackathon
+submission; this segment is a *changelog*, not a re-pitch.
+
+### Voiceover (60s, ~150 words)
+
+> Since the hackathon submission, v1.0 closed the two remaining ADR
+> 0005 gates that v0.3 left open.
+>
+> Multi-turn scenes replaced the single-action workshop tick. When the
+> scene gate fires, three agents take turns on one WIP, and turn two
+> and turn three see the prior turn's text in their prompt as input,
+> not coercion. Peer reference is now the structural path of least
+> resistance, not an instruction.
+>
+> A measurement embedding model, nomic-embed-text via Ollama, powers
+> Gate 8: scene semantic dependence has to fall in a healthy band,
+> not too distant and not echoing. The agent action loop still sees
+> exactly one model, Gemma 4 26b. Embeddings are observability,
+> not personality.
+>
+> Plus operational hardening for a seven-day soak: bounded snapshot
+> retention, manifest rotation, periodic WAL hygiene. The full vision
+> on one laptop, indefinitely, supervised.
+
+### Shot recommendations
+
+- Brief code highlight of `world/scene.py::SceneRunner.run` (4s).
+- Dashboard zoom into a 3-turn scene-grouped WIP (8s).
+- Slide: ADR 0006 title + "Embedding = measurement, single-model
+  invariant preserved" (6s).

@@ -1,7 +1,7 @@
 [project]
 name = "microverse"
-version = "0.1.1"
-description = "Long-running multi-agent simulation that produces artifacts on local Ollama gemma4:e4b"
+version = "1.0.0rc1"
+description = "Long-running multi-agent simulation that produces artifacts on local Ollama gemma4:26b"
 readme = "README.md"
 authors = [
     { name = "TheIllusionOfLife", email = "TheIllusionOfLife@users.noreply.github.com" }

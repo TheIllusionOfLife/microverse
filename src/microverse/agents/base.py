@@ -20,7 +20,7 @@ import json
 import re
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -81,6 +81,14 @@ class Action(BaseModel):
     # set; only meaningful when ``action == ActionKind.CONTRIBUTE``.
     # Defaults to None so v0.1.1 callers / fixtures round-trip.
     contribute_to: str | None = Field(default=None, max_length=100)
+    # v0.4 (ADR 0005 Decision 3): scene linkage. When a contribute is
+    # produced inside a scene micro-loop, scene_id matches the
+    # corresponding scene.open event's id, and turn_index is 1/2/3.
+    # Plain contributes outside a scene leave both as None. These ride
+    # in the episodic payload so the WorkshopProjection's replay sees
+    # the same scene grouping as the live tick.
+    scene_id: str | None = Field(default=None, max_length=64)
+    turn_index: int | None = Field(default=None, ge=1, le=3)
 
 
 def _rest_action() -> Action:
@@ -192,6 +200,14 @@ def parse_action(
                 # immersion breaks.
                 metrics.bump("meta_leak_block", agent=agent)
                 return _rest_action()
+            # ADR 0006: scene_id / turn_index are stamped at runtime by
+            # ``SceneRunner`` — never accepted from the LLM. Strip any
+            # forged values here so a contribute outside a scene cannot
+            # masquerade as part of one (which would pollute the
+            # gate-8 scene grouping in spike_workshop_measure.py).
+            if action.scene_id is not None or action.turn_index is not None:
+                metrics.bump("scene_meta_forged", agent=agent)
+                action = action.model_copy(update={"scene_id": None, "turn_index": None})
             action, folded = _validate_contribute(
                 action, metrics=metrics, agent=agent, workshop=workshop
             )
@@ -220,6 +236,13 @@ def parse_action(
             ):
                 metrics.bump("meta_leak_block", agent=agent)
                 return _rest_action()
+            # ADR 0006: see strict-pass note above. Strip forged scene
+            # metadata from json-repaired actions too.
+            if repaired_action.scene_id is not None or repaired_action.turn_index is not None:
+                metrics.bump("scene_meta_forged", agent=agent)
+                repaired_action = repaired_action.model_copy(
+                    update={"scene_id": None, "turn_index": None}
+                )
             validated, folded = _validate_contribute(
                 repaired_action, metrics=metrics, agent=agent, workshop=workshop
             )
@@ -252,6 +275,22 @@ class PeerSpeech:
 
     speaker: str
     utterance: str
+
+
+@dataclass(frozen=True, slots=True)
+class SceneTurn:
+    """One prior turn inside the current scene, surfaced to the next
+    turn's persona as an explicit scene-scoped input.
+
+    ADR 0005:194 carve-out: even when turn 3's author == turn 1's author,
+    the agent sees their own turn-1 text VERBATIM here. This is NOT
+    autobiographical replay (the Path-3 invariant still holds for the
+    workshop view / lore / peer inbox) — it is explicit scene context,
+    surfaced exactly once per scene, with the prior author named.
+    """
+
+    author: str
+    text: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -301,6 +340,33 @@ class WorldContext:
     # (v0.1.1 callers or fresh data dir). Defaults preserve
     # backward-compat with every existing WorldContext() fixture.
     workshop_view: tuple[WIPView, ...] = ()
+    # v0.4 (ADR 0005 D3): explicit scene-scoped input. Populated by
+    # SceneRunner before turn-2 and turn-3 think() calls. Empty for
+    # single-tick (non-scene) actions. Path-3 carve-out: even when
+    # turn-3 author == turn-1 author, this tuple SHOWS that author's
+    # own turn-1 fragment — by explicit design, not via autobiographical
+    # replay. See ADR 0005:189-196.
+    scene_context: tuple[SceneTurn, ...] = ()
+    # v0.4 (ADR 0005 D3): the WIP the current scene is built around.
+    # The persona renders it as an instruction so the LLM contributes
+    # to the SAME WIP all 3 turns; the scene runner aborts otherwise.
+    # Empty when not in scene mode. Set by SceneRunner via the run-
+    # loop's world_factory closure.
+    scene_wip_name: str = ""
+    # v0.4 (Phase D): novelty hint when an agent's top-recent verb
+    # share crosses the diversity threshold. Persona renders this as
+    # one line; empty string means no hint is active. The hint is a
+    # NUDGE (the LLM may ignore it); the post-action diversifier in
+    # the agent will substitute the verb at a fixed rate if the LLM
+    # repeats the same dominant verb.
+    novelty_hint: str = ""
+    # v0.4 (Phase D): the *structured* form of the same nudge. When
+    # the hint fires, these carry the dominant and suggested verbs
+    # directly so the agent's _maybe_diversify helper does not have
+    # to parse the human-readable hint string back (Gemini PR review
+    # on #38 flagged the string-parse round-trip as brittle).
+    novelty_dominant_verb: str = ""
+    novelty_suggested_verb: str = ""
 
 
 class Agent(abc.ABC):
@@ -332,3 +398,59 @@ class Agent(abc.ABC):
     @abc.abstractmethod
     def think(self, world: WorldContext) -> Action:  # pragma: no cover
         ...
+
+
+# Phase D Step 2 (shared between Artisan + Scholar — Gemini PR review
+# on #38 asked for the consolidation). The probability and replacement
+# thought are still per-agent (Artisan and Scholar have slightly
+# different neutral lines) but the decision logic now lives here.
+def apply_diversity_lever(
+    action: Action,
+    world: WorldContext,
+    *,
+    rng: Any,
+    metrics: Metrics,
+    agent_name: str,
+    replacement_thought: str,
+    probability: float,
+) -> Action:
+    """Substitute the action verb when the LLM ignored the novelty
+    hint. Returns the action unchanged when no hint is active, when
+    the parsed action is a fallback REST, when the hint suggests
+    CONTRIBUTE (we cannot fabricate WIP + fragment), or when the LLM
+    already diversified.
+
+    Reads structured fields ``WorldContext.novelty_dominant_verb`` and
+    ``novelty_suggested_verb`` — no hint-string parsing. Returns the
+    original action unchanged when those fields are empty (legacy
+    callers that set only ``novelty_hint`` get no-op behaviour, which
+    is the safe default).
+    """
+    if not world.novelty_dominant_verb or not world.novelty_suggested_verb:
+        return action
+    is_fallback_rest = action.action == ActionKind.REST and not action.thought
+    if is_fallback_rest:
+        return action
+    try:
+        target_verb = ActionKind(world.novelty_suggested_verb)
+    except ValueError:
+        return action
+    if action.action.value != world.novelty_dominant_verb:
+        return action
+    if target_verb == ActionKind.CONTRIBUTE:
+        return action
+    if rng.random() >= probability:
+        return action
+    metrics.bump("diversity_lever_substituted", agent=agent_name)
+    new_target: str | None = None
+    if target_verb == ActionKind.SPEAK and world.peers_today:
+        new_target = rng.choice(world.peers_today)
+    return action.model_copy(
+        update={
+            "thought": replacement_thought,
+            "action": target_verb,
+            "target": new_target,
+            "artifact": None,
+            "contribute_to": None,
+        }
+    )

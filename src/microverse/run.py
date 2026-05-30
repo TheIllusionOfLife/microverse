@@ -24,7 +24,8 @@ Phase 2 wiring:
     candidates and ``flush()`` applies p70 percentile selection. The
     tick loop calls ``flush()`` every ``HARVEST_FLUSH_EVERY`` ticks.
   - Cold-backup snapshots taken every ``SNAPSHOT_EVERY`` ticks via
-    :func:`microverse.world.snapshot.maybe_snapshot`.
+    :func:`microverse.world.snapshot.take_snapshot`, gated by a
+    :class:`~microverse.world.snapshot.SnapshotGuard` circuit breaker.
 """
 
 from __future__ import annotations
@@ -52,8 +53,14 @@ from microverse.memory.semantic import SemanticMemory
 from microverse.ops.metrics import Metrics
 from microverse.ops.watchdog import Watchdog
 from microverse.world.clock import WorldClock
+from microverse.world.scene import SceneRunner
 from microverse.world.scheduler import WeightedScheduler
-from microverse.world.snapshot import SnapshotBusyError, maybe_snapshot
+from microverse.world.snapshot import (
+    SnapshotBusyError,
+    SnapshotGuard,
+    prune_snapshots,
+    take_snapshot,
+)
 from microverse.world.workshop import WorkshopProjection
 
 _logger = logging.getLogger(__name__)
@@ -237,6 +244,39 @@ def _derive_weather(episodic: EpisodicMemory) -> str:
     return _last_weather_kind(episodic) or "clear"
 
 
+def _compute_novelty_hint(episodic: EpisodicMemory, agent: Agent) -> tuple[str, str, str]:
+    """Phase D: when an agent's recent top-verb share crosses the
+    dominance threshold, return a tuple ``(hint_text, dominant_verb,
+    suggested_verb)``. All three strings are empty when no hint is
+    active.
+
+    The hint text is the human-readable line the persona renders;
+    the verb strings are the *structured* form the agent's
+    ``_maybe_diversify`` consumes directly (no string parsing —
+    see Gemini PR review on #38).
+    """
+    from microverse.world.diversity import recent_verb_distribution, suggest_underused_verb
+
+    # ``contribute`` is excluded from BOTH the distribution and the
+    # substitution candidates. Scene contributes are coerced workshop
+    # actions, not free verb choices: counting them pins the dominant
+    # verb to ``contribute`` (a scene-heavy agent is ~90% contributes),
+    # which the lever can never substitute (apply_diversity_lever's
+    # CONTRIBUTE carve-out), so the lever silently never fires. The
+    # 5.5-day soak proved this — diversity_lever_substituted stayed 0.
+    available = ["speak", "craft", "study", "rest"]
+    dist = recent_verb_distribution(episodic, agent.name, lookback=200, exclude={"contribute"})
+    suggested = suggest_underused_verb(dist, available)
+    if suggested is None:
+        return ("", "", "")
+    total = sum(dist.values())
+    if total == 0:
+        return ("", "", "")
+    top_verb, _top_count = dist.most_common(1)[0]
+    hint = f"You have leaned heavily on {top_verb} lately; consider {suggested}."
+    return (hint, top_verb, suggested)
+
+
 def _build_per_tick_world_base(
     *,
     episodic: EpisodicMemory,
@@ -246,6 +286,9 @@ def _build_per_tick_world_base(
     engagement_hint: str = "",
     required_target: str | None = None,
     metrics: Metrics | None = None,
+    novelty_hint: str = "",
+    novelty_dominant_verb: str = "",
+    novelty_suggested_verb: str = "",
 ) -> WorldContext:
     """Assemble the per-tick ``world_base`` for ``build_context``.
 
@@ -277,6 +320,9 @@ def _build_per_tick_world_base(
         world_events=_build_world_events(episodic, since_ts=last_tick_ts),
         engagement_hint=engagement_hint,
         required_target=required_target,
+        novelty_hint=novelty_hint,
+        novelty_dominant_verb=novelty_dominant_verb,
+        novelty_suggested_verb=novelty_suggested_verb,
     )
 
 
@@ -310,6 +356,15 @@ def _commit_action(
         target = action.contribute_to
         payload["fragment"] = action.artifact
         payload["contribute_to"] = action.contribute_to
+        # Phase C (ADR 0005 D3): scene linkage. When the action was
+        # produced inside a scene micro-loop, these fields tag the
+        # contribute so downstream consumers (gate-7 producer, dashboard,
+        # kill-drill verifier) can group turns by scene_id. Plain
+        # contributes outside scenes carry both as None.
+        if action.scene_id is not None:
+            payload["scene_id"] = action.scene_id
+        if action.turn_index is not None:
+            payload["turn_index"] = action.turn_index
     ts = time.time()
     event_id = episodic.append(
         actor=agent.name,
@@ -330,6 +385,76 @@ def _commit_action(
             )
         )
     return event_id
+
+
+def _run_periodic_maintenance(
+    *,
+    executed: int,
+    episodic: EpisodicMemory,
+    metrics: Metrics,
+    data_dir: Path,
+    snapshots_dir: Path,
+    snapshot_guard: SnapshotGuard,
+) -> None:
+    """Phase A: episodic optimize + snapshot take + prune.
+
+    Runs after every tick (both scene and single-tick paths). Each
+    sub-step gates itself on cadence, so the common case is a no-op
+    that only stat()-checks the tick counter.
+
+    ``snapshot_guard`` is a circuit breaker: a persistent snapshot
+    failure (e.g. SQLITE_IOERR on ``wal_checkpoint(TRUNCATE)`` seen in
+    a 5.5-day soak, 9106 times) otherwise floods the log with identical
+    tracebacks and perturbs the WAL/-shm enough to make ad-hoc readers
+    see a stale ``MAX(ts)`` — a false stall. After a few consecutive
+    failures the breaker trips and snapshots are skipped for the rest
+    of the run; the WAL remains the durability boundary.
+    """
+    if (
+        config.EPISODIC_OPTIMIZE_EVERY > 0
+        and executed > 0
+        and executed % config.EPISODIC_OPTIMIZE_EVERY == 0
+    ):
+        try:
+            episodic.optimize()
+        except Exception:
+            _logger.exception("episodic.optimize failed")
+            metrics.bump("episodic_optimize_fail")
+
+    snapshot_due = SNAPSHOT_EVERY > 0 and executed > 0 and executed % SNAPSHOT_EVERY == 0
+    if not snapshot_due or snapshot_guard.disabled:
+        return
+    try:
+        snap_path = take_snapshot(data_dir, snapshots_dir)
+        snapshot_guard.record_success()
+        if snap_path is not None:
+            try:
+                prune_snapshots(
+                    snapshots_dir,
+                    max_count=config.SNAPSHOT_RETENTION_COUNT,
+                    max_bytes=config.SNAPSHOT_RETENTION_BYTES,
+                )
+            except Exception:
+                _logger.exception("snapshot prune failed")
+                metrics.bump("snapshot_prune_fail")
+    except SnapshotBusyError:
+        # Transient writer contention — expected, clears on its own.
+        # Does NOT count toward the breaker.
+        _logger.warning("snapshot skipped: WAL checkpoint busy")
+        metrics.bump("snapshot_skip_busy")
+    except Exception as e:
+        # Hard failure (e.g. SQLITE_IOERR). Log at WARNING without a
+        # full traceback so a persistent fault does not flood the soak
+        # log thousands of times, and feed the breaker.
+        metrics.bump("snapshot_fail")
+        _logger.warning("snapshot failed (%s): %s", type(e).__name__, e)
+        if snapshot_guard.record_failure():
+            _logger.warning(
+                "snapshot disabled after %d consecutive failures; "
+                "WAL remains the durability boundary",
+                snapshot_guard.max_consecutive_failures,
+            )
+            metrics.bump("snapshot_disabled")
 
 
 def _maybe_harvest(harvester: Harvester, agent: Agent, action: Action) -> None:
@@ -422,6 +547,10 @@ def run(
     max_ticks = ticks if ticks is not None else config.MAX_TICKS_DEFAULT
     executed = 0
     consecutive_skips = 0
+    # Cold-backup snapshot circuit breaker. Trips after a few
+    # consecutive failures so a persistent SQLITE_IOERR on
+    # wal_checkpoint(TRUNCATE) cannot flood the log or starve readers.
+    snapshot_guard = SnapshotGuard()
     # Bounded by config.MAX_CONSECUTIVE_DEADLOCK_BREAKS; the exit path
     # below bumps deadlock_break_exit and breaks the loop. Reset to 0
     # in the success branch right after metrics.reset(consecutive_fail).
@@ -449,6 +578,13 @@ def run(
     # threshold is < 70 (i.e. no single WIP holds >70% of recent
     # contribute targets).
     wip_target_counts: Counter[str] = Counter()
+
+    # Phase B (ADR 0005 Decision 2): transition-triggered harvest flush.
+    # Tracks ticks since the most recent flush so the throttle (≥5 ticks
+    # between transition-triggered flushes) is respected without losing
+    # the 50-tick timer ceiling.
+    transition_flush_throttle_ticks = 5
+    ticks_since_last_flush = 0
 
     def _safe(label: str, fn: Callable[[], object]) -> None:
         try:
@@ -501,6 +637,13 @@ def run(
             )
             if required_target:
                 metrics.bump("engagement_gate_fired", agent=agent.name)
+            # Phase D: compute novelty_hint based on the agent's recent
+            # verb mix. Surface only when dominance > threshold; the
+            # persona renders the text and the agent's _maybe_diversify
+            # reads the structured verbs directly (no string parsing).
+            novelty_hint, novelty_dominant_verb, novelty_suggested_verb = _compute_novelty_hint(
+                episodic, agent
+            )
             # Path-3: pull the agent's watermark. ``setdefault`` seeds
             # first-encounter to ``time.time()`` so a mid-run Stranger
             # does not see all weather/world events since process
@@ -514,6 +657,9 @@ def run(
                 engagement_hint=engagement_hint,
                 required_target=required_target,
                 metrics=metrics,
+                novelty_hint=novelty_hint,
+                novelty_dominant_verb=novelty_dominant_verb,
+                novelty_suggested_verb=novelty_suggested_verb,
             )
             world = build_context(
                 world_base=world_base,
@@ -524,6 +670,143 @@ def run(
                 workshop=workshop,
                 metrics=metrics,
             )
+            # Phase C (ADR 0005 D3): scene gate. With probability
+            # SCENE_GATE_P, route this agent's tick into a 3-turn scene
+            # against an open WIP instead of a single-tick action.
+            # Scenes are the load-bearing change for gate 1 (peer
+            # reference) — turn 2 and turn 3 see prior turns as
+            # explicit prompt INPUT, not via coercion. The scene's
+            # three turns count as this agent's tick for scheduler
+            # bookkeeping.
+            other_peers = [p for p in sched.agents if p.name != agent.name]
+            open_wip = next(
+                (w for w in workshop.wips() if w.phase != "complete"),
+                None,
+            )
+            scene_eligible = (
+                config.SCENE_GATE_P > 0
+                and open_wip is not None
+                and len(other_peers) >= config.SCENE_MIN_PEERS
+                and rng.random() < config.SCENE_GATE_P
+            )
+            if scene_eligible and open_wip is not None:
+                # Scene path. Build a SceneRunner with closures over
+                # current-tick state. The world_factory rebuilds
+                # WorldContext per turn so the just-committed prior
+                # turn shows up in scene_context (and through
+                # workshop_view on rebuild).
+                def _scene_world_factory(
+                    *,
+                    agent: Agent,
+                    scene_context: tuple,
+                    scene_wip_name: str = "",
+                ) -> WorldContext:
+                    sc_topic = _derive_topic(episodic, agent)
+                    sc_peers = _compute_peers(sched, episodic, agent)
+                    sc_last_ts = last_tick_ts.setdefault(agent.name, time.time())
+                    sc_world_base = _build_per_tick_world_base(
+                        episodic=episodic,
+                        agent=agent,
+                        peers=sc_peers,
+                        last_tick_ts=sc_last_ts,
+                        engagement_hint="",
+                        required_target=None,
+                        metrics=metrics,
+                    )
+                    sc_world = build_context(
+                        world_base=sc_world_base,
+                        episodic=episodic,
+                        semantic=semantic,
+                        topic=sc_topic,
+                        receiver_name=agent.name,
+                        workshop=workshop,
+                        metrics=metrics,
+                    )
+                    from dataclasses import replace
+
+                    return replace(
+                        sc_world,
+                        scene_context=scene_context,
+                        scene_wip_name=scene_wip_name,
+                    )
+
+                def _scene_commit(a: Agent, act: Action) -> None:
+                    _commit_action(episodic, a, act, workshop=workshop)
+                    if act.action == ActionKind.CONTRIBUTE and act.contribute_to:
+                        wip_target_counts[act.contribute_to] += 1
+                    _maybe_harvest(harvester, a, act)
+                    last_tick_ts[a.name] = time.time()
+
+                scene_runner = SceneRunner(
+                    episodic=episodic,
+                    commit_action=_scene_commit,
+                    world_factory=_scene_world_factory,
+                    rng=rng,
+                    metrics=metrics,
+                )
+                try:
+                    scene_runner.run(agent, open_wip.name, peers=other_peers)
+                except Exception:
+                    _logger.exception("scene runner crashed for %s", agent.name)
+                    metrics.bump("scene_runner_crash", agent=agent.name)
+                metrics.reset("consecutive_fail", agent=agent.name)
+                deadlock_breaks_since_success = 0
+                executed += 1
+                # Skip single-tick path for this tick.
+                # World clock + watchdog still run per-tick below via
+                # the shared trailing block.
+                _safe(
+                    "WorldClock.advance",
+                    lambda: clock.advance(episodic, ticks_elapsed=1),
+                )
+                if executed % WATCHDOG_EVERY == 0:
+                    _safe("watchdog.check", watchdog.check)
+                # Reuse the Phase B flush logic below by continuing to
+                # the bottom of the loop. Peek transitions without
+                # draining so a throttle-blocked tick does not lose
+                # the edge signal — drain only when actually flushing.
+                ticks_since_last_flush += 1
+                has_transitions = workshop.has_complete_transitions()
+                timer_fire = executed % HARVEST_FLUSH_EVERY == 0
+                transition_fire = has_transitions and (
+                    ticks_since_last_flush >= transition_flush_throttle_ticks
+                )
+                if timer_fire or transition_fire:
+                    workshop.drain_complete_transitions()
+                    try:
+                        harvester.flush()
+                    except Exception:
+                        _logger.exception("harvester.flush failed")
+                        metrics.bump("harvest_flush_fail")
+                    if timer_fire:
+                        metrics.bump("harvest_flush_timer_triggered")
+                    if transition_fire and not timer_fire:
+                        metrics.bump("harvest_flush_transition_triggered")
+                    ticks_since_last_flush = 0
+                    total = sum(wip_target_counts.values())
+                    if total > 0:
+                        peak = max(wip_target_counts.values())
+                        concentration = int(peak * 100 / total)
+                    else:
+                        concentration = 0
+                    metrics.set_value("wip_target_concentration", concentration)
+                    wip_target_counts.clear()
+                # Periodic SQLite hygiene + snapshot pruning must run on
+                # the scene path too — a scene-heavy soak otherwise
+                # never optimizes the DB or prunes archives.
+                _run_periodic_maintenance(
+                    executed=executed,
+                    episodic=episodic,
+                    metrics=metrics,
+                    data_dir=data_dir,
+                    snapshots_dir=snapshots_dir,
+                    snapshot_guard=snapshot_guard,
+                )
+                sleep_s = tempo if tempo is not None else agent.tempo()
+                if sleep_s > 0:
+                    time.sleep(sleep_s)
+                continue
+
             try:
                 action = agent.think(world)
             except Exception:
@@ -550,12 +833,29 @@ def run(
             if executed % WATCHDOG_EVERY == 0:
                 _safe("watchdog.check", watchdog.check)
 
-            if executed % HARVEST_FLUSH_EVERY == 0:
+            # Phase B (ADR 0005 D2): edge-triggered flush on WIP
+            # completion. The 50-tick timer is retained as a ceiling
+            # so artifact-only flushes still happen in windows with no
+            # WIP completions. Peek transitions without draining so a
+            # throttle-blocked tick does not lose the edge signal.
+            ticks_since_last_flush += 1
+            has_transitions = workshop.has_complete_transitions()
+            timer_fire = executed % HARVEST_FLUSH_EVERY == 0
+            transition_fire = has_transitions and (
+                ticks_since_last_flush >= transition_flush_throttle_ticks
+            )
+            if timer_fire or transition_fire:
+                workshop.drain_complete_transitions()
                 try:
                     harvester.flush()
                 except Exception:
                     _logger.exception("harvester.flush failed")
                     metrics.bump("harvest_flush_fail")
+                if timer_fire:
+                    metrics.bump("harvest_flush_timer_triggered")
+                if transition_fire and not timer_fire:
+                    metrics.bump("harvest_flush_transition_triggered")
+                ticks_since_last_flush = 0
                 # ADR 0005 D1 rerouting guard: publish the current
                 # ``wip_target_concentration`` and reset the window.
                 # Sampling at the flush boundary aligns the window
@@ -571,30 +871,14 @@ def run(
                     concentration = 0
                 metrics.set_value("wip_target_concentration", concentration)
                 wip_target_counts.clear()
-            try:
-                maybe_snapshot(
-                    executed,
-                    interval=SNAPSHOT_EVERY,
-                    data_dir=data_dir,
-                    snapshots_dir=snapshots_dir,
-                )
-            except SnapshotBusyError:
-                # A competing writer prevented wal_checkpoint(TRUNCATE)
-                # from completing cleanly. Skip this interval rather
-                # than ship a possibly-torn archive; the next interval
-                # will try again.
-                _logger.warning("snapshot skipped: WAL checkpoint busy")
-                metrics.bump("snapshot_skip_busy")
-            except Exception:
-                # Anything else (sqlite3.OperationalError "disk I/O
-                # error", a transient FS failure, OS-level truncate
-                # racing tar) must NOT kill the loop. WAL is the
-                # durability boundary; snapshots are cold backups, so
-                # missing one interval is acceptable. A 24h soak
-                # crashed here once when this branch only caught
-                # SnapshotBusyError.
-                _logger.exception("snapshot failed")
-                metrics.bump("snapshot_fail")
+            _run_periodic_maintenance(
+                executed=executed,
+                episodic=episodic,
+                metrics=metrics,
+                data_dir=data_dir,
+                snapshots_dir=snapshots_dir,
+                snapshot_guard=snapshot_guard,
+            )
 
             sleep_s = tempo if tempo is not None else agent.tempo()
             if sleep_s > 0:

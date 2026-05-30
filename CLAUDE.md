@@ -50,7 +50,11 @@ Layout follows `src/` package convention; modules map cleanly to roles:
 
 ## Non-obvious invariants
 
-- **Single model.** `microverse.config.MODEL = "gemma4:e4b"`. Every LLM call goes through `microverse.llm.ollama_client.chat`. No router, no fallback, no other models.
+- **Single model for agent.think().** `microverse.config.MODEL = "gemma4:26b"` (ADR 0004 D5 swapped from `gemma4:e4b`). Every LLM call inside an agent goes through `microverse.llm.ollama_client.chat`. No router, no fallback.
+- **Embedding model is measurement-only.** `config.EMBEDDING_MODEL = "nomic-embed-text"` is used by `scripts/spike_workshop_measure.py` for Gate 8. Never imported by anything in `microverse.agents.*` or `microverse.run`. The single-model invariant for `agent.think()` is preserved.
+- **Scene event contract (ADR 0006).** `scene.open{scene_id, turn1_author, turn2_author, turn3_author, wip_name}` is emitted BEFORE any think() in a scene; logged authors are authoritative across kill/restart. Three `contribute` events tagged with `scene_id`+`turn_index` follow; `scene.abort{scene_id, last_turn, reason}` on failure. `WorkshopProjection._apply` ignores `scene.open`/`scene.abort`; the projection stays a pure read model over `contribute` events.
+- **Turn-3 same-author carve-out.** When `pick_authors` falls back to A→B→A, turn-3's `WorldContext.scene_context` DOES carry turn-1's text. That is explicit scene-scoped input, not autobiographical replay; the workshop redactor still hides A's older fragments from the WIP excerpt.
+- **Transition-triggered flush.** `WorkshopProjection.drain_complete_transitions()` is edge-triggered; `run.py` flushes whenever the set is non-empty AND ≥5 ticks have passed since the last flush. The 50-tick timer is retained as a ceiling.
 - **Trader is not scheduled.** `Trader` is constructed but *not* registered in the `WeightedScheduler`. It runs only when `Harvester.flush()` calls its `rank()` (`run.py:145-152`).
 - **Harvester has two modes.** Without a trader: heuristic length check, write immediately. With a trader: buffer in `consider()`, rank + percentile-cutoff in `flush()`. The flush *re-raises* on ranker failure so retry can rescue the buffer; if all scores tie across ≥2 items, accept nothing.
 - **`parse_action` never raises.** It tries strict JSON → `json_repair` → fallback to `rest`. It also blocks meta-leaks (`META_LEAK_RE` / `META_LEAK_PHRASE_RE` in `agents/base.py`) and short-circuits inputs over `MAX_PARSE_BYTES` (32 KiB).

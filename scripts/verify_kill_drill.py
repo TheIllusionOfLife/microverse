@@ -38,13 +38,29 @@ import sys
 from pathlib import Path
 
 
-def verify(db: Path, watermark: int | None = None) -> int:
+def verify(
+    db: Path,
+    watermark: int | None = None,
+    *,
+    check_scenes: bool = False,
+) -> int:
     if not db.exists():
         print(f"db not found: {db}", file=sys.stderr)
         return 1
     conn = sqlite3.connect(str(db))
     try:
         ids = [r[0] for r in conn.execute("SELECT id FROM events ORDER BY id ASC")]
+        scene_rows = (
+            list(
+                conn.execute(
+                    "SELECT id, action, payload_json FROM events "
+                    "WHERE action IN ('scene.open','scene.abort','contribute') "
+                    "ORDER BY id ASC"
+                )
+            )
+            if check_scenes
+            else []
+        )
     finally:
         conn.close()
 
@@ -105,7 +121,70 @@ def verify(db: Path, watermark: int | None = None) -> int:
             return 1
     else:
         tail_note = ", tail-loss check SKIPPED (no --watermark)"
-    print(f"kill_drill_ok ({len(ids)} events, ids {ids[0]}..{ids[-1]}, contiguous{tail_note})")
+
+    # Scene-boundary integrity (ADR 0005 D3, gate 6). Every scene.open
+    # must be followed by either all expected contributes, OR a
+    # scene.abort with the same scene_id. An orphan scene.open with
+    # neither is a kill-safety violation: the scene's authors were
+    # logged but no fragment landed AND no abort marker either.
+    scene_note = ""
+    if check_scenes:
+        import json as _json
+
+        opens: dict[str, dict] = {}
+        contribs: dict[str, set[int]] = {}
+        aborts: set[str] = set()
+        for _id, action, payload_json in scene_rows:
+            try:
+                p = _json.loads(payload_json or "{}")
+            except _json.JSONDecodeError:
+                continue
+            sid = p.get("scene_id")
+            if not sid:
+                continue
+            if action == "scene.open":
+                opens[sid] = p
+            elif action == "scene.abort":
+                aborts.add(sid)
+            elif action == "contribute":
+                ti = p.get("turn_index")
+                if ti in (1, 2, 3):
+                    contribs.setdefault(sid, set()).add(int(ti))
+        # A scene is closed iff (a) it has an abort marker, OR (b) all
+        # three turns landed. Partial scenes without an abort are a
+        # kill-safety violation: the contract says either all 3
+        # contributes follow scene.open or a scene.abort is logged.
+        orphans: list[str] = []
+        partials: list[str] = []
+        for sid in opens:
+            if sid in aborts:
+                continue
+            got = contribs.get(sid, set())
+            if not got:
+                orphans.append(sid)
+            elif got != {1, 2, 3}:
+                partials.append(sid)
+        if orphans:
+            print(
+                f"kill_drill_FAIL: orphan scene.open without contributes or abort: {orphans[:10]}",
+                file=sys.stderr,
+            )
+            return 1
+        if partials:
+            print(
+                f"kill_drill_FAIL: partial scenes (1<turns<3) without abort: {partials[:10]}",
+                file=sys.stderr,
+            )
+            return 1
+        scene_note = (
+            f", scenes opened={len(opens)} aborted={len(aborts)} "
+            f"partial={sum(1 for v in contribs.values() if 0 < len(v) < 3)}"
+        )
+
+    print(
+        f"kill_drill_ok ({len(ids)} events, ids {ids[0]}..{ids[-1]}, contiguous"
+        f"{tail_note}{scene_note})"
+    )
     return 0
 
 
@@ -120,8 +199,29 @@ def main(argv: list[str] | None = None) -> int:
         "The in-flight tick (at id=W+1) may be discarded by SIGKILL but the "
         "watermark predicate filters it out before the prefix check.",
     )
+    p.add_argument(
+        "--scene-boundary",
+        choices=[
+            "pre-open",
+            "open-to-turn1",
+            "turn1-to-turn2",
+            "turn2-to-turn3",
+            "post-turn3-pre-accept",
+            "any",
+        ],
+        default=None,
+        help="When set, also verify scene-event integrity: every "
+        "scene.open must be followed by all expected contributes or a "
+        "scene.abort with the same scene_id. The choice tags the "
+        "boundary at which the kill was simulated (informational only "
+        "for the operator's notes — the integrity rule is the same).",
+    )
     args = p.parse_args(argv)
-    return verify(args.db, watermark=args.watermark)
+    return verify(
+        args.db,
+        watermark=args.watermark,
+        check_scenes=args.scene_boundary is not None,
+    )
 
 
 if __name__ == "__main__":

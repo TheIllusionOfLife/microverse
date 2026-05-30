@@ -186,6 +186,39 @@ def test_clean_action_with_no_meta_reference_passes(metrics: Metrics):
     assert metrics.get("meta_leak_block", agent="aki") == 0
 
 
+def test_parse_strips_llm_supplied_scene_metadata(metrics: Metrics):
+    """ADR 0006: scene_id and turn_index are runtime-stamped by
+    SceneRunner — never accepted from the LLM. parse_action MUST scrub
+    forged values so a non-scene contribute cannot masquerade as part
+    of a scene (which would pollute Gate 8 scene grouping).
+    """
+    payload = (
+        '{"thought": "I will craft a lamp.", "action": "craft", '
+        '"target": null, "artifact": "lamp", '
+        '"scene_id": "evil", "turn_index": 2}'
+    )
+    a = parse_action(payload, metrics=metrics, agent="aki")
+    assert a.scene_id is None
+    assert a.turn_index is None
+    assert metrics.get("scene_meta_forged", agent="aki") == 1
+
+
+def test_parse_repaired_strips_llm_supplied_scene_metadata(metrics: Metrics):
+    """Same scrubbing in the json-repair branch — json_repair shouldn't
+    let forged scene metadata sneak through just because the strict
+    parse failed first.
+    """
+    # Single-quoted JSON triggers json_repair (strict parse fails).
+    payload = (
+        "{'thought': 'craft', 'action': 'craft', 'target': null, "
+        "'artifact': 'lamp', 'scene_id': 'evil', 'turn_index': 1}"
+    )
+    a = parse_action(payload, metrics=metrics, agent="aki")
+    assert a.scene_id is None
+    assert a.turn_index is None
+    assert metrics.get("scene_meta_forged", agent="aki") == 1
+
+
 def test_action_oversize_input_short_circuits_to_fallback(metrics: Metrics):
     """Inputs above MAX_PARSE_BYTES skip parse attempts entirely so a
     pathological 100KB blob can't stall the tick loop in O(N^2) repair."""

@@ -28,7 +28,14 @@ from __future__ import annotations
 
 import random
 
-from microverse.agents.base import Action, ActionKind, Agent, WorldContext, parse_action
+from microverse.agents.base import (
+    Action,
+    ActionKind,
+    Agent,
+    WorldContext,
+    apply_diversity_lever,
+    parse_action,
+)
 from microverse.config import (
     ARTISAN_REST_STREAK_LIMIT,
     LLM_MAX_TOKENS,
@@ -58,6 +65,11 @@ _EMPTY_CRAFT_REPLACEMENT_THOUGHT = (
 # future change that re-enables thought feedback should not allow the
 # disobeyed monologue to seed the next tick.
 _ENGAGEMENT_REPLACEMENT_THOUGHT = "I turn from my work to greet a neighbor."
+# Phase D: substitution probability when the LLM ignores novelty_hint
+# and re-emits the dominant verb. 0.30 ≈ 1-in-3, balanced between
+# "agent has agency" and "lever actually moves the share."
+_DIVERSIFY_PROB = 0.30
+_DIVERSITY_REPLACEMENT_THOUGHT = "I try something other than my usual rhythm today."
 
 
 class Artisan(Agent):
@@ -104,9 +116,32 @@ class Artisan(Agent):
         # through it as rest.
         action = self._maybe_coerce_empty_craft(action)
         action = self._maybe_rate_limit(action, world)
+        # Phase D: post-action verb-diversity substitution. When the LLM
+        # ignored the novelty_hint and re-emitted the dominant verb, flip
+        # a coin to substitute it. Bumps diversity_lever_substituted so
+        # the dashboard / WRITEUP can show the share of lever-flipped
+        # vs LLM-chosen verbs. Skips when no hint is active (the
+        # run-loop only sets novelty_hint above the dominance threshold).
+        action = self._maybe_diversify(action, world)
         # Engagement gate runs LAST so it overrides any earlier coercion
         # (e.g. the rest rate-limiter picking a different peer).
         return self._maybe_enforce_engagement(action, world)
+
+    def _maybe_diversify(self, action: Action, world: WorldContext) -> Action:
+        """Phase D Step 2 — delegate to the shared helper. The lever
+        logic itself lives in :func:`microverse.agents.base.apply_diversity_lever`
+        (Artisan and Scholar share it; only the replacement thought
+        differs). See its docstring for the full contract.
+        """
+        return apply_diversity_lever(
+            action,
+            world,
+            rng=self._rng,
+            metrics=self._metrics,
+            agent_name=self.name,
+            replacement_thought=_DIVERSITY_REPLACEMENT_THOUGHT,
+            probability=_DIVERSIFY_PROB,
+        )
 
     def _maybe_enforce_engagement(self, action: Action, world: WorldContext) -> Action:
         """Layer-G slice 3 (R2.b): if the runtime set ``required_target``

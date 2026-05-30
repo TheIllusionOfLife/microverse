@@ -134,3 +134,51 @@ MIN_FRAGMENT_CHARS: int = 120
 # artifact we want; the subfloor is the load-bearing guard.
 WIP_ACCEPTANCE_FLOOR: float = 0.55
 WIP_CONTRIBUTOR_FLOOR: int = 2
+
+# v0.4 (Phase A): operational retention bounds for multi-week soaks.
+# Without these, a 7-day soak fills disk via unbounded snapshots (~50
+# archives x ~50MB = 2.5 GB), unbounded manifest.jsonl growth, and an
+# ever-growing -wal sidecar on episodic.sqlite.
+#
+# SNAPSHOT_RETENTION_*: prune_snapshots() drops oldest archives until
+# BOTH bounds hold. Newest archive is always preserved even when over
+# the count cap (otherwise a single huge snapshot would orphan its own
+# tree).
+SNAPSHOT_RETENTION_COUNT: int = 24
+SNAPSHOT_RETENTION_BYTES: int = 5 * 1024**3  # 5 GiB
+
+# MANIFEST_ROTATE_BYTES: harvester rotates manifest.jsonl to
+# manifest-<UTC>.jsonl when the active file passes this size. Readers
+# (dashboard, gates producer) glob manifest*.jsonl.
+MANIFEST_ROTATE_BYTES: int = 256 * 1024 * 1024  # 256 MiB
+
+# EPISODIC_OPTIMIZE_EVERY: how often to call EpisodicMemory.optimize()
+# (wal_checkpoint(TRUNCATE) + PRAGMA optimize). Not a VACUUM — that
+# would lock the long-lived writer. 100k events ≈ one optimize per day
+# at Soak B throughput.
+EPISODIC_OPTIMIZE_EVERY: int = 100_000
+
+# v0.4 (Phase C): embedding model for gate-7 scene semantic dependence
+# measurement. NEVER used inside agent.think() — single-model invariant
+# is preserved for the agent action loop. Embeddings are observability
+# infrastructure called only from spike_workshop_measure.py.
+EMBEDDING_MODEL: str = "nomic-embed-text"
+
+# v0.4 (ADR 0005 D3): probability a chosen agent's tick routes into a
+# 3-turn scene instead of a single-tick action. Conservative default
+# 0.15 — scenes are 3x LLM volume per artist-tick, so a 7-day soak
+# stays in latency budget. Raise to 0.25 after the v0.4 acceptance
+# soak confirms throughput holds.
+SCENE_GATE_P: float = 0.15
+# Minimum number of distinct peers besides the chosen agent for the
+# scene gate to fire. The default roster is 2 agents (Aki + Cy), so
+# other_peers per tick is length 1 — gating at >= 2 makes the scene
+# gate unreachable in production (proven empirically by the v1.0 RC
+# soak: 46 h of ticks produced zero scenes). The 1-peer rotation
+# A->B->A is explicitly supported by ``pick_authors`` and covered by
+# tests; ADR 0006 documents turn 3's scene_context for the
+# same-author case as explicit scene input (NOT autobiographical
+# replay). Gate 8 still measures real semantic dependence under this
+# rotation: turn 2 reads turn 1, turn 3 reads turn 1+2. Raising this
+# back to >= 2 requires growing the default roster first.
+SCENE_MIN_PEERS: int = 1

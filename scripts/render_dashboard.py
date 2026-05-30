@@ -44,20 +44,38 @@ def _read_metrics_snapshot(db: Path) -> list[tuple[str, str | None, int, float]]
 
 
 def _read_recent_artifacts(harvest_root: Path, limit: int = 25) -> list[dict[str, object]]:
-    manifest = harvest_root / "manifest.jsonl"
-    if not manifest.exists():
-        return []
-    lines = manifest.read_text().splitlines()
-    recs: list[dict[str, object]] = []
-    for line in reversed(lines[-limit * 4 :]):  # over-pull, then filter
+    # Phase A: glob manifest*.jsonl so rotated audit archives still
+    # contribute to the dashboard's most-recent view. Walk newest
+    # manifest first; within each file walk newest record first
+    # (manifest is append-only, so end-of-file == latest record).
+    # Gather (mtime, path) tolerating concurrent rotation: a file may
+    # disappear between glob() and stat() if the harvester rotates
+    # mid-read. Skip those rather than crash the whole dashboard render.
+    entries: list[tuple[float, Path]] = []
+    for p in harvest_root.glob("manifest*.jsonl"):
         try:
-            r = json.loads(line)
-        except json.JSONDecodeError:
+            entries.append((p.stat().st_mtime, p))
+        except OSError:
             continue
-        if r.get("accepted"):
-            recs.append(r)
-        if len(recs) >= limit:
-            break
+    entries.sort(key=lambda e: e[0], reverse=True)
+    manifests = [p for _mtime, p in entries]
+    if not manifests:
+        return []
+    recs: list[dict[str, object]] = []
+    for m in manifests:
+        try:
+            file_lines = m.read_text().splitlines()
+        except OSError:
+            continue
+        for line in reversed(file_lines):
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if r.get("accepted"):
+                recs.append(r)
+            if len(recs) >= limit:
+                return recs
     return recs
 
 

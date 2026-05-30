@@ -21,7 +21,16 @@ differ for each helper).
 
 from __future__ import annotations
 
-from microverse.agents.base import Action, ActionKind, Agent, WorldContext, parse_action
+import random
+
+from microverse.agents.base import (
+    Action,
+    ActionKind,
+    Agent,
+    WorldContext,
+    apply_diversity_lever,
+    parse_action,
+)
 from microverse.config import LLM_MAX_TOKENS, LLM_TIMEOUT_S, SAMPLING_FACTUAL
 from microverse.llm.ollama_client import chat
 from microverse.ops.metrics import Metrics
@@ -30,6 +39,9 @@ from microverse.prompts import render
 _PERSONA_TEMPLATE = "persona_scholar.j2"
 
 _ENGAGEMENT_REPLACEMENT_THOUGHT = "I set my notes aside to greet a neighbor."
+# Phase D: mirror Artisan's substitution constants for scholar.
+_DIVERSIFY_PROB = 0.30
+_DIVERSITY_REPLACEMENT_THOUGHT = "I try a different rhythm today."
 
 
 class Scholar(Agent):
@@ -43,9 +55,11 @@ class Scholar(Agent):
         *,
         soul_tokens: int = 70,
         metrics: Metrics | None = None,
+        rng: random.Random | None = None,
     ) -> None:
         super().__init__(name, soul_tokens=soul_tokens)
         self._metrics = metrics or Metrics(":memory:")
+        self._rng = rng or random.Random()
 
     def render_prompt(self, world: WorldContext) -> str:
         return render(self.persona_template, name=self.name, world=world)
@@ -65,7 +79,21 @@ class Scholar(Agent):
             agent=self.name,
             workshop=self._workshop,
         )
+        action = self._maybe_diversify(action, world)
         return self._maybe_enforce_engagement(action, world)
+
+    def _maybe_diversify(self, action: Action, world: WorldContext) -> Action:
+        """Phase D substitution lever — delegate to the shared helper.
+        See :func:`microverse.agents.base.apply_diversity_lever`."""
+        return apply_diversity_lever(
+            action,
+            world,
+            rng=self._rng,
+            metrics=self._metrics,
+            agent_name=self.name,
+            replacement_thought=_DIVERSITY_REPLACEMENT_THOUGHT,
+            probability=_DIVERSIFY_PROB,
+        )
 
     def _maybe_enforce_engagement(self, action: Action, world: WorldContext) -> Action:
         """Shared with Artisan (semantics identical). Coerce a non-
