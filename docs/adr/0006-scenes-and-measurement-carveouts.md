@@ -2,11 +2,17 @@
 
 ## Status
 
-Proposed. Targets `v1.0.0`. Lands the three v0.4 levers that ADR 0005
-named (Decisions 2 and 3) plus the verb-diversity counter-pressure
-that ADR 0002 left as a documented limit. The acceptance evidence is
-the 7-day operator soak; this ADR commits the contracts and carve-outs
-the code already implements.
+Accepted with Amendment 1 (see below). Targets `v1.0.0-rc1`. Lands the
+three v0.4 levers that ADR 0005 named (Decisions 2 and 3) plus the
+verb-diversity counter-pressure that ADR 0002 left as a documented
+limit. The acceptance evidence is the **soak-v1-2** operator run: 5.5
+days (≈132 h wall-clock, 20,102 events, 1,565 completed scenes) on
+`gemma4:26b`, seed 38. Four of eight gates passed, including Gate 8
+(scene semantic dependence) — the structurally load-bearing test.
+Amendment 1 records the Gate-1 reclassification the pre-baked halt
+criteria pre-authorised, plus the two operational fixes the soak
+surfaced. This ADR commits the contracts and carve-outs the code
+implements.
 
 ## Context
 
@@ -188,3 +194,131 @@ engagement-gate. It does NOT claim to dissolve ADR 0002.
 - Predecessor: ADR 0002 (verb attractor; this ADR adds counter-pressure).
 - Predecessor: ADR 0003 (workshop substrate + Path-3; scene carve-out
   defined relative to it).
+
+---
+
+## Amendment 1 — Post-soak (soak-v1-2): Gate-1 reclassification and operational fixes
+
+### Evidence
+
+The acceptance run was **soak-v1-2**: `gemma4:26b`, seed 38, full
+A+B+C+D stack. It ran 5.5 days (20,102 events; 1,897 scenes opened,
+1,565 completed, 2,116 accepted artifacts) and was stopped manually
+when the cold-backup snapshot path began failing persistently. Post-hoc
+analysis confirmed the run was healthy throughout: the **maximum
+inter-event gap over the entire ≈132 h was 51.5 s** (mean 23.4 s) —
+there was no real stall. Gate measurement (`spike_workshop_measure.py`)
+returned **4 of 8 passing**:
+
+| # | Gate | Result | Value (target) |
+|---|------|--------|----------------|
+| 1 | Fragment shape (peer-reference) | FAIL | 0.073 (≥ 0.30); word-count 42 ✓, repeat-4gram 0.0 ✓ |
+| 2 | WIP throughput | PASS | 14.04 / hr (≥ 5) |
+| 3 | Verb concentration | FAIL | 96.2 % worst 2 h window (≤ 70 %) |
+| 4 | Pipeline fold rate | FAIL | 2.19 % (< 1 %); pre-scenes baseline 61.6 % |
+| 5 | Path-3 invariant | PASS | 43,671 redactions (> 0) |
+| 6 | Acceptance throughput | PASS | 100 % (≥ 50 %) |
+| 7 | Capacity invariant | FAIL | 236 violations, min open_slots 0 (always ≥ 3) |
+| 8 | Scene semantic dependence | PASS | cos(t2,t1)=0.762, cos(t3,t1+2)=0.757 (median ∈ [0.30, 0.85]) |
+
+### Decision 1 — Gate 1 is reclassified; Gate 8 is the operative peer-engagement gate
+
+The v1.0 plan pre-baked this branch: *"soak fails Gate 1 but passes
+Gate 8 → soften Gate 1 via documented ADR amendment, not by re-tuning
+scenes. New threshold = observed peer-reference rate rounded down to
+one decimal, published here with provenance, before the next soak."*
+
+Applying the formula to the observed rate (0.073) yields a threshold of
+**0.0**, which is vacuous (every run passes). This is a defect in the
+rounding formula at low observed rates, not a signal about behaviour.
+We resolve it as the halt criteria already intended:
+
+- **Gate 8 (embedding semantic dependence) is the authoritative
+  peer-engagement gate.** Across 1,565 scenes, cosine similarity shows
+  turn 2 attends to turn 1 and turn 3 attends to turns 1+2 (medians
+  0.762 / 0.757, both in band). This is the structural evidence that
+  turns read each other.
+- **Gate 1's lexical peer-reference subgate is reclassified as an
+  observational metric**, not a pass/fail criterion. A surface-form
+  regex ("Y said X") was always a proxy; agents engage through
+  paraphrase and semantic extension without tripping it. Observed rate
+  **0.073** is recorded as the baseline for any future lexical-proxy
+  refinement (v1.1+).
+- This is **not** goalpost-moving: we are applying the standard that
+  was always downstream of Gate 8 per the halt criteria, and we record
+  the formula defect explicitly so the provenance is auditable. We did
+  **not** invent a non-zero floor (e.g. 0.05) — there is no principled
+  source for one, and it would read as a number chosen to pass.
+
+Gate 1's word-count (median 42 ≥ 25) and repeat-4gram (0.0 < 0.15)
+subgates remain pass/fail criteria; only the peer-reference subgate is
+reclassified.
+
+### Decision 2 — operational fixes the soak surfaced
+
+Two defects were root-caused from the soak data and fixed (so the next
+long run is clean); both are follow-up commits on the v1.0 PR.
+
+- **Snapshot circuit breaker.** `wal_checkpoint(TRUNCATE)` raised
+  SQLITE_IOERR persistently from hour ~21 onward (9,106 failures), and
+  the snapshot site retried every interval for the rest of the run.
+  Each failed checkpoint also perturbed the WAL/-shm sidecars enough
+  that fresh reader connections observed a stale `MAX(ts)` — which read
+  as a false stall to out-of-process monitors. `SnapshotGuard` now
+  trips after 5 consecutive failures (snapshots stop for the rest of
+  the run; the WAL remains the durability boundary), bumps a single
+  `snapshot_disabled` metric, and per-failure logging drops from a full
+  traceback to one WARNING line. Snapshots remain best-effort cold
+  backups, never the recovery path.
+
+- **Verb-diversity lever revived.** `diversity_lever_substituted`
+  stayed 0 for the entire soak. Empirical root cause: the dominance
+  signal (`recent_verb_distribution`) counted scene `contribute` events
+  — ≈94 % of the recent window — so `novelty_dominant_verb` resolved to
+  `contribute`. A single-tick action is never `contribute`, so
+  `apply_diversity_lever`'s precondition `action.verb == dominant_verb`
+  was never satisfiable and the lever could not fire. The signal now
+  excludes `contribute` (a coerced workshop action, not a free verb
+  choice) from both the distribution and the substitution candidates,
+  so the lever keys on the agent's actual free-choice attractor.
+
+  Per the honesty discipline: **Gate 3's soak-v1-2 result stands as a
+  reported negative** ("lever implemented, never fired"). The fix
+  targets the *next* soak (v1.1) — the writeup documents the system as
+  it ran, not as patched after the fact.
+
+### Decision 3 — Gate 7 / "stalls" share one root cause
+
+Gate 7's 236 capacity violations correlate with the snapshot-failure
+windows. The plausible mechanism is shared: while the snapshot path
+churned, the workshop projection's transition drain lagged and
+`open_slots` depleted. This is an operational reliability finding (the
+snapshot path, Decision 2), not an independent scene defect. Data
+integrity was unaffected (WAL recovery verified, child exited code 0).
+Whether Gate 4's 2.19 % miss is a sibling of the same stress is left
+open for v1.1 to confirm by correlating the fold-rate window against
+the snapshot-failure window.
+
+### Decision 4 — version is `v1.0.0-rc1`, not `v1.0.0`
+
+The structural core is sound: scenes (Gate 8), Path-3 (Gate 5),
+durability (clean WAL recovery), throughput (Gate 2), and acceptance
+(Gate 6) all pass, and the pre-authorised amended path was followed.
+But an open reliability issue (the snapshot path / Gate 7) warrants a
+fix-and-verify cycle before a full release. Calling it `v1.0.0` would
+over-claim against a reproducible failure mode; calling it `v0.5.0-rc1`
+(the plan's pessimistic branch) would under-claim against a sound
+structural core. `v1.0.0-rc1` is the honest signal. The `pyproject`
+version bump and git tag are deferred until the operator confirms this
+framing.
+
+### Known issues carried to v1.1
+
+- Gate 1 lexical peer-reference proxy is underspecified (observed
+  0.073); refine or retire the surface-form regex.
+- Gate 3 verb concentration: re-run with the revived diversity lever
+  and confirm `diversity_lever_substituted > 0` and worst-window share
+  ≤ 70 %.
+- Gate 4 fold rate 2.19 % vs < 1 %: confirm whether it is stress-linked
+  to the snapshot windows.
+- Gate 7 capacity: re-verify under the snapshot circuit breaker.

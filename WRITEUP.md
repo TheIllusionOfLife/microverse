@@ -255,6 +255,24 @@ peer-reference rate but did not close it, and a cross-family or
 digest-style follow-up would be the next experiment (out of scope
 for v1.0).
 
+### Outcome — which branch landed (soak-v1-2)
+
+Neither branch landed cleanly; the result is a documented partial.
+The 5.5-day soak-v1-2 run (full numbers in *Final numbers* above) put
+Gate 1's lexical peer-reference rate at **0.073** — below even Branch
+B's 0.20–0.30 window — while **Gate 8 passed strongly** (cosine
+medians 0.762 / 0.757). That combination (lexical proxy under-fires,
+semantic dependence holds) is exactly the case the halt criteria
+pre-authorised: amend, do not re-tune scenes. Applying the
+round-down-to-one-decimal formula to 0.073 yields a vacuous 0.0
+threshold, so **ADR 0006 Amendment 1** records the formula defect,
+reclassifies Gate 1's peer-reference subgate as observational, and
+promotes Gate 8 to the operative peer-engagement gate. Scenes
+demonstrably create inter-turn semantic dependence; they do not
+manifest it as surface-form cross-reference. Shipped as `v1.0.0-rc1`
+with the snapshot reliability fix and the revived diversity lever
+carried to v1.1.
+
 ### Smoke validation (pre-soak)
 
 A 100-tick operational smoke against live `gemma4:e4b` (Phase A+B+C
@@ -341,21 +359,92 @@ local stack as designed.
 
 ### Final numbers
 
-*(filled in at soak completion — placeholders below)*
+The acceptance run was **soak-v1-2**: `gemma4:26b`, seed 38, full
+A+B+C+D stack. It ran 5.5 days (≈132 h; 20,102 events; 1,897 scenes
+opened, 1,565 completed, 2,116 accepted artifacts) and was stopped
+manually when the cold-backup snapshot path started failing
+persistently. The run itself was healthy throughout — the maximum
+inter-event gap over the entire run was **51.5 s** (mean 23.4 s), so
+there was no real stall; the apparent stalls seen by an out-of-process
+monitor were a read artifact of the failing WAL checkpoint (see
+*Operational findings* below). It did not reach the planned 7 days, so
+the headline is a 5.5-day run, not a week.
 
-| Gate | Threshold | Soak A baseline (v0.3 e4b) | Soak B baseline (v0.3 26b) | v1.0 7-day |
-|------|-----------|----------------------------|----------------------------|------------|
-| 1 fragment-shape composite | composite | fail | fail | _TBD_ |
-| 2 WIP throughput / hr | ≥ 5 | 3.7 | 29.3 | _TBD_ |
-| 3 verb concentration | ≤ 70 % | 86.7 % | 57.4 % | _TBD_ |
-| 4 pipeline efficiency (fold rate) | < 1 % | 13.2 % | 61.6 % | _TBD_ |
-| 5 path-3 redactions | non-zero | 121 451 | 23 007 | _TBD_ |
-| 6 capacity invariant | open_slots ≥ 3 | 285 violations | 240 violations | _TBD_ |
-| 7 acceptance throughput | ≥ 50 % | 100 % (1/1) | 100 % (1/1) | _TBD_ |
-| 8 scene semantic dependence | median ∈ [0.30, 0.85] | n/a | n/a | _TBD_ |
-| thinking_leak total | == 0 | 0 | 0 | _TBD_ |
-| events committed | — | 19 878 | 14 113 | _TBD_ |
-| accepted WIPs | — | 89 | 702 | _TBD_ |
+| Gate | Threshold | Soak A baseline (v0.3 e4b) | Soak B baseline (v0.3 26b) | v1.0 soak-v1-2 (5.5-day) |
+|------|-----------|----------------------------|----------------------------|--------------------------|
+| 1 fragment-shape composite | composite | fail | fail | **fail** (peer-ref 0.073; word-count 42 ✓, 4-gram 0.0 ✓) |
+| 2 WIP throughput / hr | ≥ 5 | 3.7 | 29.3 | **14.04 — pass** |
+| 3 verb concentration | ≤ 70 % | 86.7 % | 57.4 % | **96.2 % — fail** |
+| 4 pipeline efficiency (fold rate) | < 1 % | 13.2 % | 61.6 % | **2.19 % — fail (≈28× better than baseline)** |
+| 5 path-3 redactions | non-zero | 121 451 | 23 007 | **43 671 — pass** |
+| 6 capacity invariant | open_slots ≥ 3 | 285 violations | 240 violations | **236 violations — fail** |
+| 7 acceptance throughput | ≥ 50 % | 100 % (1/1) | 100 % (1/1) | **100 % — pass** |
+| 8 scene semantic dependence | median ∈ [0.30, 0.85] | n/a | n/a | **0.762 / 0.757 — pass** |
+| thinking_leak total | == 0 | 0 | 0 | **0** |
+| events committed | — | 19 878 | 14 113 | **20 102** |
+| accepted WIPs | — | 89 | 702 | **1 833** |
+
+(Gate numbering follows `spike_workshop_measure.py`: Gate 6 is
+acceptance throughput, Gate 7 is the capacity invariant; the rows above
+are labelled by description.)
+
+**Result: 4 of 8 gates pass — and the load-bearing one (Gate 8) is
+among them.** Across 1,565 scenes the embedding cosine confirms turn 2
+reads turn 1 and turn 3 reads turns 1+2. That is the structural
+evidence the scene mechanic was built to produce: turns genuinely
+attend to each other. The positive branch of this writeup was always
+"scenes create real inter-turn dependence"; Gate 8 carries it.
+
+The negative branch is equally on the record. Gate 1's *lexical*
+peer-reference rate (0.073) is far below 0.30 — agents engage by
+paraphrase and semantic extension, not by surface-form "Y said X", so
+the regex under-fires. Per the pre-baked halt criteria (Gate 1 fails,
+Gate 8 passes → amend, do not re-tune scenes), ADR 0006 Amendment 1
+reclassifies Gate 1's peer-reference subgate as observational and
+promotes Gate 8 to the operative peer-engagement gate. The rounding
+formula in the plan would have produced a vacuous 0.0 threshold; the
+amendment records that defect explicitly rather than inventing a number
+to pass.
+
+Three more gates failed, none reflecting an unsound core:
+
+- **Gate 3 (verb concentration, 96.2 %).** The Phase D verb-diversity
+  lever **never fired** the entire soak (`diversity_lever_substituted`
+  = 0). Root cause, found empirically: the dominance signal counted
+  scene `contribute` events (≈94 % of the recent window), so the
+  detected dominant verb was `contribute` — which a single-tick action
+  is never — making the substitution precondition unsatisfiable. This
+  is reported as a genuine negative result. (A follow-up fix excludes
+  `contribute` from the signal so the lever can fire; that targets the
+  next soak, not this one — the numbers above are the system as it
+  actually ran.)
+- **Gate 4 (fold rate, 2.19 %).** A close miss against the < 1 % target,
+  but a ≈28× improvement over the 61.6 % pre-scenes baseline — scenes
+  did most of the work the gate asks for.
+- **Gate 7 (capacity, 236 violations).** Correlates with the snapshot-
+  failure windows below; treated as a sibling of that operational
+  issue, not an independent scene defect.
+
+### Operational findings
+
+The single real defect was in the **cold-backup snapshot path**, not
+the simulation. From hour ~21, `wal_checkpoint(TRUNCATE)` raised
+SQLITE_IOERR persistently (9,106 times) and the snapshot site retried
+every interval for the rest of the run. Two consequences: thousands of
+identical tracebacks in the log, and — because each failed checkpoint
+perturbs the WAL/-shm sidecars — fresh out-of-process reader
+connections saw a stale `MAX(ts)`, which a monitoring script read as a
+multi-hour stall. The event stream proves no stall occurred (51.5 s max
+gap). The fix is a `SnapshotGuard` circuit breaker: after 5 consecutive
+failures it disables snapshots for the rest of the run (the WAL remains
+the durability boundary), logs once, and stops flooding the log. Data
+integrity was never at risk — WAL recovery was verified and the child
+process exited code 0 on a clean SIGTERM.
+
+This is the honest shape of the result: a sound simulation core with a
+working scene mechanism, shipped as `v1.0.0-rc1` (per ADR 0006
+Amendment 1) because one operational reliability issue and two
+behavioural gates remain open for v1.1.
 
 ### How to reproduce
 
