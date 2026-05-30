@@ -40,6 +40,17 @@ MAX_CONSECUTIVE_FAIL: int = 3
 # pathological inputs.
 MAX_PARSE_BYTES: int = 32 * 1024
 
+# v1.1 (ADR 0007 Phase 1, Pillar 1): static per-role traits surfaced in
+# the persistent self-record. One short, stable line per role — the
+# durable "who you are" anchor that survives across ticks. Dynamic
+# beliefs/commitments are summarized separately (Stage C); these traits
+# are intentionally fixed. Roles without an entry render no trait line.
+TRAITS_BY_ROLE: dict[str, tuple[str, ...]] = {
+    "artisan": ("You make things with patient hands, and prefer to show rather than tell.",),
+    "scholar": ("You weigh ideas carefully and notice what others might miss.",),
+    "stranger": ("You carry an outsider's eye and trust contrast over easy consensus.",),
+}
+
 # Sampling presets per ~/.claude/skills/local-llm/SKILL.md:74-78. Picked
 # by role: creative roles (Artisan, Scholar, Stranger) want exploration;
 # judging roles (Trader, Harvester) want lower variance.

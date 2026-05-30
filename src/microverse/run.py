@@ -43,7 +43,7 @@ from pathlib import Path
 
 from microverse import config
 from microverse.agents.artisan import Artisan
-from microverse.agents.base import Action, ActionKind, Agent, WorldContext
+from microverse.agents.base import Action, ActionKind, Agent, SelfView, WorldContext
 from microverse.agents.harvester import ArtifactCandidate, Harvester
 from microverse.agents.scholar import Scholar
 from microverse.agents.trader import Trader
@@ -53,6 +53,7 @@ from microverse.memory.semantic import SemanticMemory
 from microverse.ops.metrics import Metrics
 from microverse.ops.watchdog import Watchdog
 from microverse.world.clock import WorldClock
+from microverse.world.relationships import derive_relationships
 from microverse.world.scene import SceneRunner
 from microverse.world.scheduler import WeightedScheduler
 from microverse.world.snapshot import (
@@ -277,6 +278,31 @@ def _compute_novelty_hint(episodic: EpisodicMemory, agent: Agent) -> tuple[str, 
     return (hint, top_verb, suggested)
 
 
+def _build_self_view(
+    episodic: EpisodicMemory,
+    agent: Agent,
+    *,
+    known_peers: tuple[str, ...],
+    beliefs: str = "",
+) -> SelfView:
+    """Assemble the agent's persistent self-record (ADR 0007 Phase 1).
+
+    Static ``traits`` come from ``config.TRAITS_BY_ROLE``; the
+    ``relationships`` ledger is derived on-read from the full episodic
+    history (whitelisted against the live roster). ``beliefs`` is the
+    periodically summarized line (Stage C) — empty until the first
+    summarization. This is the EXPLICIT Path-3 carve-out: structured
+    identity only, never the agent's own fragment prose.
+    """
+    return SelfView(
+        traits=config.TRAITS_BY_ROLE.get(agent.role, ()),
+        relationships=derive_relationships(
+            episodic, agent_name=agent.name, known_peers=known_peers
+        ),
+        beliefs=beliefs,
+    )
+
+
 def _build_per_tick_world_base(
     *,
     episodic: EpisodicMemory,
@@ -289,6 +315,7 @@ def _build_per_tick_world_base(
     novelty_hint: str = "",
     novelty_dominant_verb: str = "",
     novelty_suggested_verb: str = "",
+    self_view: SelfView | None = None,
 ) -> WorldContext:
     """Assemble the per-tick ``world_base`` for ``build_context``.
 
@@ -323,6 +350,7 @@ def _build_per_tick_world_base(
         novelty_hint=novelty_hint,
         novelty_dominant_verb=novelty_dominant_verb,
         novelty_suggested_verb=novelty_suggested_verb,
+        self_view=self_view if self_view is not None else SelfView(),
     )
 
 
@@ -660,6 +688,9 @@ def run(
                 novelty_hint=novelty_hint,
                 novelty_dominant_verb=novelty_dominant_verb,
                 novelty_suggested_verb=novelty_suggested_verb,
+                self_view=_build_self_view(
+                    episodic, agent, known_peers=tuple(a.name for a in sched.agents)
+                ),
             )
             world = build_context(
                 world_base=world_base,
@@ -712,6 +743,9 @@ def run(
                         engagement_hint="",
                         required_target=None,
                         metrics=metrics,
+                        self_view=_build_self_view(
+                            episodic, agent, known_peers=tuple(a.name for a in sched.agents)
+                        ),
                     )
                     sc_world = build_context(
                         world_base=sc_world_base,

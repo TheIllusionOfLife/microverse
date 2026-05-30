@@ -152,6 +152,40 @@ class EpisodicMemory:
             for r in rows
         ]
 
+    def speak_edge_counts(self) -> dict[tuple[str, str], int]:
+        """Full-history ``(actor, target) -> count`` for every targeted
+        ``speak`` event. The relationship ledger (ADR 0007 Phase 1)
+        aggregates over the whole log so identity is genuinely durable —
+        not a recency window. Untargeted speaks (``target IS NULL``) are
+        excluded.
+        """
+        rows = self._conn.execute(
+            "SELECT actor, target, COUNT(*) FROM events "
+            "WHERE action = 'speak' AND target IS NOT NULL "
+            "GROUP BY actor, target"
+        ).fetchall()
+        return {(str(r[0]), str(r[1])): int(r[2]) for r in rows}
+
+    def scene_contributor_sets(self) -> dict[str, set[str]]:
+        """Map ``scene_id -> {actors who committed a contribute}``.
+
+        Co-authorship is derived ONLY from committed ``contribute``
+        events that carry a ``scene_id`` payload — never from
+        ``scene.open`` (which logs *scheduled* authors before the turns
+        run and can abort, which would fabricate ties). Single-tick
+        contributes have no ``scene_id`` and are ignored.
+        """
+        rows = self._conn.execute(
+            "SELECT json_extract(payload_json, '$.scene_id') AS sid, actor "
+            "FROM events "
+            "WHERE action = 'contribute' AND sid IS NOT NULL "
+            "GROUP BY sid, actor"
+        ).fetchall()
+        out: dict[str, set[str]] = {}
+        for sid, actor in rows:
+            out.setdefault(str(sid), set()).add(str(actor))
+        return out
+
     def count(self) -> int:
         row = self._conn.execute("SELECT COUNT(*) FROM events").fetchone()
         return int(row[0])

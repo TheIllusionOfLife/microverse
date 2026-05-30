@@ -167,6 +167,30 @@ def test_build_context_recent_episodic_field_is_unused_or_empty(tmp_path: Path) 
     assert field == (), f"recent_episodic must be removed or empty after Slice 5, got {field!r}"
 
 
+def test_build_context_does_not_inject_self_view(tmp_path: Path) -> None:
+    """ADR 0007 Phase 1 carve-out boundary.
+
+    The self-record (``WorldContext.self_view``) is the EXPLICIT,
+    sanctioned identity carve-out — but ``build_context`` itself stays a
+    pure read model: it never derives or injects ``self_view``. The
+    carve-out lives only in the explicit ``run._build_self_view`` path,
+    so the agent's own thought/artifact prose still cannot reach the
+    prompt through ``build_context``. A caller that passes a default
+    ``world_base`` gets a default (empty) ``self_view`` back.
+    """
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep, SemanticMemory(tmp_path / "se.sqlite") as se:
+        _seed_diverse_history(ep, actor="Aki", n=50)
+        out = build_context(
+            world_base=WorldContext(),
+            episodic=ep,
+            semantic=se,
+            topic="",
+        )
+    assert out.self_view.traits == ()
+    assert out.self_view.relationships == ()
+    assert out.self_view.beliefs == ""
+
+
 @pytest.mark.parametrize("agent_name", ["Aki", "Bo", "Cy"])
 def test_build_context_no_self_history_for_any_agent(tmp_path: Path, agent_name: str) -> None:
     """The contract holds for any agent name, not just Aki — the
