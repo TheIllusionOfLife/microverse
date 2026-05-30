@@ -63,7 +63,10 @@ CREATE TABLE IF NOT EXISTS events (
     action TEXT NOT NULL,
     target TEXT,
     payload_json TEXT
-)
+);
+CREATE INDEX IF NOT EXISTS idx_events_actor ON events (actor);
+CREATE INDEX IF NOT EXISTS idx_events_target ON events (target);
+CREATE INDEX IF NOT EXISTS idx_events_action ON events (action);
 """
 
 
@@ -80,7 +83,7 @@ class EpisodicMemory:
     def __init__(self, path: str | Path) -> None:
         self._path = path
         self._conn = open_sqlite_wal(path)
-        self._conn.execute(_SCHEMA)
+        self._conn.executescript(_SCHEMA)
         self._conn.commit()
 
     def append(
@@ -204,7 +207,8 @@ class EpisodicMemory:
         rows = self._conn.execute(
             "SELECT json_extract(payload_json, '$.scene_id') AS sid, actor "
             "FROM events "
-            "WHERE action = 'contribute' AND sid IS NOT NULL "
+            "WHERE action = 'contribute' "
+            "AND json_extract(payload_json, '$.scene_id') IS NOT NULL "
             "GROUP BY sid, actor"
         ).fetchall()
         out: dict[str, set[str]] = {}

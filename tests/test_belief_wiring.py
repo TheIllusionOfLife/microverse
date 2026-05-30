@@ -18,7 +18,7 @@ from microverse.agents.belief import BeliefSummarizer
 from microverse.memory.episodic import EpisodicMemory
 from microverse.memory.identity import IdentityStore
 from microverse.ops.metrics import Metrics
-from microverse.run import _build_self_view, _maybe_update_beliefs
+from microverse.run import _build_self_view, _maybe_update_beliefs, _RelationshipLedgerCache
 
 
 def _chat(content: str) -> Any:
@@ -90,3 +90,31 @@ def test_regen_failure_keeps_prior(tmp_path: Path) -> None:
             )
         assert store.get("Aki") == "an earlier belief"  # prior preserved
     metrics.close()
+
+
+def test_relationship_ledger_cache_throttles_and_refreshes(tmp_path: Path) -> None:
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
+        ep.append(actor="Cy", action="speak", target="Aki", payload={"thought": "hi"})
+        cache = _RelationshipLedgerCache(ep, refresh_events=5)
+        first = cache.get("Aki", ("Aki", "Cy"))
+        assert first[0].addressed_you == 1
+        # Add fewer than the threshold of new events: cached value is reused
+        # (stale by design — relationships drift slowly).
+        ep.append(actor="Cy", action="speak", target="Aki", payload={"thought": "hi again"})
+        assert cache.get("Aki", ("Aki", "Cy"))[0].addressed_you == 1
+        # Cross the refresh threshold: the ledger recomputes.
+        for _ in range(5):
+            ep.append(actor="Cy", action="speak", target="Aki", payload={"thought": "x"})
+        assert cache.get("Aki", ("Aki", "Cy"))[0].addressed_you == 7
+
+
+def test_relationship_ledger_cache_derives_late_arrival_on_demand(tmp_path: Path) -> None:
+    with EpisodicMemory(tmp_path / "ep.sqlite") as ep:
+        ep.append(actor="Cy", action="speak", target="Aki", payload={"thought": "hi"})
+        cache = _RelationshipLedgerCache(ep, refresh_events=1000)
+        cache.get("Aki", ("Aki", "Cy"))  # primes the cache for Aki/Cy only
+        # A Stranger that arrives mid-run is not in the cache yet; it is
+        # derived on demand rather than returning empty.
+        ep.append(actor="Eli", action="speak", target="Aki", payload={"thought": "hello"})
+        facts = cache.get("Aki", ("Aki", "Cy", "Eli"))
+        assert any(f.peer == "Eli" for f in facts)

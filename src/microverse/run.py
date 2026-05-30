@@ -43,7 +43,7 @@ from pathlib import Path
 
 from microverse import config
 from microverse.agents.artisan import Artisan
-from microverse.agents.base import Action, ActionKind, Agent, SelfView, WorldContext
+from microverse.agents.base import Action, ActionKind, Agent, RelationFact, SelfView, WorldContext
 from microverse.agents.belief import BeliefSummarizer
 from microverse.agents.harvester import ArtifactCandidate, Harvester
 from microverse.agents.scholar import Scholar
@@ -71,6 +71,11 @@ _logger = logging.getLogger(__name__)
 # Phase 2 cadences.
 HARVEST_FLUSH_EVERY = 50  # ticks between Trader-driven harvest flushes
 SNAPSHOT_EVERY = 1000  # cold backups; WAL handles real durability
+
+# v1.1 (ADR 0007 Phase 1): how many new events to accumulate before the
+# full-history relationship ledger is recomputed. Bounds the per-tick
+# cost of the derive-on-read ledger over long soaks.
+REL_LEDGER_REFRESH_EVENTS = 25
 
 # Phase 4a cadences.
 WATCHDOG_EVERY = 25  # ticks between watchdog sweeps
@@ -280,27 +285,77 @@ def _compute_novelty_hint(episodic: EpisodicMemory, agent: Agent) -> tuple[str, 
     return (hint, top_verb, suggested)
 
 
+class _RelationshipLedgerCache:
+    """Throttle full-history relationship derivation.
+
+    ``derive_relationships`` aggregates the entire (append-only) episodic
+    log, so calling it on every agent on every tick makes total work grow
+    quadratically with run length — a real cost for the multi-week soaks
+    this project targets. Relationship counts drift slowly, so a few ticks
+    of staleness in the prompt is harmless. This cache recomputes the
+    whole roster's ledgers only when the event count has grown by
+    ``refresh_events`` since the last refresh (full-history semantics
+    preserved; just sampled). A peer not yet in the cache (e.g. a Stranger
+    that just arrived) is derived on demand.
+    """
+
+    def __init__(self, episodic: EpisodicMemory, *, refresh_events: int) -> None:
+        self._episodic = episodic
+        self._refresh = max(refresh_events, 1)
+        self._count_at = -1
+        self._peers_at: tuple[str, ...] | None = None
+        self._by_agent: dict[str, tuple[RelationFact, ...]] = {}
+
+    def get(self, agent_name: str, known_peers: tuple[str, ...]) -> tuple[RelationFact, ...]:
+        count = self._episodic.count()
+        # Refresh when enough new events have accrued OR the roster changed
+        # (a Watchdog-spawned Stranger must show up promptly, not after the
+        # next event threshold).
+        stale = (
+            self._count_at < 0
+            or count - self._count_at >= self._refresh
+            or known_peers != self._peers_at
+        )
+        if stale:
+            self._by_agent = {
+                peer: derive_relationships(self._episodic, agent_name=peer, known_peers=known_peers)
+                for peer in known_peers
+            }
+            self._count_at = count
+            self._peers_at = known_peers
+        if agent_name not in self._by_agent:
+            self._by_agent[agent_name] = derive_relationships(
+                self._episodic, agent_name=agent_name, known_peers=known_peers
+            )
+        return self._by_agent[agent_name]
+
+
 def _build_self_view(
     episodic: EpisodicMemory,
     agent: Agent,
     *,
     known_peers: tuple[str, ...],
     beliefs: str = "",
+    relationships: tuple[RelationFact, ...] | None = None,
 ) -> SelfView:
     """Assemble the agent's persistent self-record (ADR 0007 Phase 1).
 
     Static ``traits`` come from ``config.TRAITS_BY_ROLE``; the
     ``relationships`` ledger is derived on-read from the full episodic
-    history (whitelisted against the live roster). ``beliefs`` is the
-    periodically summarized line (Stage C) — empty until the first
-    summarization. This is the EXPLICIT Path-3 carve-out: structured
-    identity only, never the agent's own fragment prose.
+    history (whitelisted against the live roster) unless a precomputed
+    tuple is supplied (the run loop passes a throttle-cached one).
+    ``beliefs`` is the periodically summarized line (Stage C) — empty
+    until the first summarization. This is the EXPLICIT Path-3 carve-out:
+    structured identity only, never the agent's own fragment prose.
     """
+    rels = (
+        relationships
+        if relationships is not None
+        else derive_relationships(episodic, agent_name=agent.name, known_peers=known_peers)
+    )
     return SelfView(
         traits=config.TRAITS_BY_ROLE.get(agent.role, ()),
-        relationships=derive_relationships(
-            episodic, agent_name=agent.name, known_peers=known_peers
-        ),
+        relationships=rels,
         beliefs=beliefs,
     )
 
@@ -585,7 +640,15 @@ def run(
     # out-of-world summarizer that refreshes it on a cadence. The store
     # is a materialized cache over the WAL log (regenerable); beliefs
     # survive a clean restart rather than resetting to empty.
-    identity_store = IdentityStore(data_dir / "identity.sqlite")
+    try:
+        identity_store = IdentityStore(data_dir / "identity.sqlite")
+    except Exception:
+        # The main try/finally has not been entered yet, so close the
+        # already-opened DBs rather than leaking their connections.
+        metrics.close()
+        semantic.close()
+        episodic.close()
+        raise
     belief_summarizer = BeliefSummarizer()
 
     trader = Trader(name="Bo", soul_tokens=30)
@@ -609,6 +672,10 @@ def run(
         sched.register(agent)
     # Trader scheduling is internal — it ranks the buffer at flush time,
     # not as a tick action. We don't register it in the scheduler.
+
+    # v1.1: throttle-cache for the full-history relationship ledger so it
+    # is not recomputed from scratch on every agent on every tick.
+    rel_ledger = _RelationshipLedgerCache(episodic, refresh_events=REL_LEDGER_REFRESH_EVENTS)
 
     clock = WorldClock(seed=seed, mean_interval=WORLD_CLOCK_MEAN_INTERVAL)
     watchdog = Watchdog(
@@ -751,6 +818,7 @@ def run(
                     agent,
                     known_peers=tuple(a.name for a in sched.agents),
                     beliefs=identity_store.get(agent.name),
+                    relationships=rel_ledger.get(agent.name, tuple(a.name for a in sched.agents)),
                 ),
             )
             world = build_context(
@@ -809,6 +877,9 @@ def run(
                             agent,
                             known_peers=tuple(a.name for a in sched.agents),
                             beliefs=identity_store.get(agent.name),
+                            relationships=rel_ledger.get(
+                                agent.name, tuple(a.name for a in sched.agents)
+                            ),
                         ),
                     )
                     sc_world = build_context(

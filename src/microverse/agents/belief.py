@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from microverse.agents.base import has_meta_leak
 from microverse.config import BELIEF_MAX_CHARS, BELIEF_MAX_TOKENS, LLM_TIMEOUT_S, SAMPLING_FACTUAL
 from microverse.llm.ollama_client import chat
 from microverse.llm.thinking import strip_thinking
@@ -72,4 +73,12 @@ class BeliefSummarizer:
             return None
         if len(cleaned) > BELIEF_MAX_CHARS:
             cleaned = cleaned[:BELIEF_MAX_CHARS].rstrip()
+        # The belief is persisted and re-injected into every later persona
+        # prompt until the next refresh, so an immersion-breaking
+        # hallucination ("I am an AI model") would become durable prompt
+        # state. Apply the same meta-leak guard that gates normal agent
+        # output; reject (keep the prior belief) on any leak signal.
+        if has_meta_leak(cleaned):
+            metrics.bump("belief_meta_leak_block", agent=agent_name)
+            return None
         return cleaned

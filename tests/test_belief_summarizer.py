@@ -94,3 +94,35 @@ def test_summarize_returns_none_on_empty_content() -> None:
         )
     assert out is None
     metrics.close()
+
+
+def test_summarize_rejects_meta_leak() -> None:
+    """A belief is persisted and re-injected into every later persona
+    prompt, so an immersion-breaking hallucination must not be stored."""
+    metrics = Metrics(":memory:")
+    with patch(
+        "microverse.agents.belief.chat",
+        return_value=_chat("I am an AI model following a prompt."),
+    ):
+        out = BeliefSummarizer().summarize(
+            agent_name="Aki", role="artisan", events=_events(), prior="real prior", metrics=metrics
+        )
+    assert out is None  # caller keeps the prior belief
+    assert metrics.get("belief_meta_leak_block", agent="Aki") == 1
+    metrics.close()
+
+
+def test_belief_prompt_renders_incoming_events_with_direction() -> None:
+    """An event where the agent is the TARGET (a peer addressed it) must
+    not be rendered as the agent's own action — that would tell the agent
+    it spoke with itself and corrupt the persisted self-record."""
+    from microverse.prompts import render
+
+    events = [
+        Event(id=1, ts=1.0, actor="Aki", action="craft", target=None, payload={}),
+        Event(id=2, ts=2.0, actor="Cy", action="speak", target="Aki", payload={}),
+    ]
+    prompt = render("belief.j2", name="Aki", role="artisan", events=events, prior="")
+    assert "you craft" in prompt
+    assert "Cy speak with you" in prompt
+    assert "you speak (with Aki)" not in prompt
