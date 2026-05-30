@@ -39,6 +39,7 @@ import sys
 import time
 from collections import Counter
 from collections.abc import Callable, Sequence
+from contextlib import ExitStack
 from pathlib import Path
 
 from microverse import config
@@ -396,6 +397,7 @@ def _maybe_update_beliefs(
     interval = config.BELIEF_UPDATE_INTERVAL
     if interval <= 0 or executed == 0 or executed % interval != 0:
         return
+    known_peers = tuple(a.name for a in agents)
     for agent in agents:
         events = _recent_agent_events(episodic, agent.name, lookback=config.BELIEF_LOOKBACK)
         new_belief = summarizer.summarize(
@@ -404,6 +406,7 @@ def _maybe_update_beliefs(
             events=events,
             prior=identity_store.get(agent.name),
             metrics=metrics,
+            known_peers=known_peers,
         )
         if new_belief:
             identity_store.put(agent.name, new_belief)
@@ -636,54 +639,63 @@ def run(
     episodic = EpisodicMemory(data_dir / "episodic.sqlite")
     semantic = SemanticMemory(data_dir / "semantic.sqlite")
     metrics = Metrics(data_dir / "metrics.sqlite", auto_flush_every=10)
-    # v1.1 (ADR 0007 Phase 1, Stage C): persistent belief store + the
-    # out-of-world summarizer that refreshes it on a cadence. The store
-    # is a materialized cache over the WAL log (regenerable); beliefs
-    # survive a clean restart rather than resetting to empty.
+    # All four SQLite connections are opened before the run loop's
+    # try/finally below is entered. Own their cleanup with an ExitStack so
+    # that if ANY constructor during startup (IdentityStore, the
+    # WorkshopProjection replay, Harvester, Watchdog, ...) raises, every
+    # connection opened so far is closed instead of leaking. The same stack
+    # is closed in the loop's finally on the normal path.
+    db_cleanup = ExitStack()
+    db_cleanup.callback(metrics.close)
+    db_cleanup.callback(semantic.close)
+    db_cleanup.callback(episodic.close)
     try:
+        # v1.1 (ADR 0007 Phase 1, Stage C): persistent belief store + the
+        # out-of-world summarizer that refreshes it on a cadence. The store
+        # is a materialized cache over the WAL log (regenerable); beliefs
+        # survive a clean restart rather than resetting to empty.
         identity_store = IdentityStore(data_dir / "identity.sqlite")
+        db_cleanup.callback(identity_store.close)
+        belief_summarizer = BeliefSummarizer()
+
+        trader = Trader(name="Bo", soul_tokens=30)
+        workshop = WorkshopProjection(episodic)
+        harvester = Harvester(
+            harvest_dir,
+            trader=trader,
+            percentile=70,
+            workshop=workshop,
+            episodic=episodic,
+            metrics=metrics,
+        )
+
+        sched = WeightedScheduler(rng=rng)
+        for agent in _build_roster(metrics, solo=solo):
+            # v0.3 (ADR 0004 Decision 3): the agent's parse_action looks
+            # up the projection to hard-fold contributes targeting a
+            # complete WIP. Attach before registering so the first tick
+            # already sees it.
+            agent.attach_workshop(workshop)
+            sched.register(agent)
+        # Trader scheduling is internal — it ranks the buffer at flush time,
+        # not as a tick action. We don't register it in the scheduler.
+
+        # v1.1: throttle-cache for the full-history relationship ledger so
+        # it is not recomputed from scratch on every agent on every tick.
+        rel_ledger = _RelationshipLedgerCache(episodic, refresh_events=REL_LEDGER_REFRESH_EVENTS)
+
+        clock = WorldClock(seed=seed, mean_interval=WORLD_CLOCK_MEAN_INTERVAL)
+        watchdog = Watchdog(
+            metrics=metrics,
+            episodic=episodic,
+            scheduler=sched,
+            workshop=workshop,
+        )
     except Exception:
-        # The main try/finally has not been entered yet, so close the
-        # already-opened DBs rather than leaking their connections.
-        metrics.close()
-        semantic.close()
-        episodic.close()
+        # Startup failed before the run loop's try/finally; release every
+        # connection registered above rather than leaking it.
+        db_cleanup.close()
         raise
-    belief_summarizer = BeliefSummarizer()
-
-    trader = Trader(name="Bo", soul_tokens=30)
-    workshop = WorkshopProjection(episodic)
-    harvester = Harvester(
-        harvest_dir,
-        trader=trader,
-        percentile=70,
-        workshop=workshop,
-        episodic=episodic,
-        metrics=metrics,
-    )
-
-    sched = WeightedScheduler(rng=rng)
-    for agent in _build_roster(metrics, solo=solo):
-        # v0.3 (ADR 0004 Decision 3): the agent's parse_action looks
-        # up the projection to hard-fold contributes targeting a
-        # complete WIP. Attach before registering so the first tick
-        # already sees it.
-        agent.attach_workshop(workshop)
-        sched.register(agent)
-    # Trader scheduling is internal — it ranks the buffer at flush time,
-    # not as a tick action. We don't register it in the scheduler.
-
-    # v1.1: throttle-cache for the full-history relationship ledger so it
-    # is not recomputed from scratch on every agent on every tick.
-    rel_ledger = _RelationshipLedgerCache(episodic, refresh_events=REL_LEDGER_REFRESH_EVENTS)
-
-    clock = WorldClock(seed=seed, mean_interval=WORLD_CLOCK_MEAN_INTERVAL)
-    watchdog = Watchdog(
-        metrics=metrics,
-        episodic=episodic,
-        scheduler=sched,
-        workshop=workshop,
-    )
 
     stop = {"requested": False}
 
@@ -1080,10 +1092,9 @@ def run(
         except Exception:
             _logger.exception("final harvester.flush failed")
             _safe("metrics.bump after flush failure", lambda: metrics.bump("harvest_flush_fail"))
-        _safe("metrics.close", metrics.close)
-        _safe("episodic.close", episodic.close)
-        _safe("semantic.close", semantic.close)
-        _safe("identity_store.close", identity_store.close)
+        # Closes all four SQLite connections registered at startup
+        # (identity_store, episodic, semantic, metrics) in LIFO order.
+        _safe("db_cleanup.close", db_cleanup.close)
 
     return executed
 

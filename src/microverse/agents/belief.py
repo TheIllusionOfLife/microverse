@@ -45,14 +45,28 @@ class BeliefSummarizer:
         events: list[Event],
         prior: str,
         metrics: Metrics,
+        known_peers: tuple[str, ...] = (),
     ) -> str | None:
         """Return a new belief line, or ``None`` if the call failed or
         produced nothing (the caller then keeps the prior belief).
 
         Bumps ``belief_chat_failure`` on a raised/empty call so the two
         outcomes are distinguishable in the metrics.
+
+        ``known_peers`` is the registered roster; only targets on it are
+        named in the prompt. ``Action.target`` is untrusted LLM output
+        (length-bounded only) and Jinja autoescape is off, so an unfiltered
+        target would inject arbitrary text that the persisted belief then
+        carries into every later persona prompt.
         """
-        prompt = render(_TEMPLATE, name=agent_name, role=role, events=events, prior=prior)
+        prompt = render(
+            _TEMPLATE,
+            name=agent_name,
+            role=role,
+            events=events,
+            prior=prior,
+            known_peers=known_peers,
+        )
         try:
             result = chat(
                 messages=[{"role": "user", "content": prompt}],

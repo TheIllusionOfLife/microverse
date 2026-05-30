@@ -8,10 +8,11 @@ Until now you have held this to be true:
 You have not yet put into words what you believe.
 {%- endif %}
 
+{% set known_peers = known_peers | default(()) -%}
 Recent activity:
 {% for e in events -%}
 {% if e.actor == name -%}
-- you {{ e.action }}{% if e.target %} (with {{ e.target }}){% endif %}
+- you {{ e.action }}{% if e.target and e.target in known_peers %} (with {{ e.target }}){% endif %}
 {% else -%}
 - {{ e.actor }} {{ e.action }} with you
 {% endif -%}
