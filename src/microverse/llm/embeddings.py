@@ -32,9 +32,8 @@ import math
 import sys
 from typing import Any
 
-import ollama
-
 from microverse.config import EMBEDDING_MODEL
+from microverse.llm import ollama_client
 
 _logger = logging.getLogger(__name__)
 
@@ -55,7 +54,11 @@ def _embed_by_hash(_text_hash: str, text: str) -> tuple[float, ...]:
     alongside as the value to actually pass to Ollama on a cache miss.
     """
     try:
-        resp: Any = ollama.embed(model=EMBEDDING_MODEL, input=text)
+        # Route through ollama_client so embeddings share the chat
+        # path's connection pooling and transient-error retry discipline
+        # (CodeRabbit PR #38). Still measurement-only — agents never
+        # call this; the embedding model is passed explicitly.
+        resp: Any = ollama_client.embed(EMBEDDING_MODEL, text)
     except Exception as e:
         # Most likely cause: embedding model not pulled. Log once per
         # process via the logger; emit a stderr breadcrumb so the

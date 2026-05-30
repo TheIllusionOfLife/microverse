@@ -52,7 +52,7 @@ change must preserve them.
 `microverse.world.scene.SceneRunner.run(initiator, wip_name, peers)`
 emits the following sequence into the episodic log:
 
-```
+```text
 scene.open  payload={scene_id, turn1_author, turn2_author,
                      turn3_author, wip_name}
 contribute  payload={scene_id, turn_index=1, fragment, ...}    [turn 1]
@@ -63,7 +63,7 @@ contribute  payload={scene_id, turn_index=3, fragment, ...}    [turn 3]
 On any failure mid-scene (think raises, parsed action is not a
 contribute to `wip_name`, or commit raises):
 
-```
+```text
 scene.abort payload={scene_id, last_turn, reason}
 ```
 

@@ -137,18 +137,32 @@ class SceneRunner:
         # 1. Emit scene.open BEFORE any think() so replay sees the
         # author list. payload.scene_id allows downstream consumers
         # (gate-7 producer, kill-drill verifier) to group turns.
-        self._episodic.append(
-            actor="scene",
-            action="scene.open",
-            target=wip_name,
-            payload={
-                "scene_id": scene_id,
-                "turn1_author": author_names[0],
-                "turn2_author": author_names[1],
-                "turn3_author": author_names[2],
-                "wip_name": wip_name,
-            },
-        )
+        # A storage failure here must not escape run(): return an
+        # aborted SceneResult like every other failure path. No
+        # scene.abort is emitted because no scene.open landed — there is
+        # nothing for the kill-drill verifier to orphan.
+        try:
+            self._episodic.append(
+                actor="scene",
+                action="scene.open",
+                target=wip_name,
+                payload={
+                    "scene_id": scene_id,
+                    "turn1_author": author_names[0],
+                    "turn2_author": author_names[1],
+                    "turn3_author": author_names[2],
+                    "wip_name": wip_name,
+                },
+            )
+        except Exception:
+            _logger.exception("scene.open emit failed")
+            return SceneResult(
+                scene_id=scene_id,
+                wip_name=wip_name,
+                completed_turns=0,
+                aborted=True,
+                reason="open_error",
+            )
         self._bump("scene_open")
 
         completed_turns: list[SceneTurn] = []

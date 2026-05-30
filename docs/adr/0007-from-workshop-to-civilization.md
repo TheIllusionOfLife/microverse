@@ -24,7 +24,7 @@ between "a society of agents" and "agents that talk past each other."
 v1.0 closed an important part of that gap. The **soak-v1-2** evidence
 (5.5 days, 20,102 events, two residents Aki + Cy, `gemma4:26b`, seed 38)
 proved a *collaboration engine*: scenes where turns demonstrably read
-each other (Gate 8, cosine 0.76), ~1,039 lines where one agent extends
+each other (Gate 8, cosine 0.762 / 0.757), ~1,039 lines where one agent extends
 the other's idea by name, and multi-day operational durability. That is
 real and load-bearing.
 
@@ -91,8 +91,9 @@ schism, the invention.
 ### The five pillars
 
 Each pillar is an **evolution of an existing primitive**, not greenfield
-work. None is implemented here; this is the design contract a later plan
-will sequence.
+work. None is implemented here; this is the design intent a later plan
+will sequence (it commits no contract — see "What this ADR explicitly
+does not do" below).
 
 **Pillar 1 — Durable identity + social graph.** *(highest leverage; the
 unlock for everything else.)*

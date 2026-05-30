@@ -1,8 +1,9 @@
 """Embeddings unit smoke (offline) + integration smoke (live Ollama).
 
-Offline tests mock ``ollama.embed`` so the suite stays fast and runs
-on a CI without the embedding model pulled. The integration test is
-marked and only runs against a live Ollama with ``nomic-embed-text``.
+Offline tests mock ``ollama_client.embed`` (the retry-wrapped boundary
+``embeddings.py`` now calls) so the suite stays fast and runs on a CI
+without the embedding model pulled. The integration test is marked and
+only runs against a live Ollama with ``nomic-embed-text``.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ def setup_function() -> None:
 
 def test_embed_returns_list_of_floats() -> None:
     fake_resp: dict[str, Any] = {"embeddings": [[0.1, 0.2, 0.3]]}
-    with patch("ollama.embed", return_value=fake_resp):
+    with patch("microverse.llm.ollama_client.embed", return_value=fake_resp):
         vec = embed("hello")
     assert vec == [0.1, 0.2, 0.3]
 
@@ -29,7 +30,7 @@ def test_embed_returns_list_of_floats() -> None:
 def test_embed_returns_empty_on_failure() -> None:
     """A missing model / network error returns [], NOT raise — gate 7
     degrades to unknown rather than crashing the spike script."""
-    with patch("ollama.embed", side_effect=RuntimeError("model not found")):
+    with patch("microverse.llm.ollama_client.embed", side_effect=RuntimeError("model not found")):
         vec = embed("hello")
     assert vec == []
 
@@ -58,11 +59,11 @@ def test_cosine_empty_returns_zero() -> None:
 
 
 def test_embed_cache_avoids_repeat_calls() -> None:
-    """Identical inputs hit the lru_cache; ollama.embed should be
+    """Identical inputs hit the lru_cache; ollama_client.embed should be
     called exactly once per unique text within the cache window."""
     clear_cache()
     fake_resp: dict[str, Any] = {"embeddings": [[0.5]]}
-    with patch("ollama.embed", return_value=fake_resp) as mock_embed:
+    with patch("microverse.llm.ollama_client.embed", return_value=fake_resp) as mock_embed:
         embed("same")
         embed("same")
         embed("same")

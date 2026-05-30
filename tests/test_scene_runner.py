@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import random
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from microverse.agents.base import Action, ActionKind, Agent, SceneTurn, WorldContext
 from microverse.memory.episodic import EpisodicMemory
@@ -384,3 +384,50 @@ def test_pick_authors_solo_initiator_returns_three_copies() -> None:
     """Degenerate fallback for the no-peer edge case."""
     out = pick_authors("Aki", [], rng=random.Random(0))
     assert out == ("Aki", "Aki", "Aki")
+
+
+def test_scene_open_write_failure_returns_aborted_not_raise(tmp_path: Path) -> None:
+    """A storage failure on the scene.open emit must not escape run().
+
+    Every other failure path in run() returns SceneResult(aborted=True);
+    the scene.open append was the one unguarded write (CodeRabbit PR #38).
+    """
+
+    class _OpenFailsEpisodic(EpisodicMemory):
+        def append(
+            self,
+            *,
+            actor: str,
+            action: str,
+            target: str | None,
+            payload: dict[str, Any],
+            ts: float | None = None,
+        ) -> int:
+            if action == "scene.open":
+                raise OSError("disk full on scene.open")
+            return super().append(actor=actor, action=action, target=target, payload=payload, ts=ts)
+
+    em = _OpenFailsEpisodic(tmp_path / "episodic.sqlite")
+    metrics = Metrics(tmp_path / "metrics.sqlite")
+    try:
+        wip = CONFIGURED_WIPS[0]
+        aki = _FakeAgent("Aki", plan=[_contrib_action(wip, "Aki turn 1.")])
+        bo = _FakeAgent("Bo", plan=[_contrib_action(wip, "Bo turn 2.")])
+        runner = SceneRunner(
+            episodic=em,
+            commit_action=_commit_action_factory(em),
+            world_factory=_world_factory_factory(WorldContext()),
+            rng=random.Random(0),
+            metrics=metrics,
+        )
+
+        result = runner.run(aki, wip, peers=[bo])
+
+        assert result.aborted is True
+        assert result.reason == "open_error"
+        assert result.completed_turns == 0
+        # Nothing landed: no scene.open, no contribute, no orphan.
+        assert em.last(10) == []
+    finally:
+        em.close()
+        metrics.close()

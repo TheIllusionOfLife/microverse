@@ -254,7 +254,7 @@
   <symbol id="build" viewBox="0 0 24 24"><path d="M2 10l10-6 10 6"/><path d="M4 10v11"/><path d="M20 10v11"/><path d="M9 10v11"/><path d="M15 10v11"/><path d="M3 21h18"/></symbol>
 </defs></svg>
 
-<div class="lang"><svg class="ic"><use href="#globe"/></svg><a href="vision.html">EN</a></div>
+<div class="lang"><svg class="ic" aria-hidden="true" focusable="false"><use href="#globe"/></svg><a href="vision.html">EN</a></div>
 
 <header class="hero">
   <div class="wrap">
@@ -281,12 +281,12 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">01 / 11</span><span class="skick">起源</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#battery"/></svg></span>当初のビジョン</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#battery"/></svg></span>当初のビジョン</h2>
     <p class="lead">アニメ『リック・アンド・モーティ』の「マイクロバース・バッテリー」は、住人が知らぬ間に一台の車を動かしている小さな宇宙です。本プロジェクトはこの比喩を、もっと優しい方向へ反転させました。<strong>ローカルのハードウェア上で何週間も自律的に動き続けるAIエージェントの小さな世界を作り、彼らが生み出した最良のものを収穫する。</strong></p>
     <div class="grid g3">
-      <div class="card"><span class="cic"><svg class="ic"><use href="#home"/></svg></span><h3>ローカル中心、ずっと</h3><p>あらゆる「思考」は、一つの小さなGemmaモデルへのローカルOllama呼び出し。ネットワークも、API料金も、トークン課金もなし。ボトルネックは予算ではなく、あなたのノートPCです。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#users"/></svg></span><h3>チャットボットではなく社会</h3><p>住人たちは<em>世界の中で</em>暮らします。創り、学び、語り、共同作業を積み上げる。世界の外にいる唯一のHarvesterが、最良の成果物をあなたの手元へ運びます。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#file"/></svg></span><h3>設計から誠実に</h3><p>すべてのイベントは来歴つきでローカルのSQLiteログに記録。隠しごとはなし。限界も正直に文書化されています。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#home"/></svg></span><h3>ローカル中心、ずっと</h3><p>あらゆる「思考」は、一つの小さなGemmaモデルへのローカルOllama呼び出し。ネットワークも、API料金も、トークン課金もなし。ボトルネックは予算ではなく、あなたのノートPCです。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#users"/></svg></span><h3>チャットボットではなく社会</h3><p>住人たちは<em>世界の中で</em>暮らします。創り、学び、語り、共同作業を積み上げる。世界の外にいる唯一のHarvesterが、最良の成果物をあなたの手元へ運びます。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#file"/></svg></span><h3>設計から誠実に</h3><p>すべてのイベントは来歴つきでローカルのSQLiteログに記録。隠しごとはなし。限界も正直に文書化されています。</p></div>
     </div>
     <div class="cast">
       <div class="who"><div class="mono-av">A</div><b>Aki</b><span>職人 — ものを創る</span></div>
@@ -301,13 +301,13 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">02 / 11</span><span class="skick">構築</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#tool"/></svg></span>作ったもの</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#tool"/></svg></span>作ったもの</h2>
     <p class="lead">一つのモデルがすべての心を駆動し、耐久性はSQLiteのWALが担い、記憶は「起きたこと(エピソード記憶)」と「知っていること(意味記憶/ロア)」に分かれる ── 単一プロセスのティックループ。</p>
     <div class="grid g2">
-      <div class="card"><span class="cic"><svg class="ic"><use href="#cpu"/></svg></span><h3>単一モデル、ルーターなし</h3><p>すべての <code>agent.think()</code> は一つの <code>gemma4:26b</code> 呼び出しを通ります。フォールバックも、隠れた第二の脳もなし。レビュアーが目で不変条件を確認できます。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#database"/></svg></span><h3>WALこそが真実</h3><p>SQLiteの先行書き込みログが耐久性の境界。強制終了で失われるのは進行中のティックだけ。コールドスナップショットはあくまでバックアップで、復旧経路ではありません。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#film"/></svg></span><h3>シーン</h3><p>v1.0の目玉アイデア。3ターンのミニシーンで、ターン2はターン1を読み、ターン3は両方を読む ── 独白ではなく<em>協働</em>による成果物の構造的な単位です。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#ruler"/></svg></span><h3>主張ではなく計測</h3><p>計測専用の埋め込みモデル(<code>nomic-embed-text</code>)が、シーンの各ターンが本当に互いに依存しているかを採点。エージェントのループには一切触れない観測専用の仕組みです。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#cpu"/></svg></span><h3>単一モデル、ルーターなし</h3><p>すべての <code>agent.think()</code> は一つの <code>gemma4:26b</code> 呼び出しを通ります。フォールバックも、隠れた第二の脳もなし。レビュアーが目で不変条件を確認できます。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#database"/></svg></span><h3>WALこそが真実</h3><p>SQLiteの先行書き込みログが耐久性の境界。強制終了で失われるのは進行中のティックだけ。コールドスナップショットはあくまでバックアップで、復旧経路ではありません。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#film"/></svg></span><h3>シーン</h3><p>v1.0の目玉アイデア。3ターンのミニシーンで、ターン2はターン1を読み、ターン3は両方を読む ── 独白ではなく<em>協働</em>による成果物の構造的な単位です。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#ruler"/></svg></span><h3>主張ではなく計測</h3><p>計測専用の埋め込みモデル(<code>nomic-embed-text</code>)が、シーンの各ターンが本当に互いに依存しているかを採点。エージェントのループには一切触れない観測専用の仕組みです。</p></div>
     </div>
   </div>
 </section>
@@ -315,7 +315,7 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">03 / 11</span><span class="skick">道のり</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#compass"/></svg></span>これまでの道のり</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#compass"/></svg></span>これまでの道のり</h2>
     <div class="tl">
       <div class="step"><span class="v">v0.1</span> <b>ひとつの心。</b> ループの中で創作する単一の職人 ── ローカルのティックループとWAL耐久性が成立することの証明。</div>
       <div class="step"><span class="v">v0.2</span> <b>社会と工房。</b> 複数のエージェント、共有の成果物基盤、格付けを行うTrader、停滞を防ぐWatchdog。</div>
@@ -329,7 +329,7 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">04 / 11</span><span class="skick">成果</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#award"/></svg></span>成功したこと</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#award"/></svg></span>成功したこと</h2>
     <div class="scoreline">
       <div class="score"><div class="big">132h</div><div class="rule"></div><small>連続・健全に稼働</small></div>
       <div class="score"><div class="big">51.5s</div><div class="rule"></div><small>イベント間の最大間隔 ── 実際の停止なし</small></div>
@@ -338,9 +338,9 @@
     </div>
     <div class="callout"><b>最重要の勝利:</b> 1,565のシーンにわたり、埋め込み類似度はターン2が本当にターン1を読み、ターン3が両方を読んでいることを示しました(コサイン中央値 0.762 / 0.757、目標帯のど真ん中)。<b>エージェントたちは互いをすれ違わせず、実際に応答し合っている。</b> それこそがシーンの全目的であり ── それが機能しました。</div>
     <div class="grid g3" style="margin-top:20px">
-      <div class="card"><span class="cic"><svg class="ic"><use href="#clock"/></svg></span><h3>本当に動いた</h3><p>5.5日間、20,102イベント、Apple SiliconのノートPC一台、クラウド呼び出しゼロ。「長時間・ローカル・無料」という命題は成立しました。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#lock"/></svg></span><h3>堅牢かつクリーン</h3><p>思考トークンの漏れゼロ、完全な来歴、コード0での正常終了。WALからの復旧も検証済み。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#trend"/></svg></span><h3>スループット向上</h3><p>毎時14成果物(目標 ≥5)、パイプラインの折り返し率は61.6%から2.19%へ ── シーンによる約28倍の構造的改善。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#clock"/></svg></span><h3>本当に動いた</h3><p>5.5日間、20,102イベント、Apple SiliconのノートPC一台、クラウド呼び出しゼロ。「長時間・ローカル・無料」という命題は成立しました。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#lock"/></svg></span><h3>堅牢かつクリーン</h3><p>思考トークンの漏れゼロ、完全な来歴、コード0での正常終了。WALからの復旧も検証済み。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#trend"/></svg></span><h3>スループット向上</h3><p>毎時14成果物(目標 ≥5)、パイプラインの折り返し率は61.6%から2.19%へ ── シーンによる約28倍の構造的改善。</p></div>
     </div>
   </div>
 </section>
@@ -348,17 +348,17 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">05 / 11</span><span class="skick">成績表</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#bars"/></svg></span>正直な成績表 ── 8つ中4つ通過</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#bars"/></svg></span>正直な成績表 ── 8つ中4つ通過</h2>
     <p class="lead">受け入れゲートはソークの前に事前登録しました。合否そのままに、どう着地したかを示します。</p>
     <div class="gates">
-      <div class="gate"><div class="n">1</div><div><span class="gt">断片の形 ── 仲間への言及</span><div class="meta">字面上の「YがXと言った」率 0.073(目標 ≥0.30)・語数と反復のサブゲートは通過</div></div><span class="tagf"><svg class="ic"><use href="#x"/></svg>不合格</span></div>
-      <div class="gate pass"><div class="n">2</div><div><span class="gt">WIPスループット</span><div class="meta">受理 14.04件/時(目標 ≥5)</div></div><span class="tagp"><svg class="ic"><use href="#check"/></svg>合格</span></div>
-      <div class="gate"><div class="n">3</div><div><span class="gt">動詞の集中度</span><div class="meta">最悪枠で96.2%(目標 ≤70%)・多様性レバーが一度も発火せず(修正済み)</div></div><span class="tagf"><svg class="ic"><use href="#x"/></svg>不合格</span></div>
-      <div class="gate"><div class="n">4</div><div><span class="gt">パイプライン折り返し率</span><div class="meta">2.19%(目標 &lt;1%)・ただしベースライン61.6%より28倍改善</div></div><span class="tagf"><svg class="ic"><use href="#x"/></svg>不合格</span></div>
-      <div class="gate pass"><div class="n">5</div><div><span class="gt">Path-3 不変条件</span><div class="meta">43,671件の自己秘匿 ── エージェントは自分の過去を入力として見ない</div></div><span class="tagp"><svg class="ic"><use href="#check"/></svg>合格</span></div>
-      <div class="gate pass"><div class="n">6</div><div><span class="gt">受理スループット</span><div class="meta">適格WIPの100%を受理(目標 ≥50%)</div></div><span class="tagp"><svg class="ic"><use href="#check"/></svg>合格</span></div>
-      <div class="gate"><div class="n">7</div><div><span class="gt">容量不変条件</span><div class="meta">236件の違反・シーンではなくスナップショット不具合に起因</div></div><span class="tagf"><svg class="ic"><use href="#x"/></svg>不合格</span></div>
-      <div class="gate pass head"><div class="n">8</div><div><span class="gt">シーンの意味的依存性<span class="hltag">本命</span></span><div class="meta">コサイン 0.762 / 0.757 ── シーンが機能している構造的証明</div></div><span class="tagp"><svg class="ic"><use href="#check"/></svg>合格</span></div>
+      <div class="gate"><div class="n">1</div><div><span class="gt">断片の形 ── 仲間への言及</span><div class="meta">字面上の「YがXと言った」率 0.073(目標 ≥0.30)・語数と反復のサブゲートは通過</div></div><span class="tagf"><svg class="ic" aria-hidden="true" focusable="false"><use href="#x"/></svg>不合格</span></div>
+      <div class="gate pass"><div class="n">2</div><div><span class="gt">WIPスループット</span><div class="meta">受理 14.04件/時(目標 ≥5)</div></div><span class="tagp"><svg class="ic" aria-hidden="true" focusable="false"><use href="#check"/></svg>合格</span></div>
+      <div class="gate"><div class="n">3</div><div><span class="gt">動詞の集中度</span><div class="meta">最悪枠で96.2%(目標 ≤70%)・多様性レバーが一度も発火せず(修正済み)</div></div><span class="tagf"><svg class="ic" aria-hidden="true" focusable="false"><use href="#x"/></svg>不合格</span></div>
+      <div class="gate"><div class="n">4</div><div><span class="gt">パイプライン折り返し率</span><div class="meta">2.19%(目標 &lt;1%)・ただしベースライン61.6%より28倍改善</div></div><span class="tagf"><svg class="ic" aria-hidden="true" focusable="false"><use href="#x"/></svg>不合格</span></div>
+      <div class="gate pass"><div class="n">5</div><div><span class="gt">Path-3 不変条件</span><div class="meta">43,671件の自己秘匿 ── エージェントは自分の過去を入力として見ない</div></div><span class="tagp"><svg class="ic" aria-hidden="true" focusable="false"><use href="#check"/></svg>合格</span></div>
+      <div class="gate pass"><div class="n">6</div><div><span class="gt">受理スループット</span><div class="meta">適格WIPの100%を受理(目標 ≥50%)</div></div><span class="tagp"><svg class="ic" aria-hidden="true" focusable="false"><use href="#check"/></svg>合格</span></div>
+      <div class="gate"><div class="n">7</div><div><span class="gt">容量不変条件</span><div class="meta">236件の違反・シーンではなくスナップショット不具合に起因</div></div><span class="tagf"><svg class="ic" aria-hidden="true" focusable="false"><use href="#x"/></svg>不合格</span></div>
+      <div class="gate pass head"><div class="n">8</div><div><span class="gt">シーンの意味的依存性<span class="hltag">本命</span></span><div class="meta">コサイン 0.762 / 0.757 ── シーンが機能している構造的証明</div></div><span class="tagp"><svg class="ic" aria-hidden="true" focusable="false"><use href="#check"/></svg>合格</span></div>
     </div>
   </div>
 </section>
@@ -366,18 +366,18 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">06 / 11</span><span class="skick">生成物</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#feather"/></svg></span>実際の出力 ── 5.5日で2,116点</h2>
-    <p class="lead">2体のエージェント、アキとサイが <em>1,833件のマルチターン・シーン</em> を共作しました(巻物1,041・花壇580・織機212)。これらは選り抜きではなく、ソークからそのまま抜き出したものです。そのおよそ<em>半数</em>で、エージェントが相手の名前を挙げ、直前の発言を踏まえて続けています。</p>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#feather"/></svg></span>実際の出力 ── 5.5日で2,116点</h2>
+    <p class="lead">2体のエージェント、アキとサイが残した収穫物は <em>2,116点</em>。うち <em>1,833点は複数作者による共作シーン</em> ── 巻物1,041・花壇580・織機212 ── 残る283点は単独の覚え書きです。どれも選り抜きではなく、ソークからそのまま。幾度となく、エージェントが相手の名を挙げ、直前の発言を踏まえて続けています。</p>
     <div class="scenes">
       <div class="scene">
-        <p class="stitle"><svg class="ic"><use href="#sprout"/></svg>workshop.garden_bed</p>
+        <p class="stitle"><svg class="ic" aria-hidden="true" focusable="false"><use href="#sprout"/></svg>workshop.garden_bed</p>
         <p class="ssub">一手ずつ詰めていく植え付け計画 · <b>サイ ↔ アキ</b></p>
         <div class="turn a"><span class="by">アキ</span><p>縁に沿って鮮やかなマリーゴールドとスイートピーを植えてはどうでしょう。その色彩は祭りの喜びによく映えるはずです。</p></div>
         <div class="turn c"><span class="by">サイ</span><p>土はもう<mark>アキの堆肥</mark>で豊かですから、日当たりの良い隅にラベンダーの種も蒔きましょう。蜜を求めて蜂もたくさん訪れるでしょう。</p></div>
         <div class="turn c"><span class="by">サイ</span><p><mark>アキが提案したスイートピー</mark>の蔓性を支えるため、柳の枝で小さく頑丈な支柱を編み始めます。</p></div>
       </div>
       <div class="scene">
-        <p class="stitle"><svg class="ic"><use href="#palette"/></svg>workshop.loom</p>
+        <p class="stitle"><svg class="ic" aria-hidden="true" focusable="false"><use href="#palette"/></svg>workshop.loom</p>
         <p class="ssub">手から手へ受け渡される張力 · <b>アキ ↔ サイ</b></p>
         <div class="turn a"><span class="by">アキ</span><p>経糸の張力をひと通り確かめ、どの一本も他より強く引かれていないようにしました。</p></div>
         <div class="turn c"><span class="by">サイ</span><p>左端の経糸が自重で少したわんでいるようです。布巻具を調整して、幅全体で張力を均一に保つとよいかもしれません。</p></div>
@@ -395,12 +395,12 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">07 / 11</span><span class="skick">未達</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#search"/></svg></span>失敗したこと ── そしてそれが朗報な理由</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#search"/></svg></span>失敗したこと ── そしてそれが朗報な理由</h2>
     <div class="grid g2">
-      <div class="card"><span class="cic"><svg class="ic"><use href="#message"/></svg></span><h3>ゲート1: 字面と実態のズレ</h3><p>エージェントは言い換えとアイデアの発展で関わり、互いの名を文字どおり呼ぶことは少ない。表層の正規表現は過少発火(0.073)した一方、<em>意味的</em>なゲートは堂々と合格。字面プロキシを観測指標へ格下げし、埋め込みゲートを正式版に昇格 ── まさに事前に約束した経路です。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#shuffle"/></svg></span><h3>ゲート3: 引かれなかったレバー</h3><p>動詞多様性のナッジは全ソークで置換ゼロ。原因は、活動の94%を占めるシーン貢献を見ていたため、自由な単発アクションと一度も一致しなかったこと。<b>発見し、理解し、修正済み</b> ── 次の稼働では発火できます。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#drive"/></svg></span><h3>スナップショットの「停止」</h3><p>コールドバックアップのチェックポイントがディスクI/Oエラーに9,106回当たり、再試行を続けた結果、プロセス外の監視には世界が<em>停止したように見えた</em>。実際は止まっていません(最大間隔51.5秒)。新しいサーキットブレーカーが5回の失敗で遮断し先へ進みます。シミュレーション中核は一度も問題ではありませんでした。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#scale"/></svg></span><h3>ゲート4と7: 僅差で、説明可能</h3><p>折り返し率は&lt;1%に届かずも28倍改善。容量違反はスナップショットの時間帯と連動。どちらもv1.1へのシャープで限定的なフォローアップであり、中核の不健全さではありません。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#message"/></svg></span><h3>ゲート1: 字面と実態のズレ</h3><p>エージェントは言い換えとアイデアの発展で関わり、互いの名を文字どおり呼ぶことは少ない。表層の正規表現は過少発火(0.073)した一方、<em>意味的</em>なゲートは堂々と合格。字面プロキシを観測指標へ格下げし、埋め込みゲートを正式版に昇格 ── まさに事前に約束した経路です。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#shuffle"/></svg></span><h3>ゲート3: 引かれなかったレバー</h3><p>動詞多様性のナッジは全ソークで置換ゼロ。原因は、活動の94%を占めるシーン貢献を見ていたため、自由な単発アクションと一度も一致しなかったこと。<b>発見し、理解し、修正済み</b> ── 次の稼働では発火できます。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#drive"/></svg></span><h3>スナップショットの「停止」</h3><p>コールドバックアップのチェックポイントがディスクI/Oエラーに9,106回当たり、再試行を続けた結果、プロセス外の監視には世界が<em>停止したように見えた</em>。実際は止まっていません(最大間隔51.5秒)。新しいサーキットブレーカーが5回の失敗で遮断し先へ進みます。シミュレーション中核は一度も問題ではありませんでした。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#scale"/></svg></span><h3>ゲート4と7: 僅差で、説明可能</h3><p>折り返し率は&lt;1%に届かずも28倍改善。容量違反はスナップショットの時間帯と連動。どちらもv1.1へのシャープで限定的なフォローアップであり、中核の不健全さではありません。</p></div>
     </div>
     <div class="callout warn"><b>規律:</b> 失敗は後から修正した姿ではなく、システムが<em>実際に動いた</em>ままで報告しています。修正は<em>次の</em>ソークを狙うもの。だからこそこれは勝利宣言のv1.0.0ではなく、<b>rc1</b>なのです。</div>
   </div>
@@ -409,7 +409,7 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">08 / 11</span><span class="skick">距離</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#compare"/></svg></span>ビジョンと現在の差</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#compare"/></svg></span>ビジョンと現在の差</h2>
     <p class="lead">夢は「何週間も、豊かな対話で動き続ける生きた社会」でした。残された距離を正直に。</p>
     <div class="grid g2">
       <div class="card"><h3>数週間 → 5.5日</h3><p>証明できたのは複数日であり、複数週ではありません。止めたのはバックアップの不具合だけ(修正済み) ── エンジン自体は疲れませんでした。</p></div>
@@ -423,14 +423,14 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">09 / 11</span><span class="skick">計画</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#sparkle"/></svg></span>差をどう埋めるか</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#sparkle"/></svg></span>差をどう埋めるか</h2>
     <div class="grid g3">
-      <div class="card"><span class="cic"><svg class="ic"><use href="#refresh"/></svg></span><h3>修正版で再ソーク</h3><p>スナップショットのブレーカーと復活した多様性レバーを備え、5.5日を超えて本来の「数週間」へ。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#users"/></svg></span><h3>登場人物を増やす</h3><p>住人(と役割)を増やせば、3人の異なる仲間によるシーン、より豊かな力学、そして創発文化の本格的な検証が解放されます。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#crosshair"/></svg></span><h3>より良い言及シグナル</h3><p>脆い字面の正規表現を、意味を捉える指標へ置き換え、「関わっている」ことを実態どおりに捉える。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#palette"/></svg></span><h3>動詞の単一文化を破る</h3><p>レバーが発火できるようになった今、それが生む本物の多様性を計測し、要約型の成果物が効くかも探る。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#branch"/></svg></span><h3>異なるモデル系統への好奇心</h3><p>いずれ単一モデルを別系統に差し替え、違う心が違う社会を生むのかを問う。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#trend"/></svg></span><h3>負荷とスケール</h3><p>スナップショットを書き込み経路から分離し、一台で複数のマイクロバースを並行稼働させる。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#refresh"/></svg></span><h3>修正版で再ソーク</h3><p>スナップショットのブレーカーと復活した多様性レバーを備え、5.5日を超えて本来の「数週間」へ。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#users"/></svg></span><h3>登場人物を増やす</h3><p>住人(と役割)を増やせば、3人の異なる仲間によるシーン、より豊かな力学、そして創発文化の本格的な検証が解放されます。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#crosshair"/></svg></span><h3>より良い言及シグナル</h3><p>脆い字面の正規表現を、意味を捉える指標へ置き換え、「関わっている」ことを実態どおりに捉える。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#palette"/></svg></span><h3>動詞の単一文化を破る</h3><p>レバーが発火できるようになった今、それが生む本物の多様性を計測し、要約型の成果物が効くかも探る。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#branch"/></svg></span><h3>異なるモデル系統への好奇心</h3><p>いずれ単一モデルを別系統に差し替え、違う心が違う社会を生むのかを問う。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#trend"/></svg></span><h3>負荷とスケール</h3><p>スナップショットを書き込み経路から分離し、一台で複数のマイクロバースを並行稼働させる。</p></div>
     </div>
   </div>
 </section>
@@ -438,16 +438,16 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">10 / 11</span><span class="skick">飛躍</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#build"/></svg></span>工房から文明へ</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#build"/></svg></span>工房から文明へ</h2>
     <p class="lead">いまエージェントたちは、ひとつの心地よい一日を繰り返し生きています ── いつも春、いつも工房、いつも始まりの中に。だが<em>本来の構想</em>はもっと大きなものでした。記憶し、蓄積し、変化していく社会 ──<em>自分たち自身の歴史</em>。v1.0が築いたのは協働のエンジンです。文明には、協働だけでは決して生まれない3つのもの ──<b>持続する自己、稀少性、蓄積</b>── が要る。これがそこへ至る飛躍です。</p>
     <div class="callout warn"><b>なぜまだ何も積み上がらないのか:</b> ソークは作るそばから成果を捨て(<b>1,845回のリサイクル</b>)、記憶はスライディングウィンドウ(持続する自己がない)、人口は2体から増えず、何ひとつ稀少でなく、最も長い共有意図はわずか3ターンでした。語彙の単一化も浅い相互参照も、別個のバグではなく ── その欠けた土台の症状です。</div>
     <div class="grid g3">
-      <div class="card"><span class="cic"><svg class="ic"><use href="#person"/></svg></span><h3>1 · 持続する自己</h3><p class="kpi">解錠の鍵</p><p>各エージェントに持続する記録を ── 性質、信念、そして誰が誰を助け誰が誰に借りがあるかの<b>関係台帳</b>。「サイは干ばつの折に恩を返した」が世界の覚える事実になる。文化は健忘の上には根付かない。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#scale"/></svg></span><h3>2 · 稀少性と経済</h3><p class="kpi">原動力</p><p>素材を有限に、エージェントの技量を不均等にする。交易が合理的になり、トレーダーは本物の市場になる。稀少性こそが分業・所有・最初の制度を<em>強いる</em>。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#database"/></svg></span><h3>3 · 蓄積のラチェット</h3><p class="kpi">文明の定義</p><p>リサイクルをやめる。育っていく追記型の構造物を ── 村の台帳、構築される伝承、技術の系譜。各世代が前の世代の上に積む。社会と砂場を分かつ一線。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#orbit"/></svg></span><h3>4 · 人口と世代交代</h3><p class="kpi">多様性</p><p>異なる前提を持つ新参者を迎え、誰が留まるかを繁栄が決める。世代交代は規範を継承し<em>変異</em>させる ── 文化進化の実体であり、単一化の処方箋。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#award"/></svg></span><h3>5 · 目標と統治</h3><p class="kpi">制度</p><p>数百ティックに及ぶプロジェクトと、提案・賛否・記録の薄いループを足す。決定が<b>拘束力ある規範</b>になる。制度とは、次を縛る記憶された合意にすぎない。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#compass"/></svg></span><h3>正直な制約</h3><p class="kpi">天才でなく足場</p><p>小さなローカルモデル1体に文明は<em>設計</em>できない。だから長い弧は構造が担う ── 稀少性、台帳、永続する目標 ── モデルはその中で良い<em>局所的</em>判断を下すだけ。現実の制度もそう動く。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#person"/></svg></span><h3>1 · 持続する自己</h3><p class="kpi">解錠の鍵</p><p>各エージェントに持続する記録を ── 性質、信念、そして誰が誰を助け誰が誰に借りがあるかの<b>関係台帳</b>。「サイは干ばつの折に恩を返した」が世界の覚える事実になる。文化は健忘の上には根付かない。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#scale"/></svg></span><h3>2 · 稀少性と経済</h3><p class="kpi">原動力</p><p>素材を有限に、エージェントの技量を不均等にする。交易が合理的になり、トレーダーは本物の市場になる。稀少性こそが分業・所有・最初の制度を<em>強いる</em>。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#database"/></svg></span><h3>3 · 蓄積のラチェット</h3><p class="kpi">文明の定義</p><p>リサイクルをやめる。育っていく追記型の構造物を ── 村の台帳、構築される伝承、技術の系譜。各世代が前の世代の上に積む。社会と砂場を分かつ一線。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#orbit"/></svg></span><h3>4 · 人口と世代交代</h3><p class="kpi">多様性</p><p>異なる前提を持つ新参者を迎え、誰が留まるかを繁栄が決める。世代交代は規範を継承し<em>変異</em>させる ── 文化進化の実体であり、単一化の処方箋。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#award"/></svg></span><h3>5 · 目標と統治</h3><p class="kpi">制度</p><p>数百ティックに及ぶプロジェクトと、提案・賛否・記録の薄いループを足す。決定が<b>拘束力ある規範</b>になる。制度とは、次を縛る記憶された合意にすぎない。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#compass"/></svg></span><h3>正直な制約</h3><p class="kpi">天才でなく足場</p><p>小さなローカルモデル1体に文明は<em>設計</em>できない。だから長い弧は構造が担う ── 稀少性、台帳、永続する目標 ── モデルはその中で良い<em>局所的</em>判断を下すだけ。現実の制度もそう動く。</p></div>
     </div>
     <div class="callout"><b>視点の転換:</b> v1.0は<em>成果物</em>(最良の巻物)を最適化する。飛躍とは<em>蓄積された構造と分岐</em>を最適化することだ。面白い対象は巻物ではなく、それを生んだ社会とその変化だった。<b>歴史</b>を収穫せよ、出力だけでなく。<span class="mono" style="color:var(--faint)">(設計はADR&nbsp;0007に記録 ── 計画段階、未実装。)</span></div>
   </div>
@@ -456,15 +456,15 @@
 <section class="reveal future">
   <div class="wrap">
     <div class="shead"><span class="snum">11 / 11</span><span class="skick">地平</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#rocket"/></svg></span>このプロジェクトはどこまで大きくなれるか</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#rocket"/></svg></span>このプロジェクトはどこまで大きくなれるか</h2>
     <p class="lead">部分の総和を超えるものを生み出す小さなローカルモデルの社会が、追加コストゼロで動く ── これは多くを築ける基盤(プリミティブ)です。</p>
     <div class="grid g3">
-      <div class="card"><span class="cic"><svg class="ic"><use href="#shield"/></svg></span><h3>プライバシー前提の創造</h3><p class="kpi">規制業界 · 教室 · 報道</p><p>端末から一切出ないアイデア生成の世界 ── ホスト型APIが使えない場でこそ使えます。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#wifioff"/></svg></span><h3>オフラインとエッジ</h3><p class="kpi">診療所 · 現地調査 · 船上</p><p>接続を前提にしない自律エージェントの価値。ネットが落ちても世界は止まりません。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#flask"/></svg></span><h3>創発の実験室</h3><p class="kpi">再現可能 · 検証可能</p><p>シード固定で完全ログのテストベッド。マルチエージェント文化、引力、群衆を社会たらしめるものの研究に。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#cap"/></svg></span><h3>教育用サンドボックス</h3><p class="kpi">ずっと無料で動く</p><p>学生はエージェントが創り、格付けし、収穫する様子を観察 ── あらゆる判断が検査可能、クラウドアカウント不要。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#infinity"/></svg></span><h3>常時稼働のアイデアエンジン</h3><p class="kpi">1ティック 0円</p><p>動かすのに費用がかからないから、いつまでも動かせる ── プロンプトを静かに堆肥にして、成果物の収穫を育て続けます。</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#orbit"/></svg></span><h3>いくつもの宇宙</h3><p class="kpi">並行するマイクロバース</p><p>一台のノートPCに、異なるシードと配役の小さな世界をいくつも ── 比較できる社会のポートフォリオ。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#shield"/></svg></span><h3>プライバシー前提の創造</h3><p class="kpi">規制業界 · 教室 · 報道</p><p>端末から一切出ないアイデア生成の世界 ── ホスト型APIが使えない場でこそ使えます。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#wifioff"/></svg></span><h3>オフラインとエッジ</h3><p class="kpi">診療所 · 現地調査 · 船上</p><p>接続を前提にしない自律エージェントの価値。ネットが落ちても世界は止まりません。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#flask"/></svg></span><h3>創発の実験室</h3><p class="kpi">再現可能 · 検証可能</p><p>シード固定で完全ログのテストベッド。マルチエージェント文化、引力、群衆を社会たらしめるものの研究に。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#cap"/></svg></span><h3>教育用サンドボックス</h3><p class="kpi">ずっと無料で動く</p><p>学生はエージェントが創り、格付けし、収穫する様子を観察 ── あらゆる判断が検査可能、クラウドアカウント不要。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#infinity"/></svg></span><h3>常時稼働のアイデアエンジン</h3><p class="kpi">1ティック 0円</p><p>動かすのに費用がかからないから、いつまでも動かせる ── プロンプトを静かに堆肥にして、成果物の収穫を育て続けます。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#orbit"/></svg></span><h3>いくつもの宇宙</h3><p class="kpi">並行するマイクロバース</p><p>一台のノートPCに、異なるシードと配役の小さな世界をいくつも ── 比較できる社会のポートフォリオ。</p></div>
     </div>
     <div class="callout"><b>命題、再び:</b> 小さなローカル社会が、収穫に値する仕事を ── 何日も、無料で、完全な来歴つきで ── 確実に生み出せるなら、「面白いマルチエージェントにはクラウドが要る」はもう真ではなくなる。この小さなバッテリーが動かそうとしているのは、そういう宇宙です。</div>
   </div>
@@ -473,16 +473,22 @@
 
 <footer>
   <div class="wrap">
-    <p class="fline"><svg class="ic"><use href="#battery"/></svg> Microverse Battery · <b style="color:var(--fg)">v1.0.0-rc1</b> · Gemma 4 一モデル · ノートPC一台 · クラウドゼロ。</p>
-    <p class="fline">成功も未達も、すべて記録に残して正直に作りました。<svg class="ic"><use href="#star"/></svg></p>
-    <p class="fline"><svg class="ic"><use href="#globe"/></svg> <a href="vision.html">English version here</a></p>
+    <p class="fline"><svg class="ic" aria-hidden="true" focusable="false"><use href="#battery"/></svg> Microverse Battery · <b style="color:var(--fg)">v1.0.0-rc1</b> · Gemma 4 一モデル · ノートPC一台 · クラウドゼロ。</p>
+    <p class="fline">成功も未達も、すべて記録に残して正直に作りました。<svg class="ic" aria-hidden="true" focusable="false"><use href="#star"/></svg></p>
+    <p class="fline"><svg class="ic" aria-hidden="true" focusable="false"><use href="#globe"/></svg> <a href="vision.html">English version here</a></p>
   </div>
 </footer>
 
 <script>
-  const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{threshold:.12});
-  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
-  if(!('IntersectionObserver' in window)){document.querySelectorAll('.reveal').forEach(el=>el.classList.add('in'));}
+  // Feature-check FIRST: constructing IntersectionObserver on a browser
+  // without it throws, which would skip the fallback and leave every
+  // .reveal section invisible. Guard the whole block instead.
+  if('IntersectionObserver' in window){
+    const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{threshold:.12});
+    document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+  } else {
+    document.querySelectorAll('.reveal').forEach(el=>el.classList.add('in'));
+  }
 </script>
 </body>
 </html>

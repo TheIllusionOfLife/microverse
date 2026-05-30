@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from microverse.llm import ollama_client
-from microverse.llm.ollama_client import chat
+from microverse.llm.ollama_client import chat, embed
 
 
 @pytest.fixture(autouse=True)
@@ -286,3 +286,36 @@ def test_timeout_s_constructs_client_with_timeout():
         chat([{"role": "user", "content": "hi"}], timeout_s=5)
 
     MockClient.assert_called_with(timeout=5)
+
+
+def test_embed_passes_model_and_input_to_client():
+    with patch("microverse.llm.ollama_client.ollama.Client") as MockClient:
+        instance = MockClient.return_value
+        instance.embed.return_value = {"embeddings": [[0.1, 0.2]]}
+
+        result = embed("nomic-embed-text", "a calm afternoon")
+
+    assert result == {"embeddings": [[0.1, 0.2]]}
+    kwargs = instance.embed.call_args.kwargs
+    assert kwargs["model"] == "nomic-embed-text"
+    assert kwargs["input"] == "a calm afternoon"
+
+
+def test_embed_retries_transient_connection_error():
+    """embed shares chat's retry discipline: a transient ConnectionError
+    is retried (and the shared llm_retry counter bumps), then succeeds."""
+    with (
+        patch("microverse.llm.ollama_client.ollama.Client") as MockClient,
+        patch("microverse.llm.ollama_client.time.sleep"),
+    ):
+        instance = MockClient.return_value
+        instance.embed.side_effect = [
+            ConnectionError("daemon restarting"),
+            {"embeddings": [[1.0]]},
+        ]
+
+        result = embed("nomic-embed-text", "hi")
+
+    assert result == {"embeddings": [[1.0]]}
+    assert instance.embed.call_count == 2
+    assert ollama_client.llm_retry == 1

@@ -22,6 +22,7 @@ from __future__ import annotations
 import functools
 import threading
 import time
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -97,19 +98,20 @@ def _get_client(timeout_s: float) -> ollama.Client:
     return ollama.Client(timeout=timeout_s)
 
 
-def _chat_with_retry(client: ollama.Client, **kwargs: Any) -> Any:
-    """Call client.chat with retries on transient connection errors.
+def _request_with_retry(call: Callable[..., Any], **kwargs: Any) -> Any:
+    """Run ``call(**kwargs)`` with retries on transient connection errors.
 
-    Pydantic / value / HTTP 4xx errors are not in _RETRY_EXCEPTIONS so
-    they propagate unchanged. Idempotency is fine: nothing in the
-    world commits until _commit_action() runs after agent.think()
-    returns.
+    Shared by ``chat`` and ``embed`` so both honor the same retry
+    discipline. Pydantic / value / HTTP 4xx errors are not in
+    _RETRY_EXCEPTIONS so they propagate unchanged. Idempotency is fine:
+    chat commits nothing until _commit_action() runs after agent.think()
+    returns, and embed is a pure read used only by measurement.
     """
     for attempt, backoff in enumerate((0.0, *_RETRY_BACKOFFS)):
         if backoff > 0:
             time.sleep(backoff)
         try:
-            return client.chat(**kwargs)
+            return call(**kwargs)
         except _RETRY_EXCEPTIONS:
             if attempt >= len(_RETRY_BACKOFFS):
                 raise
@@ -119,6 +121,11 @@ def _chat_with_retry(client: ollama.Client, **kwargs: Any) -> Any:
                 raise
             _bump_retry()
     raise RuntimeError("unreachable")  # pragma: no cover
+
+
+def _chat_with_retry(client: ollama.Client, **kwargs: Any) -> Any:
+    """Call ``client.chat`` with the shared retry discipline."""
+    return _request_with_retry(client.chat, **kwargs)
 
 
 def chat(
@@ -167,3 +174,19 @@ def chat(
         "thinking": raw_thinking,
         "raw": response.model_dump(),
     }
+
+
+def embed(model: str, text: str, *, timeout_s: float = LLM_TIMEOUT_S) -> Any:
+    """Call Ollama embeddings with the same retry discipline as ``chat``.
+
+    Measurement-only (ADR 0005 Gate 8 / ``spike_workshop_measure.py``).
+    ``model`` is supplied by the caller (``config.EMBEDDING_MODEL``), so
+    routing through this wrapper does NOT widen the single-model
+    invariant for ``agent.think()`` — agents never call ``embed``. The
+    point is shared connection pooling and transient-error retries, so
+    a flaky daemon during a long soak degrades a gate gracefully instead
+    of dropping turns the chat path would have retried. Returns the raw
+    Ollama response; the caller extracts the vector.
+    """
+    client = _get_client(timeout_s)
+    return _request_with_retry(client.embed, model=model, input=text)

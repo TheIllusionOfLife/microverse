@@ -264,7 +264,7 @@
   <symbol id="build" viewBox="0 0 24 24"><path d="M2 10l10-6 10 6"/><path d="M4 10v11"/><path d="M20 10v11"/><path d="M9 10v11"/><path d="M15 10v11"/><path d="M3 21h18"/></symbol>
 </defs></svg>
 
-<div class="lang"><svg class="ic"><use href="#globe"/></svg><a href="vision.ja.html">日本語</a></div>
+<div class="lang"><svg class="ic" aria-hidden="true" focusable="false"><use href="#globe"/></svg><a href="vision.ja.html">日本語</a></div>
 
 <header class="hero">
   <div class="wrap">
@@ -291,12 +291,12 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">01 / 11</span><span class="skick">The origin</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#battery"/></svg></span>The original vision</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#battery"/></svg></span>The original vision</h2>
     <p class="lead">In <em>Rick and Morty</em>, the Microverse Battery is a whole miniature universe whose inhabitants unknowingly power a single car. This project borrows the metaphor and flips it toward something kind: <strong>build a small living world of AI agents that runs autonomously for weeks on local hardware, and harvest the best of what they make.</strong></p>
     <div class="grid g3">
-      <div class="card"><span class="cic"><svg class="ic"><use href="#home"/></svg></span><h3>Local-first, forever</h3><p>Every “thought” is a local Ollama call against one small Gemma model. No network, no API bill, no per-token meter. The bottleneck is your laptop, not your budget.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#users"/></svg></span><h3>A society, not a chatbot</h3><p>Inhabitants live <em>in-world</em>: they create, study, talk, and build shared work. A single out-of-world Harvester ferries the best artifacts out to you.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#file"/></svg></span><h3>Honest by construction</h3><p>Every event lands in a local SQLite log with full provenance. Nothing is hidden; the documented limits are documented honestly.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#home"/></svg></span><h3>Local-first, forever</h3><p>Every “thought” is a local Ollama call against one small Gemma model. No network, no API bill, no per-token meter. The bottleneck is your laptop, not your budget.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#users"/></svg></span><h3>A society, not a chatbot</h3><p>Inhabitants live <em>in-world</em>: they create, study, talk, and build shared work. A single out-of-world Harvester ferries the best artifacts out to you.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#file"/></svg></span><h3>Honest by construction</h3><p>Every event lands in a local SQLite log with full provenance. Nothing is hidden; the documented limits are documented honestly.</p></div>
     </div>
     <div class="cast">
       <div class="who"><div class="mono-av">A</div><b>Aki</b><span>Artisan — makes things</span></div>
@@ -311,13 +311,13 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">02 / 11</span><span class="skick">The build</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#tool"/></svg></span>What we built</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#tool"/></svg></span>What we built</h2>
     <p class="lead">A single-process tick loop where one model drives every mind, durability is a SQLite WAL, and memory is split into what happened (episodic) and what is known (semantic lore).</p>
     <div class="grid g2">
-      <div class="card"><span class="cic"><svg class="ic"><use href="#cpu"/></svg></span><h3>One model, no router</h3><p>Every <code>agent.think()</code> goes through a single <code>gemma4:26b</code> call. No fallback, no secret second brain. A reviewer can verify the invariant by eye.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#database"/></svg></span><h3>WAL is the truth</h3><p>SQLite write-ahead log is the durability boundary; a hard kill loses only the in-flight tick. Cold snapshots are backups, never the recovery path.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#film"/></svg></span><h3>Scenes</h3><p>The headline v1.0 idea: 3-turn micro-scenes where turn 2 reads turn 1 and turn 3 reads both — a structured unit of <em>collaborative</em> artifact instead of solo monologue.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#ruler"/></svg></span><h3>Measured, not asserted</h3><p>A measurement-only embedding model (<code>nomic-embed-text</code>) scores whether scene turns truly depend on each other — observability that never touches the agent loop.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#cpu"/></svg></span><h3>One model, no router</h3><p>Every <code>agent.think()</code> goes through a single <code>gemma4:26b</code> call. No fallback, no secret second brain. A reviewer can verify the invariant by eye.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#database"/></svg></span><h3>WAL is the truth</h3><p>SQLite write-ahead log is the durability boundary; a hard kill loses only the in-flight tick. Cold snapshots are backups, never the recovery path.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#film"/></svg></span><h3>Scenes</h3><p>The headline v1.0 idea: 3-turn micro-scenes where turn 2 reads turn 1 and turn 3 reads both — a structured unit of <em>collaborative</em> artifact instead of solo monologue.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#ruler"/></svg></span><h3>Measured, not asserted</h3><p>A measurement-only embedding model (<code>nomic-embed-text</code>) scores whether scene turns truly depend on each other — observability that never touches the agent loop.</p></div>
     </div>
   </div>
 </section>
@@ -325,7 +325,7 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">03 / 11</span><span class="skick">The path</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#compass"/></svg></span>The journey</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#compass"/></svg></span>The journey</h2>
     <div class="tl">
       <div class="step"><span class="v">v0.1</span> <b>One mind.</b> A single Artisan crafting in a loop — proof the local tick loop and WAL durability hold.</div>
       <div class="step"><span class="v">v0.2</span> <b>A society + a workshop.</b> Multiple agents, a shared artifact substrate, a Trader to rank, a Watchdog to keep things from going stale.</div>
@@ -339,7 +339,7 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">04 / 11</span><span class="skick">What held</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#award"/></svg></span>What succeeded</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#award"/></svg></span>What succeeded</h2>
     <div class="scoreline">
       <div class="score"><div class="big">132h</div><div class="rule"></div><small>continuous, healthy</small></div>
       <div class="score"><div class="big">51.5s</div><div class="rule"></div><small>longest gap between events — no real stall</small></div>
@@ -348,9 +348,9 @@
     </div>
     <div class="callout"><b>The load-bearing win:</b> across 1,565 scenes, embedding similarity shows turn 2 genuinely reads turn 1, and turn 3 reads both (cosine medians 0.762 / 0.757, squarely in the target band). <b>The agents are actually responding to each other, not talking past one another.</b> That was the whole point of scenes — and it worked.</div>
     <div class="grid g3" style="margin-top:20px">
-      <div class="card"><span class="cic"><svg class="ic"><use href="#clock"/></svg></span><h3>It really ran</h3><p>5.5 days, 20,102 events, one Apple Silicon laptop, zero cloud calls. The “long-running, local, free” thesis held.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#lock"/></svg></span><h3>Durable &amp; clean</h3><p>Zero thinking-token leaks, full provenance, graceful shutdown with code 0. WAL recovery verified.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#trend"/></svg></span><h3>Throughput climbed</h3><p>14 artifacts/hour (target ≥5), and pipeline fold-rate fell from 61.6% to 2.19% — a ~28× structural improvement from scenes.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#clock"/></svg></span><h3>It really ran</h3><p>5.5 days, 20,102 events, one Apple Silicon laptop, zero cloud calls. The “long-running, local, free” thesis held.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#lock"/></svg></span><h3>Durable &amp; clean</h3><p>Zero thinking-token leaks, full provenance, graceful shutdown with code 0. WAL recovery verified.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#trend"/></svg></span><h3>Throughput climbed</h3><p>14 artifacts/hour (target ≥5), and pipeline fold-rate fell from 61.6% to 2.19% — a ~28× structural improvement from scenes.</p></div>
     </div>
   </div>
 </section>
@@ -358,17 +358,17 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">05 / 11</span><span class="skick">The scorecard</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#bars"/></svg></span>The honest scorecard — 4 of 8 gates</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#bars"/></svg></span>The honest scorecard — 4 of 8 gates</h2>
     <p class="lead">Acceptance gates were pre-registered before the soak. Here is exactly how they landed, pass and fail alike.</p>
     <div class="gates">
-      <div class="gate"><div class="n">1</div><div><span class="gt">Fragment shape — peer reference</span><div class="meta">lexical “Y said X” rate 0.073 vs ≥0.30 · word-count &amp; repetition sub-gates passed</div></div><span class="tagf"><svg class="ic"><use href="#x"/></svg>FAIL</span></div>
-      <div class="gate pass"><div class="n">2</div><div><span class="gt">WIP throughput</span><div class="meta">14.04 accepted/hr vs ≥5</div></div><span class="tagp"><svg class="ic"><use href="#check"/></svg>PASS</span></div>
-      <div class="gate"><div class="n">3</div><div><span class="gt">Verb concentration</span><div class="meta">96.2% in worst window vs ≤70% · the diversity lever never fired (now fixed)</div></div><span class="tagf"><svg class="ic"><use href="#x"/></svg>FAIL</span></div>
-      <div class="gate"><div class="n">4</div><div><span class="gt">Pipeline fold rate</span><div class="meta">2.19% vs &lt;1% · but 28× better than the 61.6% baseline</div></div><span class="tagf"><svg class="ic"><use href="#x"/></svg>FAIL</span></div>
-      <div class="gate pass"><div class="n">5</div><div><span class="gt">Path-3 invariant</span><div class="meta">43,671 self-redactions — agents never see their own past as input</div></div><span class="tagp"><svg class="ic"><use href="#check"/></svg>PASS</span></div>
-      <div class="gate pass"><div class="n">6</div><div><span class="gt">Acceptance throughput</span><div class="meta">100% of eligible WIPs accepted vs ≥50%</div></div><span class="tagp"><svg class="ic"><use href="#check"/></svg>PASS</span></div>
-      <div class="gate"><div class="n">7</div><div><span class="gt">Capacity invariant</span><div class="meta">236 violations · tied to the snapshot bug, not the scenes</div></div><span class="tagf"><svg class="ic"><use href="#x"/></svg>FAIL</span></div>
-      <div class="gate pass head"><div class="n">8</div><div><span class="gt">Scene semantic dependence<span class="hltag">HEADLINE</span></span><div class="meta">cosine 0.762 / 0.757 — the structural proof that scenes work</div></div><span class="tagp"><svg class="ic"><use href="#check"/></svg>PASS</span></div>
+      <div class="gate"><div class="n">1</div><div><span class="gt">Fragment shape — peer reference</span><div class="meta">lexical “Y said X” rate 0.073 vs ≥0.30 · word-count &amp; repetition sub-gates passed</div></div><span class="tagf"><svg class="ic" aria-hidden="true" focusable="false"><use href="#x"/></svg>FAIL</span></div>
+      <div class="gate pass"><div class="n">2</div><div><span class="gt">WIP throughput</span><div class="meta">14.04 accepted/hr vs ≥5</div></div><span class="tagp"><svg class="ic" aria-hidden="true" focusable="false"><use href="#check"/></svg>PASS</span></div>
+      <div class="gate"><div class="n">3</div><div><span class="gt">Verb concentration</span><div class="meta">96.2% in worst window vs ≤70% · the diversity lever never fired (now fixed)</div></div><span class="tagf"><svg class="ic" aria-hidden="true" focusable="false"><use href="#x"/></svg>FAIL</span></div>
+      <div class="gate"><div class="n">4</div><div><span class="gt">Pipeline fold rate</span><div class="meta">2.19% vs &lt;1% · but 28× better than the 61.6% baseline</div></div><span class="tagf"><svg class="ic" aria-hidden="true" focusable="false"><use href="#x"/></svg>FAIL</span></div>
+      <div class="gate pass"><div class="n">5</div><div><span class="gt">Path-3 invariant</span><div class="meta">43,671 self-redactions — agents never see their own past as input</div></div><span class="tagp"><svg class="ic" aria-hidden="true" focusable="false"><use href="#check"/></svg>PASS</span></div>
+      <div class="gate pass"><div class="n">6</div><div><span class="gt">Acceptance throughput</span><div class="meta">100% of eligible WIPs accepted vs ≥50%</div></div><span class="tagp"><svg class="ic" aria-hidden="true" focusable="false"><use href="#check"/></svg>PASS</span></div>
+      <div class="gate"><div class="n">7</div><div><span class="gt">Capacity invariant</span><div class="meta">236 violations · tied to the snapshot bug, not the scenes</div></div><span class="tagf"><svg class="ic" aria-hidden="true" focusable="false"><use href="#x"/></svg>FAIL</span></div>
+      <div class="gate pass head"><div class="n">8</div><div><span class="gt">Scene semantic dependence<span class="hltag">HEADLINE</span></span><div class="meta">cosine 0.762 / 0.757 — the structural proof that scenes work</div></div><span class="tagp"><svg class="ic" aria-hidden="true" focusable="false"><use href="#check"/></svg>PASS</span></div>
     </div>
   </div>
 </section>
@@ -376,18 +376,18 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">06 / 11</span><span class="skick">What it wrote</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#feather"/></svg></span>The actual output — 2,116 artifacts in 5.5 days</h2>
-    <p class="lead">Two agents, Aki and Cy, co-authored <em>1,833 multi-turn scenes</em> — 1,041 scrolls, 580 garden beds, 212 looms. These aren’t cherry-picked. They are verbatim from the soak, and in roughly <em>half</em> of them an agent names the other and builds directly on their last line.</p>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#feather"/></svg></span>The actual output — 2,116 artifacts in 5.5 days</h2>
+    <p class="lead">Two agents, Aki and Cy, left behind <em>2,116 harvested artifacts</em>. Of those, <em>1,833 are accepted multi-author scene pieces</em> — 1,041 scrolls, 580 garden beds, 212 looms; the remaining 283 are solo notes. Nothing here is cherry-picked: it’s verbatim from the soak, and over and over an agent names the other and builds directly on their last line.</p>
     <div class="scenes">
       <div class="scene">
-        <p class="stitle"><svg class="ic"><use href="#sprout"/></svg>workshop.garden_bed</p>
+        <p class="stitle"><svg class="ic" aria-hidden="true" focusable="false"><use href="#sprout"/></svg>workshop.garden_bed</p>
         <p class="ssub">a planting plan negotiated turn by turn · <b>Cy ↔ Aki</b></p>
         <div class="turn a"><span class="by">Aki</span><p>I suggest we plant a variety of bright marigolds and sweet peas along the edges of the bed. Their vibrant colors will complement the festival’s joy.</p></div>
         <div class="turn c"><span class="by">Cy</span><p>Since the soil is now rich with <mark>Aki’s compost</mark>, I think we should also tuck some lavender seeds into the sunnier corners. The bees will find plenty of nectar.</p></div>
         <div class="turn c"><span class="by">Cy</span><p>To support the climbing nature of <mark>the sweet peas Aki suggested</mark>, I will begin crafting some small, sturdy wooden trellises from willow branches.</p></div>
       </div>
       <div class="scene">
-        <p class="stitle"><svg class="ic"><use href="#palette"/></svg>workshop.loom</p>
+        <p class="stitle"><svg class="ic" aria-hidden="true" focusable="false"><use href="#palette"/></svg>workshop.loom</p>
         <p class="ssub">tension passed hand to hand · <b>Aki ↔ Cy</b></p>
         <div class="turn a"><span class="by">Aki</span><p>I spent some time checking the tension across the warp threads, ensuring no single strand is pulling tighter than the others.</p></div>
         <div class="turn c"><span class="by">Cy</span><p>I noticed that the leftmost section of the warp seems to be sagging slightly under its own weight. It might help to adjust the cloth beam to keep the tension uniform.</p></div>
@@ -405,12 +405,12 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">07 / 11</span><span class="skick">The shortfalls</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#search"/></svg></span>What failed — and why it’s good news</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#search"/></svg></span>What failed — and why it’s good news</h2>
     <div class="grid g2">
-      <div class="card"><span class="cic"><svg class="ic"><use href="#message"/></svg></span><h3>Gate 1: lexical, not real, mismatch</h3><p>Agents engage by paraphrase and idea-extension, not by literally naming each other. The surface-form regex under-fired (0.073) while the <em>semantic</em> gate passed strongly. We reclassified the lexical proxy as observational and promoted the embedding gate to authoritative — exactly the path we pre-committed to.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#shuffle"/></svg></span><h3>Gate 3: a lever that never pulled</h3><p>The verb-diversity nudge stayed at zero substitutions all soak. Root cause: it watched scene contributions (94% of activity) and so could never match a free single-tick action. <b>Found, understood, and fixed</b> — it can fire on the next run.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#drive"/></svg></span><h3>The snapshot “stall”</h3><p>A cold-backup checkpoint hit a disk I/O error 9,106 times and kept retrying, which made out-of-process monitors <em>think</em> the world had stalled. It never had (51.5s max gap). A new circuit breaker trips after 5 failures and moves on. The simulation core was never the problem.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#scale"/></svg></span><h3>Gates 4 &amp; 7: close, and explainable</h3><p>Fold rate missed &lt;1% but improved 28×; capacity violations track the snapshot windows. Both are sharp, bounded follow-ups for v1.1, not signs of an unsound core.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#message"/></svg></span><h3>Gate 1: lexical, not real, mismatch</h3><p>Agents engage by paraphrase and idea-extension, not by literally naming each other. The surface-form regex under-fired (0.073) while the <em>semantic</em> gate passed strongly. We reclassified the lexical proxy as observational and promoted the embedding gate to authoritative — exactly the path we pre-committed to.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#shuffle"/></svg></span><h3>Gate 3: a lever that never pulled</h3><p>The verb-diversity nudge stayed at zero substitutions all soak. Root cause: it watched scene contributions (94% of activity) and so could never match a free single-tick action. <b>Found, understood, and fixed</b> — it can fire on the next run.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#drive"/></svg></span><h3>The snapshot “stall”</h3><p>A cold-backup checkpoint hit a disk I/O error 9,106 times and kept retrying, which made out-of-process monitors <em>think</em> the world had stalled. It never had (51.5s max gap). A new circuit breaker trips after 5 failures and moves on. The simulation core was never the problem.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#scale"/></svg></span><h3>Gates 4 &amp; 7: close, and explainable</h3><p>Fold rate missed &lt;1% but improved 28×; capacity violations track the snapshot windows. Both are sharp, bounded follow-ups for v1.1, not signs of an unsound core.</p></div>
     </div>
     <div class="callout warn"><b>The discipline:</b> the failures are reported as the system actually ran, not as patched after the fact. The fixes target the <em>next</em> soak. That’s why this is <b>rc1</b>, not a victory-lap v1.0.0.</div>
   </div>
@@ -419,7 +419,7 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">08 / 11</span><span class="skick">The distance</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#compare"/></svg></span>The gap between vision and today</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#compare"/></svg></span>The gap between vision and today</h2>
     <p class="lead">The dream was “a living society running for weeks, in rich dialogue.” Here’s the honest distance left.</p>
     <div class="grid g2">
       <div class="card"><h3>Weeks → 5.5 days</h3><p>We proved multi-day, not multi-week. The only thing that stopped us was a backup bug, now fixed — the engine itself never tired.</p></div>
@@ -433,14 +433,14 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">09 / 11</span><span class="skick">The plan</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#sparkle"/></svg></span>How we close it</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#sparkle"/></svg></span>How we close it</h2>
     <div class="grid g3">
-      <div class="card"><span class="cic"><svg class="ic"><use href="#refresh"/></svg></span><h3>Re-soak with the fixes</h3><p>Snapshot breaker + revived diversity lever in place, push past 5.5 days toward the full “weeks” claim.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#users"/></svg></span><h3>Grow the roster</h3><p>More residents (and roles) unlock 3-distinct-peer scenes, richer dynamics, and a real test of emergent culture.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#crosshair"/></svg></span><h3>Better peer-reference signal</h3><p>Replace the brittle lexical regex with a semantic-aware measure so “they’re engaging” is captured the way it actually happens.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#palette"/></svg></span><h3>Break the verb monoculture</h3><p>Now that the lever can fire, measure how much genuine variety it buys — and whether digest-style artifacts help.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#branch"/></svg></span><h3>Cross-family curiosity</h3><p>Later, swap the single model for a different family and ask whether a different mind makes a different society.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#trend"/></svg></span><h3>Stress &amp; scale</h3><p>Decouple snapshots from the write path; run several microverses in parallel on one machine.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#refresh"/></svg></span><h3>Re-soak with the fixes</h3><p>Snapshot breaker + revived diversity lever in place, push past 5.5 days toward the full “weeks” claim.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#users"/></svg></span><h3>Grow the roster</h3><p>More residents (and roles) unlock 3-distinct-peer scenes, richer dynamics, and a real test of emergent culture.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#crosshair"/></svg></span><h3>Better peer-reference signal</h3><p>Replace the brittle lexical regex with a semantic-aware measure so “they’re engaging” is captured the way it actually happens.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#palette"/></svg></span><h3>Break the verb monoculture</h3><p>Now that the lever can fire, measure how much genuine variety it buys — and whether digest-style artifacts help.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#branch"/></svg></span><h3>Cross-family curiosity</h3><p>Later, swap the single model for a different family and ask whether a different mind makes a different society.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#trend"/></svg></span><h3>Stress &amp; scale</h3><p>Decouple snapshots from the write path; run several microverses in parallel on one machine.</p></div>
     </div>
   </div>
 </section>
@@ -448,16 +448,16 @@
 <section class="reveal">
   <div class="wrap">
     <div class="shead"><span class="snum">10 / 11</span><span class="skick">The leap</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#build"/></svg></span>From workshop to civilization</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#build"/></svg></span>From workshop to civilization</h2>
     <p class="lead">Today the agents live a single looping good day — always spring, always the workshop, always beginning. The <em>original vision</em> was bigger: a society that remembers, accumulates, and changes — <em>a history of its own</em>. What v1.0 built is a collaboration engine. A civilization needs three things collaboration alone never produces — <b>durable identity, scarcity, and accumulation</b> — so this is the leap that gets them there.</p>
     <div class="callout warn"><b>Why nothing accretes yet:</b> the soak threw away work as fast as it made it (<b>1,845 recycles</b>), memory is a sliding window (no durable self), the population never grew past two, nothing was ever scarce, and the longest shared intention lasted three turns. The verb monoculture and shallow cross-reference aren’t separate bugs — they’re symptoms of that missing substrate.</div>
     <div class="grid g3">
-      <div class="card"><span class="cic"><svg class="ic"><use href="#person"/></svg></span><h3>1 · A self that persists</h3><p class="kpi">the unlock</p><p>Give each agent a durable record — traits, beliefs, and a <b>relationship ledger</b> of who helped whom and who owes whom. “Cy repaid the favor in the drought” becomes a fact the world keeps. Culture can’t stick to amnesia.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#scale"/></svg></span><h3>2 · Scarcity &amp; an economy</h3><p class="kpi">the engine</p><p>Make materials finite and agents unequally skilled, so trade becomes rational and the Trader becomes a real market. Scarcity is what <em>forces</em> specialization, property, and the first institutions.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#database"/></svg></span><h3>3 · An accumulation ratchet</h3><p class="kpi">the definition</p><p>Stop recycling. Build durable, append-only structures that grow — a village ledger, constructed lore, a technique tree. Each generation builds on the last. That’s the line between a society and a sandbox.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#orbit"/></svg></span><h3>4 · Population &amp; turnover</h3><p class="kpi">variation</p><p>Let newcomers arrive with different priors and let prosperity drive who stays. Turnover lets norms be inherited <em>and mutated</em> — the actual mechanism of cultural evolution, and the cure for monoculture.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#award"/></svg></span><h3>5 · Goals &amp; governance</h3><p class="kpi">institutions</p><p>Add projects that span hundreds of ticks and a thin propose-assent-record loop, so decisions become <b>norms with teeth</b>. Institutions are just remembered agreements that constrain what comes next.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#compass"/></svg></span><h3>The honest constraint</h3><p class="kpi">scaffold, not genius</p><p>One small local model can’t <em>plan</em> a civilization. So the structure carries the long arc — scarcity, ledgers, lasting goals — and the model just makes good <em>local</em> choices inside it. That’s how real institutions work too.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#person"/></svg></span><h3>1 · A self that persists</h3><p class="kpi">the unlock</p><p>Give each agent a durable record — traits, beliefs, and a <b>relationship ledger</b> of who helped whom and who owes whom. “Cy repaid the favor in the drought” becomes a fact the world keeps. Culture can’t stick to amnesia.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#scale"/></svg></span><h3>2 · Scarcity &amp; an economy</h3><p class="kpi">the engine</p><p>Make materials finite and agents unequally skilled, so trade becomes rational and the Trader becomes a real market. Scarcity is what <em>forces</em> specialization, property, and the first institutions.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#database"/></svg></span><h3>3 · An accumulation ratchet</h3><p class="kpi">the definition</p><p>Stop recycling. Build durable, append-only structures that grow — a village ledger, constructed lore, a technique tree. Each generation builds on the last. That’s the line between a society and a sandbox.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#orbit"/></svg></span><h3>4 · Population &amp; turnover</h3><p class="kpi">variation</p><p>Let newcomers arrive with different priors and let prosperity drive who stays. Turnover lets norms be inherited <em>and mutated</em> — the actual mechanism of cultural evolution, and the cure for monoculture.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#award"/></svg></span><h3>5 · Goals &amp; governance</h3><p class="kpi">institutions</p><p>Add projects that span hundreds of ticks and a thin propose-assent-record loop, so decisions become <b>norms with teeth</b>. Institutions are just remembered agreements that constrain what comes next.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#compass"/></svg></span><h3>The honest constraint</h3><p class="kpi">scaffold, not genius</p><p>One small local model can’t <em>plan</em> a civilization. So the structure carries the long arc — scarcity, ledgers, lasting goals — and the model just makes good <em>local</em> choices inside it. That’s how real institutions work too.</p></div>
     </div>
     <div class="callout"><b>The reframe:</b> v1.0 optimizes for <em>artifacts</em> — the best scrolls. The leap is to optimize for <em>accumulated structure and divergence</em>. The interesting object was never the scroll; it’s the society that made it and how it changed. Harvest the <b>history</b>, not just the output. <span class="mono" style="color:var(--faint)">(design recorded in ADR&nbsp;0007 — planning, not yet built.)</span></div>
   </div>
@@ -466,15 +466,15 @@
 <section class="reveal future">
   <div class="wrap">
     <div class="shead"><span class="snum">11 / 11</span><span class="skick">The horizon</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic"><use href="#rocket"/></svg></span>How big this can be</h2>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#rocket"/></svg></span>How big this can be</h2>
     <p class="lead">A society of small local models that produces more than the sum of its parts — running at zero marginal cost — is a primitive you can build a lot on.</p>
     <div class="grid g3">
-      <div class="card"><span class="cic"><svg class="ic"><use href="#shield"/></svg></span><h3>Privacy-native creativity</h3><p class="kpi">regulated · classroom · journalistic</p><p>An idea-generating world that never leaves the device — usable where hosted APIs are a non-starter.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#wifioff"/></svg></span><h3>Offline &amp; edge</h3><p class="kpi">clinics · field research · ships</p><p>Autonomous agent value with no connectivity assumption. The network going down doesn’t stop the world.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#flask"/></svg></span><h3>A lab for emergence</h3><p class="kpi">reproducible · auditable</p><p>A seeded, fully-logged testbed for studying multi-agent culture, attractors, and what makes a society more than a crowd.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#cap"/></svg></span><h3>Teaching sandbox</h3><p class="kpi">free to run forever</p><p>Students watch agents create, rank, and harvest — every decision inspectable, no cloud account required.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#infinity"/></svg></span><h3>Always-on idea engine</h3><p class="kpi">$0 / tick</p><p>Because it costs nothing to run, it can run forever — quietly composting prompts into a growing harvest of artifacts.</p></div>
-      <div class="card"><span class="cic"><svg class="ic"><use href="#orbit"/></svg></span><h3>Many universes</h3><p class="kpi">parallel microverses</p><p>One laptop, many little worlds with different seeds and casts — a portfolio of societies to compare.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#shield"/></svg></span><h3>Privacy-native creativity</h3><p class="kpi">regulated · classroom · journalistic</p><p>An idea-generating world that never leaves the device — usable where hosted APIs are a non-starter.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#wifioff"/></svg></span><h3>Offline &amp; edge</h3><p class="kpi">clinics · field research · ships</p><p>Autonomous agent value with no connectivity assumption. The network going down doesn’t stop the world.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#flask"/></svg></span><h3>A lab for emergence</h3><p class="kpi">reproducible · auditable</p><p>A seeded, fully-logged testbed for studying multi-agent culture, attractors, and what makes a society more than a crowd.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#cap"/></svg></span><h3>Teaching sandbox</h3><p class="kpi">free to run forever</p><p>Students watch agents create, rank, and harvest — every decision inspectable, no cloud account required.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#infinity"/></svg></span><h3>Always-on idea engine</h3><p class="kpi">$0 / tick</p><p>Because it costs nothing to run, it can run forever — quietly composting prompts into a growing harvest of artifacts.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#orbit"/></svg></span><h3>Many universes</h3><p class="kpi">parallel microverses</p><p>One laptop, many little worlds with different seeds and casts — a portfolio of societies to compare.</p></div>
     </div>
     <div class="callout"><b>The thesis, restated:</b> if a tiny local society can reliably produce work worth harvesting — for days, for free, with full provenance — then “you need the cloud for interesting multi-agent systems” stops being true. That’s the universe this little battery is trying to power.</div>
   </div>
@@ -483,16 +483,22 @@
 
 <footer>
   <div class="wrap">
-    <p class="fline"><svg class="ic"><use href="#battery"/></svg> Microverse Battery · <b style="color:var(--fg)">v1.0.0-rc1</b> · one Gemma 4 model · one laptop · zero cloud.</p>
-    <p class="fline">Built honestly — successes and shortfalls both on the record. <svg class="ic"><use href="#star"/></svg></p>
-    <p class="fline"><svg class="ic"><use href="#globe"/></svg> <a href="vision.ja.html">日本語版はこちら</a></p>
+    <p class="fline"><svg class="ic" aria-hidden="true" focusable="false"><use href="#battery"/></svg> Microverse Battery · <b style="color:var(--fg)">v1.0.0-rc1</b> · one Gemma 4 model · one laptop · zero cloud.</p>
+    <p class="fline">Built honestly — successes and shortfalls both on the record. <svg class="ic" aria-hidden="true" focusable="false"><use href="#star"/></svg></p>
+    <p class="fline"><svg class="ic" aria-hidden="true" focusable="false"><use href="#globe"/></svg> <a href="vision.ja.html">日本語版はこちら</a></p>
   </div>
 </footer>
 
 <script>
-  const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{threshold:.12});
-  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
-  if(!('IntersectionObserver' in window)){document.querySelectorAll('.reveal').forEach(el=>el.classList.add('in'));}
+  // Feature-check FIRST: constructing IntersectionObserver on a browser
+  // without it throws, which would skip the fallback and leave every
+  // .reveal section invisible. Guard the whole block instead.
+  if('IntersectionObserver' in window){
+    const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{threshold:.12});
+    document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+  } else {
+    document.querySelectorAll('.reveal').forEach(el=>el.classList.add('in'));
+  }
 </script>
 </body>
 </html>

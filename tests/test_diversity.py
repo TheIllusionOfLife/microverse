@@ -60,6 +60,11 @@ def test_suggest_underused_verb_returns_least_used_available() -> None:
     # the helper must pick *one of the underused* not the dominant.
     assert chosen in {"study", "rest"}
     assert chosen != "craft"
+    # Tie-breaking must be deterministic across repeated calls so a
+    # regression to non-deterministic selection cannot silently pass
+    # (CodeRabbit PR #38).
+    for _ in range(5):
+        assert suggest_underused_verb(dist, available) == chosen
 
 
 def test_suggest_underused_verb_returns_none_on_empty_distribution() -> None:
