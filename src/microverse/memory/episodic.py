@@ -63,7 +63,10 @@ CREATE TABLE IF NOT EXISTS events (
     action TEXT NOT NULL,
     target TEXT,
     payload_json TEXT
-)
+);
+CREATE INDEX IF NOT EXISTS idx_events_actor ON events (actor);
+CREATE INDEX IF NOT EXISTS idx_events_target ON events (target);
+CREATE INDEX IF NOT EXISTS idx_events_action ON events (action);
 """
 
 
@@ -80,7 +83,7 @@ class EpisodicMemory:
     def __init__(self, path: str | Path) -> None:
         self._path = path
         self._conn = open_sqlite_wal(path)
-        self._conn.execute(_SCHEMA)
+        self._conn.executescript(_SCHEMA)
         self._conn.commit()
 
     def append(
@@ -151,6 +154,67 @@ class EpisodicMemory:
             )
             for r in rows
         ]
+
+    def involving(self, name: str, *, limit: int = 100) -> list[Event]:
+        """Return the most recent ``limit`` events where ``name`` is the
+        actor OR the target, newest-first.
+
+        A per-actor query (rather than filtering a global ``last(N)``
+        window in Python) so a rarely-scheduled agent's own history is
+        never starved by a burst of other agents' events. Feeds the
+        belief summarizer (ADR 0007 Phase 1, Stage C).
+        """
+        rows = self._conn.execute(
+            "SELECT id, ts, actor, action, target, payload_json "
+            "FROM events WHERE actor = ? OR target = ? ORDER BY id DESC LIMIT ?",
+            (name, name, limit),
+        ).fetchall()
+        return [
+            Event(
+                id=r[0],
+                ts=r[1],
+                actor=r[2],
+                action=r[3],
+                target=r[4],
+                payload=json.loads(r[5]) if r[5] else {},
+            )
+            for r in rows
+        ]
+
+    def speak_edge_counts(self) -> dict[tuple[str, str], int]:
+        """Full-history ``(actor, target) -> count`` for every targeted
+        ``speak`` event. The relationship ledger (ADR 0007 Phase 1)
+        aggregates over the whole log so identity is genuinely durable —
+        not a recency window. Untargeted speaks (``target IS NULL``) are
+        excluded.
+        """
+        rows = self._conn.execute(
+            "SELECT actor, target, COUNT(*) FROM events "
+            "WHERE action = 'speak' AND target IS NOT NULL "
+            "GROUP BY actor, target"
+        ).fetchall()
+        return {(str(r[0]), str(r[1])): int(r[2]) for r in rows}
+
+    def scene_contributor_sets(self) -> dict[str, set[str]]:
+        """Map ``scene_id -> {actors who committed a contribute}``.
+
+        Co-authorship is derived ONLY from committed ``contribute``
+        events that carry a ``scene_id`` payload — never from
+        ``scene.open`` (which logs *scheduled* authors before the turns
+        run and can abort, which would fabricate ties). Single-tick
+        contributes have no ``scene_id`` and are ignored.
+        """
+        rows = self._conn.execute(
+            "SELECT json_extract(payload_json, '$.scene_id') AS sid, actor "
+            "FROM events "
+            "WHERE action = 'contribute' "
+            "AND json_extract(payload_json, '$.scene_id') IS NOT NULL "
+            "GROUP BY sid, actor"
+        ).fetchall()
+        out: dict[str, set[str]] = {}
+        for sid, actor in rows:
+            out.setdefault(str(sid), set()).add(str(actor))
+        return out
 
     def count(self) -> int:
         row = self._conn.execute("SELECT COUNT(*) FROM events").fetchone()

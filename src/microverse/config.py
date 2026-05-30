@@ -40,6 +40,17 @@ MAX_CONSECUTIVE_FAIL: int = 3
 # pathological inputs.
 MAX_PARSE_BYTES: int = 32 * 1024
 
+# v1.1 (ADR 0007 Phase 1, Pillar 1): static per-role traits surfaced in
+# the persistent self-record. One short, stable line per role — the
+# durable "who you are" anchor that survives across ticks. Dynamic
+# beliefs/commitments are summarized separately (Stage C); these traits
+# are intentionally fixed. Roles without an entry render no trait line.
+TRAITS_BY_ROLE: dict[str, tuple[str, ...]] = {
+    "artisan": ("You make things with patient hands, and prefer to show rather than tell.",),
+    "scholar": ("You weigh ideas carefully and notice what others might miss.",),
+    "stranger": ("You carry an outsider's eye and trust contrast over easy consensus.",),
+}
+
 # Sampling presets per ~/.claude/skills/local-llm/SKILL.md:74-78. Picked
 # by role: creative roles (Artisan, Scholar, Stranger) want exploration;
 # judging roles (Trader, Harvester) want lower variance.
@@ -157,6 +168,22 @@ MANIFEST_ROTATE_BYTES: int = 256 * 1024 * 1024  # 256 MiB
 # would lock the long-lived writer. 100k events ≈ one optimize per day
 # at Soak B throughput.
 EPISODIC_OPTIMIZE_EVERY: int = 100_000
+
+# v1.1 (ADR 0007 Phase 1, Stage C): dynamic beliefs. The belief
+# summarizer is an out-of-world LLM pass (like Elder.compress_lore /
+# Trader.rank — NOT inside agent.think(), so the single-model invariant
+# for the action loop is preserved). Beliefs are regenerated every
+# BELIEF_UPDATE_INTERVAL ticks per scheduled agent, summarized from the
+# last BELIEF_LOOKBACK events involving that agent, capped at
+# BELIEF_MAX_CHARS, and persisted in data/identity.sqlite (a materialized
+# cache over the WAL log — regenerable, not an authoritative store).
+BELIEF_UPDATE_INTERVAL: int = 200
+BELIEF_LOOKBACK: int = 60
+BELIEF_MAX_CHARS: int = 280
+# A belief is one short sentence; a tight token cap bounds both the
+# truncation waste and the worst-case per-call latency of the
+# synchronous out-of-world summarization pass.
+BELIEF_MAX_TOKENS: int = 96
 
 # v0.4 (Phase C): embedding model for gate-7 scene semantic dependence
 # measurement. NEVER used inside agent.think() — single-model invariant

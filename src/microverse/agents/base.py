@@ -18,7 +18,7 @@ from __future__ import annotations
 import abc
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 
@@ -294,6 +294,43 @@ class SceneTurn:
 
 
 @dataclass(frozen=True, slots=True)
+class RelationFact:
+    """One peer edge in an agent's relationship ledger, derived from the
+    episodic log (ADR 0007 Phase 1, Pillar 1).
+
+    All three fields are integer counts — never free text — so surfacing
+    them into the persona cannot leak the agent's own fragment/artifact
+    prose. ``peer`` is always a registered roster name (the projection
+    whitelists against the known roster), so a hallucinated speak target
+    can never become prompt text despite ``autoescape=False``.
+    """
+
+    peer: str
+    addressed_you: int  # times ``peer`` spoke TO this agent
+    you_addressed: int  # times this agent spoke TO ``peer``
+    co_authored: int  # committed scenes both contributed to
+
+
+@dataclass(frozen=True, slots=True)
+class SelfView:
+    """The agent's persistent self-record, fed back into the persona.
+
+    ADR 0007 Phase 1 sanctions this as the EXPLICIT Path-3 carve-out
+    (mirrors ADR 0006's turn-3 scene-context carve-out): structured
+    identity state only. It carries static ``traits``, a derived
+    ``relationships`` ledger (counts + roster names), and a periodically
+    summarized ``beliefs`` line — never the agent's own past
+    fragment/artifact/thought prose. The workshop redactor still hides
+    an agent's own fragments from its WIP excerpt; this is a separate,
+    narrow channel.
+    """
+
+    traits: tuple[str, ...] = ()
+    relationships: tuple[RelationFact, ...] = ()
+    beliefs: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class WorldContext:
     """Snapshot of world state passed into ``Agent.think``.
 
@@ -367,6 +404,14 @@ class WorldContext:
     # on #38 flagged the string-parse round-trip as brittle).
     novelty_dominant_verb: str = ""
     novelty_suggested_verb: str = ""
+    # v1.1 (ADR 0007 Phase 1, Pillar 1): the agent's persistent
+    # self-record — static traits, a derived relationship ledger, and a
+    # periodically summarized beliefs line. The EXPLICIT Path-3 carve-out
+    # (structured identity only, never own fragments). Populated by
+    # ``run._build_self_view`` and carried through ``build_context`` via
+    # ``dataclasses.replace``. Defaults to an empty ``SelfView`` so every
+    # existing ``WorldContext()`` fixture stays valid.
+    self_view: SelfView = field(default_factory=SelfView)
 
 
 class Agent(abc.ABC):
