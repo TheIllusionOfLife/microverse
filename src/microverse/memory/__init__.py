@@ -26,6 +26,7 @@ single-model loop where we control prompt shape.
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 from microverse.agents.base import PeerSpeech, WorldContext
@@ -331,14 +332,11 @@ def build_context(
     else:
         workshop_view = ()
 
-    return WorldContext(
-        season=world_base.season,
-        weather=world_base.weather,
-        peers_today=world_base.peers_today,
-        peer_inbox=world_base.peer_inbox,
-        world_events=world_base.world_events,
-        lore_excerpt=lore,
-        engagement_hint=world_base.engagement_hint,
-        required_target=world_base.required_target,
-        workshop_view=workshop_view,
-    )
+    # ``build_context`` owns exactly two fields: ``lore_excerpt`` (FTS5
+    # hits keyed off ``topic``) and ``workshop_view`` (per-receiver
+    # redacted WIPs). EVERY other field set on ``world_base`` rides
+    # through verbatim. Using ``replace`` instead of a field-by-field
+    # constructor closes a latent bug where ``novelty_*`` / ``scene_*``
+    # were silently dropped on the single-tick path, and is the carrier
+    # for the ADR-0007 ``self_view`` carve-out.
+    return replace(world_base, lore_excerpt=lore, workshop_view=workshop_view)
