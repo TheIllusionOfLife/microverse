@@ -169,6 +169,18 @@ MANIFEST_ROTATE_BYTES: int = 256 * 1024 * 1024  # 256 MiB
 # at Soak B throughput.
 EPISODIC_OPTIMIZE_EVERY: int = 100_000
 
+# v1.1 (ADR 0007 Phase 1, Stage C): dynamic beliefs. The belief
+# summarizer is an out-of-world LLM pass (like Elder.compress_lore /
+# Trader.rank — NOT inside agent.think(), so the single-model invariant
+# for the action loop is preserved). Beliefs are regenerated every
+# BELIEF_UPDATE_INTERVAL ticks per scheduled agent, summarized from the
+# last BELIEF_LOOKBACK events involving that agent, capped at
+# BELIEF_MAX_CHARS, and persisted in data/identity.sqlite (a materialized
+# cache over the WAL log — regenerable, not an authoritative store).
+BELIEF_UPDATE_INTERVAL: int = 200
+BELIEF_LOOKBACK: int = 60
+BELIEF_MAX_CHARS: int = 280
+
 # v0.4 (Phase C): embedding model for gate-7 scene semantic dependence
 # measurement. NEVER used inside agent.think() — single-model invariant
 # is preserved for the agent action loop. Embeddings are observability

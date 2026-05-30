@@ -44,11 +44,13 @@ from pathlib import Path
 from microverse import config
 from microverse.agents.artisan import Artisan
 from microverse.agents.base import Action, ActionKind, Agent, SelfView, WorldContext
+from microverse.agents.belief import BeliefSummarizer
 from microverse.agents.harvester import ArtifactCandidate, Harvester
 from microverse.agents.scholar import Scholar
 from microverse.agents.trader import Trader
 from microverse.memory import _build_peer_inbox, _build_world_events, build_context
 from microverse.memory.episodic import EpisodicMemory, Event
+from microverse.memory.identity import IdentityStore
 from microverse.memory.semantic import SemanticMemory
 from microverse.ops.metrics import Metrics
 from microverse.ops.watchdog import Watchdog
@@ -303,6 +305,58 @@ def _build_self_view(
     )
 
 
+def _recent_agent_events(
+    episodic: EpisodicMemory,
+    agent_name: str,
+    *,
+    lookback: int,
+) -> list[Event]:
+    """The most recent ``lookback`` events the agent took or that were
+    addressed to it, in chronological order. Feeds the belief summarizer.
+    """
+    rows = episodic.last(max(lookback * 4, 100))
+    own = [e for e in rows if e.actor == agent_name or e.target == agent_name]
+    own = own[:lookback]
+    own.reverse()  # episodic.last is newest-first; flip to chronological
+    return own
+
+
+def _maybe_update_beliefs(
+    *,
+    executed: int,
+    agents: Sequence[Agent],
+    episodic: EpisodicMemory,
+    identity_store: IdentityStore | None,
+    summarizer: BeliefSummarizer | None,
+    metrics: Metrics,
+) -> None:
+    """Every ``config.BELIEF_UPDATE_INTERVAL`` ticks, re-summarize each
+    agent's recent activity into a belief line and persist it (ADR 0007
+    Phase 1, Stage C). Out-of-world LLM pass — not inside ``think()``.
+
+    On a failed/empty summary the prior belief is kept (the summarizer
+    returns ``None``). A no-op when the belief system is not wired
+    (identity_store/summarizer ``None``) or the cadence has not elapsed.
+    """
+    if identity_store is None or summarizer is None:
+        return
+    interval = config.BELIEF_UPDATE_INTERVAL
+    if interval <= 0 or executed == 0 or executed % interval != 0:
+        return
+    for agent in agents:
+        events = _recent_agent_events(episodic, agent.name, lookback=config.BELIEF_LOOKBACK)
+        new_belief = summarizer.summarize(
+            agent_name=agent.name,
+            role=agent.role,
+            events=events,
+            prior=identity_store.get(agent.name),
+            metrics=metrics,
+        )
+        if new_belief:
+            identity_store.put(agent.name, new_belief)
+            metrics.bump("belief_updated", agent=agent.name)
+
+
 def _build_per_tick_world_base(
     *,
     episodic: EpisodicMemory,
@@ -529,6 +583,12 @@ def run(
     episodic = EpisodicMemory(data_dir / "episodic.sqlite")
     semantic = SemanticMemory(data_dir / "semantic.sqlite")
     metrics = Metrics(data_dir / "metrics.sqlite", auto_flush_every=10)
+    # v1.1 (ADR 0007 Phase 1, Stage C): persistent belief store + the
+    # out-of-world summarizer that refreshes it on a cadence. The store
+    # is a materialized cache over the WAL log (regenerable); beliefs
+    # survive a clean restart rather than resetting to empty.
+    identity_store = IdentityStore(data_dir / "identity.sqlite")
+    belief_summarizer = BeliefSummarizer()
 
     trader = Trader(name="Bo", soul_tokens=30)
     workshop = WorkshopProjection(episodic)
@@ -689,7 +749,10 @@ def run(
                 novelty_dominant_verb=novelty_dominant_verb,
                 novelty_suggested_verb=novelty_suggested_verb,
                 self_view=_build_self_view(
-                    episodic, agent, known_peers=tuple(a.name for a in sched.agents)
+                    episodic,
+                    agent,
+                    known_peers=tuple(a.name for a in sched.agents),
+                    beliefs=identity_store.get(agent.name),
                 ),
             )
             world = build_context(
@@ -744,7 +807,10 @@ def run(
                         required_target=None,
                         metrics=metrics,
                         self_view=_build_self_view(
-                            episodic, agent, known_peers=tuple(a.name for a in sched.agents)
+                            episodic,
+                            agent,
+                            known_peers=tuple(a.name for a in sched.agents),
+                            beliefs=identity_store.get(agent.name),
                         ),
                     )
                     sc_world = build_context(
@@ -836,6 +902,14 @@ def run(
                     snapshots_dir=snapshots_dir,
                     snapshot_guard=snapshot_guard,
                 )
+                _maybe_update_beliefs(
+                    executed=executed,
+                    agents=sched.agents,
+                    episodic=episodic,
+                    identity_store=identity_store,
+                    summarizer=belief_summarizer,
+                    metrics=metrics,
+                )
                 sleep_s = tempo if tempo is not None else agent.tempo()
                 if sleep_s > 0:
                     time.sleep(sleep_s)
@@ -913,6 +987,14 @@ def run(
                 snapshots_dir=snapshots_dir,
                 snapshot_guard=snapshot_guard,
             )
+            _maybe_update_beliefs(
+                executed=executed,
+                agents=sched.agents,
+                episodic=episodic,
+                identity_store=identity_store,
+                summarizer=belief_summarizer,
+                metrics=metrics,
+            )
 
             sleep_s = tempo if tempo is not None else agent.tempo()
             if sleep_s > 0:
@@ -932,6 +1014,7 @@ def run(
         _safe("metrics.close", metrics.close)
         _safe("episodic.close", episodic.close)
         _safe("semantic.close", semantic.close)
+        _safe("identity_store.close", identity_store.close)
 
     return executed
 
