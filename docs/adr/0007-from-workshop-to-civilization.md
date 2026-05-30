@@ -10,6 +10,10 @@ and sequenced before any code is written. It supersedes nothing; it
 extends the original project vision that ADRs 0003–0006 approached one
 harness layer at a time.
 
+> **Phase 1 halt read (2026-05-31): HALTED.** The falsifiable gate defined below was run after
+> Phase 1 shipped (#43); neither Gate 1 (peer-reference) nor Gate 3 (verb monoculture) moved. See
+> [ADR 0008](0008-phase1-identity-halt-read.md). Re-diagnose the substrate thesis before Phase 2.
+
 ## Context
 
 ### The original vision, restated
