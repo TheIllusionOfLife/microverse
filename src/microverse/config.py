@@ -6,6 +6,8 @@ caps. Importable from anywhere — keep this module dependency-free.
 
 from __future__ import annotations
 
+import os
+
 # Single-model invariant. Every LLM call goes here. No router, no fallback.
 # v0.3 (ADR 0004 Decision 5): swapped from "gemma4:e4b" (9.6 GB) to
 # "gemma4:26b" (17 GB) — same model family (prompt format, tokenizer,
@@ -209,3 +211,52 @@ SCENE_GATE_P: float = 0.15
 # rotation: turn 2 reads turn 1, turn 3 reads turn 1+2. Raising this
 # back to >= 2 requires growing the default roster first.
 SCENE_MIN_PEERS: int = 1
+
+# ----------------------------------------------------------------------
+# Action-economy spike (re-diagnosis under HALT — ADR 0008).
+#
+# Falsifiable test of ADR 0008's claim that Gate 3 (verb monoculture) is
+# STRUCTURAL and needs an action-economy lever, not identity. A finite
+# per-agent stamina pool + comparative-advantage verb costs make each role
+# cheap at its specialty and dear elsewhere; the scene-initiation gate and a
+# hard-substitution lever are the two mechanisms. Env-driven so all A/B arms
+# run from a single commit (no edit between runs):
+#
+#   "0"        off — constructs no ledger; reproduces current main EXACTLY.
+#   "1"        role-advantage (both mechanisms: scene gate + substitution).
+#   "flat"     role-agnostic control (both mechanisms, no cheap specialty).
+#   "throttle" ablation: scene gate only (no substitution).
+#   "sub"      ablation: substitution only (no scene gate).
+#
+# The "flat" control and the two ablations exist to attribute any diversity
+# gain (Codex review): is it comparative advantage, or merely a uniform
+# contribute throttle, or merely executor override?
+ECONOMY_MODE: str = os.environ.get("MICROVERSE_ECONOMY", "0")
+ECONOMY_ENABLED: bool = ECONOMY_MODE != "0"
+_ECONOMY_SCENE_GATE: bool = ECONOMY_MODE in ("1", "flat", "throttle")
+_ECONOMY_SUBSTITUTE: bool = ECONOMY_MODE in ("1", "flat", "sub")
+
+# Finite stamina pool. Regen sits between the cheap specialty (~6) and the
+# dear contribute (~22) so a role can sustain its specialty indefinitely but
+# must save up across cheaper/idle ticks to afford an off-specialty verb or
+# to re-initiate a scene — the scarcity pressure that should diversify the mix.
+ENERGY_MAX: float = 100.0
+ENERGY_REGEN_PER_TICK: float = 12.0
+
+# Comparative advantage: each role is cheap at exactly one productive verb
+# (its strict specialty) and dear elsewhere. ``rest`` is free for every role
+# (always affordable — the energy analog of the scheduler's
+# ``max(soul_tokens, 1)`` floor, so the system can never deadlock on energy).
+VERB_COST_BY_ROLE: dict[str, dict[str, float]] = {
+    "artisan": {"craft": 6.0, "study": 14.0, "speak": 16.0, "travel": 18.0,
+                "rest": 0.0, "contribute": 22.0},
+    "scholar": {"study": 6.0, "speak": 10.0, "craft": 18.0, "travel": 16.0,
+                "rest": 0.0, "contribute": 14.0},
+    "stranger": {"travel": 6.0, "speak": 10.0, "study": 12.0, "craft": 16.0,
+                 "rest": 0.0, "contribute": 18.0},
+}
+
+# Phase D diversity-lever substitution probability, promoted out of the
+# hardcoded agent constants so the A/B can prove the economy flag-off arm is a
+# true no-op without the diversity lever as a confound.
+DIVERSITY_SUBSTITUTE_PROB: float = 0.30

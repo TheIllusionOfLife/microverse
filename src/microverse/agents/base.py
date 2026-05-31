@@ -30,6 +30,7 @@ from microverse.world.workshop import WIPView
 
 if TYPE_CHECKING:
     from microverse.ops.metrics import Metrics
+    from microverse.world.economy import EnergyLedger
     from microverse.world.workshop import WorkshopProjection
 
 
@@ -487,6 +488,61 @@ def apply_diversity_lever(
     if rng.random() >= probability:
         return action
     metrics.bump("diversity_lever_substituted", agent=agent_name)
+    new_target: str | None = None
+    if target_verb == ActionKind.SPEAK and world.peers_today:
+        new_target = rng.choice(world.peers_today)
+    return action.model_copy(
+        update={
+            "thought": replacement_thought,
+            "action": target_verb,
+            "target": new_target,
+            "artifact": None,
+            "contribute_to": None,
+        }
+    )
+
+
+# Action-economy lever (re-diagnosis spike — ADR 0008). Sibling of
+# ``apply_diversity_lever``: a HARD substitution (not a probabilistic nudge)
+# when the LLM picks a verb the agent cannot pay for. The substitution target
+# is the cheapest affordable PRODUCTIVE verb (never ``contribute`` — cannot
+# fabricate a WIP + fragment; ``rest`` only as a last resort so the lever
+# drives specialization rather than collapsing onto rest).
+def apply_economy_lever(
+    action: Action,
+    world: WorldContext,
+    *,
+    ledger: EnergyLedger,
+    role: str,
+    agent_name: str,
+    rng: Any,
+    metrics: Metrics,
+    replacement_thought: str,
+) -> Action:
+    """Substitute an unaffordable verb for an affordable one. Returns the
+    action unchanged when:
+
+    - the call is inside a scene turn (``world.scene_wip_name`` set) — the
+      forced ``contribute`` must survive or ``SceneRunner`` aborts the scene;
+    - the parsed action is a fallback REST (empty thought) — the
+      ``json_fallback_rest`` watchdog signal must propagate;
+    - the chosen verb is already affordable;
+    - or the substitution would be a no-op (already the target verb).
+
+    Bumps ``economy_verb_substituted{agent}`` only when it changes the verb.
+    """
+    if world.scene_wip_name:
+        return action
+    is_fallback_rest = action.action == ActionKind.REST and not action.thought
+    if is_fallback_rest:
+        return action
+    if ledger.can_afford(agent_name, role, action.action.value):
+        return action
+    cheapest = ledger.cheapest_affordable_productive(agent_name, role)
+    target_verb = ActionKind(cheapest) if cheapest is not None else ActionKind.REST
+    if target_verb == action.action:
+        return action
+    metrics.bump("economy_verb_substituted", agent=agent_name)
     new_target: str | None = None
     if target_verb == ActionKind.SPEAK and world.peers_today:
         new_target = rng.choice(world.peers_today)

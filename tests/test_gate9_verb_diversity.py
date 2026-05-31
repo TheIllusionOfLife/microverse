@@ -19,7 +19,8 @@ import pytest
 
 _MEASURE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "spike_workshop_measure.py"
 _spec = importlib.util.spec_from_file_location("spike_workshop_measure", _MEASURE_PATH)
-assert _spec is not None and _spec.loader is not None
+assert _spec is not None
+assert _spec.loader is not None
 swm = importlib.util.module_from_spec(_spec)
 sys.modules["spike_workshop_measure"] = swm
 _spec.loader.exec_module(swm)
@@ -54,7 +55,7 @@ def test_entropy_monoculture_is_zero():
 
 
 def test_entropy_uniform_six_verbs_norm_is_one():
-    counts = {v: 10 for v in ("speak", "craft", "study", "rest", "travel", "contribute")}
+    counts = dict.fromkeys(("speak", "craft", "study", "rest", "travel", "contribute"), 10)
     assert swm._entropy_norm(counts, k=6) == pytest.approx(1.0)
     # raw bits = log2(6)
     assert swm._shannon_entropy_bits(counts) == pytest.approx(math.log2(6))
