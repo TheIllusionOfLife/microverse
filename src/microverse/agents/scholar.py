@@ -88,10 +88,21 @@ class Scholar(Agent):
             workshop=self._workshop,
         )
         # ADR 0008 spike telemetry: rawest verb choice before any lever.
-        self._verb_trace = {"parsed_verb": action.action.value}
+        # ``parse_fallback`` flags a parse_action fallback REST (empty thought)
+        # so Gate 9 can drop it from the chosen-verb stream (review).
+        self._verb_trace = {
+            "parsed_verb": action.action.value,
+            "parse_fallback": action.action == ActionKind.REST and not action.thought,
+        }
         action = self._maybe_diversify(action, world)
-        action = self._maybe_apply_economy(action, world)
-        return self._maybe_enforce_engagement(action, world)
+        economy_out = self._maybe_apply_economy(action, world)
+        final = self._maybe_enforce_engagement(economy_out, world)
+        # If engagement overrode the economy verb afterward, the committed verb
+        # is not the economy's — don't credit Gate 9's economy_substitution_rate
+        # for a substitution that never reached the log (review).
+        if final.action != economy_out.action:
+            self._verb_trace["economy_substituted"] = False
+        return final
 
     def _maybe_diversify(self, action: Action, world: WorldContext) -> Action:
         """Phase D substitution lever — delegate to the shared helper.

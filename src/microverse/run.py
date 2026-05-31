@@ -316,6 +316,20 @@ def _compute_energy_hint(energy: EnergyLedger | None, agent: Agent) -> str:
     return f"Your reserves are spent; rest before attempting {out_of_reach}."
 
 
+def _lazy_attach_energy(agent: Agent, energy: EnergyLedger | None) -> None:
+    """Attach the ledger to an agent that lacks one (ADR 0008 spike).
+
+    The startup roster is attached once at construction, but the Watchdog can
+    register a Stranger mid-run (``ops/watchdog.py``) without an EnergyLedger.
+    Such a Stranger would keep ``_energy is None`` and so escape the
+    substitution lever, executing unaffordable verbs while the resident agents
+    are constrained — biasing the A/B and Gate 9 (review). Attaching it here on
+    its first scheduled tick restores parity with the startup roster. No-op when
+    the economy is off, in a non-substitution mode, or already attached."""
+    if energy is not None and config._ECONOMY_SUBSTITUTE and agent._energy is None:
+        agent.attach_energy(energy)
+
+
 def _replay_energy_events(episodic: EpisodicMemory) -> list[tuple[str, str, str]]:
     """Chronological ``(actor, role, verb)`` for committed agent actions, used
     to reconstruct the EnergyLedger on restart (ADR 0008 spike). Role is read
@@ -746,6 +760,14 @@ def run(
         # persisted; the WAL stays the durability boundary). Attached to agents
         # for the substitution lever only in substitution-enabled modes; the
         # scene gate uses ``energy`` directly regardless.
+        if config.ECONOMY_MODE not in config.VALID_ECONOMY_MODES:
+            # Fail fast: an unrecognized MICROVERSE_ECONOMY (e.g. a typo) would
+            # otherwise silently run an unlabeled no-op arm (ECONOMY_ENABLED but
+            # neither gate nor substitution), corrupting the A/B (review).
+            raise ValueError(
+                f"MICROVERSE_ECONOMY={config.ECONOMY_MODE!r} is not a valid economy mode; "
+                f"expected one of {sorted(config.VALID_ECONOMY_MODES)}"
+            )
         energy: EnergyLedger | None = None
         if config.ECONOMY_ENABLED:
             energy = EnergyLedger.fresh(
@@ -864,6 +886,11 @@ def run(
                     consecutive_skips = 0
                 continue
             consecutive_skips = 0
+            # ADR 0008 spike: a Watchdog-spawned Stranger registers mid-run
+            # without an EnergyLedger; attach it here so the lever + hints apply
+            # to it like the startup roster (no-op when economy off / already
+            # attached). Must precede think() / the scene gate this tick.
+            _lazy_attach_energy(agent, energy)
             # Topic depends on agent.role, so derive per-tick: Watchdog
             # may spawn Strangers mid-run and a cached topic from the
             # initial agent would mis-tag their lore retrieval.
@@ -982,7 +1009,12 @@ def run(
                         engagement_hint="",
                         required_target=None,
                         metrics=metrics,
-                        energy_hint=_compute_energy_hint(energy, agent),
+                        # No energy_hint inside a scene (ADR 0006): scene turns
+                        # are forced contributes, and the lever already skips
+                        # them. A scarcity hint could nudge the author off
+                        # contribute and abort the scene, so it must be silent
+                        # here too (review). Scene throttling is initiation-only.
+                        energy_hint="",
                         self_view=_build_self_view(
                             episodic,
                             agent,

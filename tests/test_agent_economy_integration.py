@@ -33,13 +33,15 @@ def _drained_ledger(name: str, level: float) -> EnergyLedger:
 
 
 def test_think_substitutes_when_energy_low(metrics: Metrics):
-    # At 10 energy an Artisan affords craft(6) but not study(14).
-    led = _drained_ledger("Aki", 10.0)
+    # At 15 energy an Artisan affords study(14) but not travel(18). craft is a
+    # payload verb the lever cannot fabricate, so the target is study, not a
+    # hollow craft (review).
+    led = _drained_ledger("Aki", 15.0)
     a = Artisan(name="Aki", metrics=metrics)
     a.attach_energy(led)
-    with patch("microverse.agents.artisan.chat", return_value=_chat("study")):
+    with patch("microverse.agents.artisan.chat", return_value=_chat("travel")):
         out = a.think(WorldContext())
-    assert out.action == ActionKind.CRAFT  # cheapest affordable productive verb
+    assert out.action == ActionKind.STUDY  # cheapest affordable payload-free verb
     assert metrics.get("economy_verb_substituted", agent="Aki") == 1
 
 
@@ -76,8 +78,9 @@ def test_verb_trace_records_parsed_verb(metrics: Metrics):
 
 
 def test_engagement_gate_wins_over_economy(metrics: Metrics):
-    # Drained energy would substitute study->craft, but the engagement gate
-    # runs LAST and must coerce a speak to the required target regardless.
+    # Drained energy would substitute study->rest (craft excluded, nothing
+    # payload-free affordable at 10), but the engagement gate runs LAST and
+    # must coerce a speak to the required target regardless.
     led = _drained_ledger("Aki", 10.0)
     a = Artisan(name="Aki", metrics=metrics)
     a.attach_energy(led)
@@ -86,5 +89,8 @@ def test_engagement_gate_wins_over_economy(metrics: Metrics):
         out = a.think(world)
     assert out.action == ActionKind.SPEAK
     assert out.target == "Bo"
-    # Economy still ran first (substituted study->craft) before engagement won.
+    # The economy lever still FIRED first (metric bumped)...
     assert metrics.get("economy_verb_substituted", agent="Aki") == 1
+    # ...but engagement overrode its verb, so Gate 9 must NOT count it as a
+    # committed economy substitution (review): the trace flag is cleared.
+    assert a._verb_trace["economy_substituted"] is False

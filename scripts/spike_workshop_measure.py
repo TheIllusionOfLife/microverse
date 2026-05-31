@@ -167,7 +167,7 @@ def _diversity_block(by_agent: dict[str, Counter]) -> dict:
 def gate9_verb_diversity(
     ep: sqlite3.Connection,
     *,
-    entropy_norm_floor: float = 0.55,
+    entropy_norm_floor: float = 0.35,
     jsd_norm_floor: float = 0.25,
 ) -> dict:
     """ADR 0008 re-diagnosis metric. Reports society verb entropy and
@@ -178,6 +178,19 @@ def gate9_verb_diversity(
     choose differently under economic pressure, not merely the executor to
     override verbs (high ``substitution_rate`` with a flat chosen stream is a
     forced-by-construction result, not emergent behavior).
+
+    Scope (review): only FREE verb choices count. Scene turns are forced
+    contributes (ADR 0006) and ``parse_action`` fallback RESTs are parse
+    failures, not choices — both are excluded (scene turns from both streams;
+    parse-fallback from the chosen stream) so neither inflates the diversity
+    signal. Scene volume is reported separately as ``scene_excluded``.
+
+    ``entropy_norm_floor`` defaults to 0.35: with the 2-agent roster two perfect
+    specialists over two verbs cap normalized society entropy at
+    ``log2(2)/log2(6) ≈ 0.387`` — the divergence we WANT — so a 0.55 floor would
+    reject the target outcome. JSD (cross-agent divergence) is the primary
+    signal; the entropy floor only certifies the society broke its single-verb
+    monoculture (baseline ≈ 0.2).
     """
     rows = list(
         ep.execute(
@@ -191,25 +204,36 @@ def gate9_verb_diversity(
     n_total = 0
     n_sub = 0
     n_econ_sub = 0
+    n_scene_excluded = 0
     for r in rows:
         executed = r["action"]
         if executed not in verbset:
             continue
         payload = json.loads(r["payload_json"]) if r["payload_json"] else {}
-        chosen = payload.get("parsed_verb") or executed
-        if chosen not in verbset:
-            chosen = executed
+        # Forced scene contributes (ADR 0006) are not free choices: drop them
+        # from BOTH streams so scene volume can't swamp the free-choice signal.
+        if payload.get("scene_id"):
+            n_scene_excluded += 1
+            continue
         actor = r["actor"]
         exec_by_agent[actor][executed] += 1
-        chosen_by_agent[actor][chosen] += 1
         n_total += 1
-        if chosen != executed:
-            n_sub += 1
         # Economy-ONLY substitution flag set by the agent's economy lever,
         # distinct from the chosen!=executed total which also folds in
         # diversity / engagement / validator overrides (Codex review).
         if payload.get("economy_substituted"):
             n_econ_sub += 1
+        # The CHOSEN (free-choice) stream excludes parse-fallback RESTs: a
+        # malformed payload folded to REST is a parse failure, not a verb the
+        # model freely chose, so it must not pollute chosen-verb diversity.
+        if payload.get("parse_fallback"):
+            continue
+        chosen = payload.get("parsed_verb") or executed
+        if chosen not in verbset:
+            chosen = executed
+        chosen_by_agent[actor][chosen] += 1
+        if chosen != executed:
+            n_sub += 1
 
     executed_block = _diversity_block(exec_by_agent)
     chosen_block = _diversity_block(chosen_by_agent)
@@ -230,6 +254,7 @@ def gate9_verb_diversity(
         "substitution_rate": round((n_sub / n_total) if n_total else 0.0, 4),
         "economy_substitution_rate": round((n_econ_sub / n_total) if n_total else 0.0, 4),
         "chosen_vs_executed_divergence": round(cxe, 4),
+        "scene_excluded": n_scene_excluded,
         "entropy_norm_floor": entropy_norm_floor,
         "jsd_norm_floor": jsd_norm_floor,
         "pass_entropy": pass_entropy,

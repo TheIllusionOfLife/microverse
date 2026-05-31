@@ -51,17 +51,29 @@ def _entropy_norm(counts: Counter, *, k: int = 6) -> float:
     return h / math.log2(k)
 
 
-def replay_executor(events: list[tuple[str, str, str]], *, ledger: EnergyLedger) -> dict:
-    """Run a chronological ``(actor, role, chosen_verb)`` trace through the
-    executor. Per event: resolve (afford-or-substitute) at the current pool,
-    deduct the executed verb, then regen the actor (per-actor approximation of
-    the live whole-roster per-tick regen). Returns chosen/executed counts and
-    the substitution rate."""
+def replay_executor(
+    events: list[tuple[str, str, str]] | list[tuple[str, str, str, bool]],
+    *,
+    ledger: EnergyLedger,
+) -> dict:
+    """Run a chronological ``(actor, role, chosen_verb[, forced])`` trace
+    through the executor. Per event: resolve (afford-or-substitute) at the
+    current pool, deduct the executed verb, then regen the actor (per-actor
+    approximation of the live whole-roster per-tick regen). Returns
+    chosen/executed counts and the substitution rate.
+
+    ``forced`` (4th element, default False) marks a scene turn (ADR 0006). Live
+    scene contributes are NEVER substituted (the lever skips scene turns), so a
+    forced event is deducted at its chosen verb without substitution — otherwise
+    the offline estimate would predict substitutions that cannot happen live and
+    inflate the substitution rate (review)."""
     chosen: Counter = Counter()
     executed: Counter = Counter()
     subs = 0
-    for actor, role, verb in events:
-        ex = ledger.resolve_executed_verb(actor, role, verb)
+    for event in events:
+        actor, role, verb, *rest = event
+        forced = bool(rest[0]) if rest else False
+        ex = verb if forced else ledger.resolve_executed_verb(actor, role, verb)
         ledger.deduct(actor, role, ex)
         ledger.regen(actor)
         chosen[verb] += 1
@@ -82,10 +94,12 @@ def replay_executor(events: list[tuple[str, str, str]], *, ledger: EnergyLedger)
     }
 
 
-def _trace_from_episodic(path: Path) -> list[tuple[str, str, str]]:
-    """Chronological ``(actor, role, chosen_verb)`` from a committed run. The
-    chosen verb is ``payload.parsed_verb`` when present (an economy-on run),
-    else the executed action (an economy-off run — the model's own choice)."""
+def _trace_from_episodic(path: Path) -> list[tuple[str, str, str, bool]]:
+    """Chronological ``(actor, role, chosen_verb, forced)`` from a committed
+    run. The chosen verb is ``payload.parsed_verb`` when present (an economy-on
+    run), else the executed action (an economy-off run — the model's own
+    choice). ``forced`` is True for scene turns (``payload.scene_id``), which the
+    executor must deduct without substituting (review)."""
     conn = sqlite3.connect(str(path))
     try:
         rows = conn.execute(
@@ -94,15 +108,16 @@ def _trace_from_episodic(path: Path) -> list[tuple[str, str, str]]:
         ).fetchall()
     finally:
         conn.close()
-    out: list[tuple[str, str, str]] = []
+    out: list[tuple[str, str, str, bool]] = []
     for actor, action, payload_json in rows:
         if action not in _VERBS:
             continue
         payload = json.loads(payload_json) if payload_json else {}
         role = str(payload.get("role", ""))
         chosen = payload.get("parsed_verb") or action
+        forced = bool(payload.get("scene_id"))
         if role and chosen in _VERBS:
-            out.append((actor, role, chosen))
+            out.append((actor, role, chosen, forced))
     return out
 
 
@@ -170,7 +185,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--data", help="Stage 0: data dir with episodic.sqlite to replay")
     p.add_argument("--synthetic", action="store_true", help="Stage 1: run synthetic policies")
-    p.add_argument("--mode", default="1", help="economy cost-table mode (1/flat)")
+    p.add_argument(
+        "--mode",
+        default="1",
+        choices=("1", "flat", "sub", "throttle"),
+        help="economy cost-table mode (role-advantage for all but 'flat')",
+    )
     p.add_argument("--ticks", type=int, default=2000, help="Stage 1 tick budget")
     p.add_argument("--seed", type=int, default=42, help="Stage 1 RNG seed")
     return p.parse_args(argv)

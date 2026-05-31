@@ -49,13 +49,27 @@ def test_replay_keeps_affordable_specialty():
 
 def test_replay_throttles_unaffordable_drain():
     # Artisan contributing every tick (cost 22 > regen 12) drains and the
-    # executor substitutes toward the cheap specialty once it cannot pay.
+    # executor substitutes once it cannot pay. craft is a payload verb the lever
+    # cannot fabricate, so the target is a payload-free verb (study), never a
+    # hollow craft (review).
     trace = [("Aki", "artisan", "contribute")] * 60
     r = replay_economy.replay_executor(trace, ledger=_ledger())
     assert r["chosen_contribute_share"] == 1.0
     assert r["executed_contribute_share"] < 1.0  # throttled
     assert r["substitution_rate"] > 0.0
-    assert "craft" in r["executed_counts"]  # substituted toward the specialty
+    assert "craft" not in r["executed_counts"]  # never fabricated by substitution
+    assert "study" in r["executed_counts"]  # cheapest affordable payload-free verb
+
+
+def test_replay_forced_scene_contributes_not_substituted():
+    # Scene turns (forced=True) are deducted but NEVER substituted — matching
+    # live, where the lever skips scene turns — even when the pool cannot afford
+    # them (deduct clamps at 0). Without this the offline estimate would predict
+    # substitutions that cannot happen live and inflate the rate (review).
+    trace = [("Aki", "artisan", "contribute", True)] * 60
+    r = replay_economy.replay_executor(trace, ledger=_ledger())
+    assert r["substitution_rate"] == 0.0
+    assert r["executed_counts"] == {"contribute": 60}
 
 
 def test_synthetic_always_contribute_single_agent_throttled():

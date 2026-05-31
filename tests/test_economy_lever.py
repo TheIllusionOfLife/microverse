@@ -65,9 +65,11 @@ def test_affordable_verb_passes_through(metrics: Metrics):
 
 def test_unaffordable_verb_substituted_to_cheapest_productive(metrics: Metrics):
     ledger = _ledger({"artisan": _ARTISAN})
-    # Drain Aki below contribute(22) but above craft(6).
-    while ledger.current("Aki") > 10.0:
-        ledger.deduct("Aki", "artisan", "craft")
+    # At 15 the artisan affords craft(6) and study(14) but not speak(16) /
+    # travel(18) / contribute(22). craft is a payload verb the lever cannot
+    # fabricate, so the substitution target is the cheapest PAYLOAD-FREE verb:
+    # study. (A hollow craft here would bypass the empty-craft guard — review.)
+    ledger._pool["Aki"] = 15.0
     action = Action(
         thought="add to the scroll",
         action=ActionKind.CONTRIBUTE,
@@ -75,7 +77,7 @@ def test_unaffordable_verb_substituted_to_cheapest_productive(metrics: Metrics):
         artifact="x" * 200,
     )
     out = _lever(action, WorldContext(), ledger, metrics)
-    assert out.action == ActionKind.CRAFT  # cheapest affordable productive verb
+    assert out.action == ActionKind.STUDY  # cheapest affordable payload-free verb
     assert out.contribute_to is None
     assert out.artifact is None
     assert metrics.get("economy_verb_substituted", agent="Aki") == 1

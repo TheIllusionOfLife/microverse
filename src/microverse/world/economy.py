@@ -31,11 +31,28 @@ from collections.abc import Iterable, Mapping
 
 CostTable = Mapping[str, Mapping[str, float]]
 
-# Verbs that are NOT a free choice the lever may substitute toward:
-# ``contribute`` is excluded because the lever cannot fabricate a WIP +
-# fragment. ``rest`` is excluded from the *primary* candidates so the lever
-# drives specialization (toward the role's cheap productive verb) rather than
-# collapsing every constrained tick onto rest; rest is only the last resort.
+# Verbs that require an LLM-authored payload the lever cannot fabricate, so
+# they are NEVER a substitution *target*: ``contribute`` needs a WIP + fragment,
+# and ``craft`` needs an ``artifact``. Substituting toward either would commit a
+# hollow action (``artifact=None``) that bypasses the empty-craft guard, is
+# unharvestable, yet still counts as productive verb diversity in Gate 9 — i.e.
+# the diagnostic could report improvement without any real work (review). A
+# role whose specialty is a payload verb (the Artisan's ``craft``) therefore
+# diversifies through the perception channel (``energy_hint`` lets the model
+# *choose* craft and author the artifact) and rests when truly drained; the
+# hard executor only ever falls back to payload-free verbs or ``rest``.
+_PAYLOAD_VERBS = frozenset({"contribute", "craft"})
+
+# Excluded from the *primary* substitution candidates: the payload verbs (above)
+# plus ``rest``, which is held back as the last resort so the lever drives
+# specialization toward an affordable productive verb rather than collapsing
+# every constrained tick onto rest.
+_SUBSTITUTION_EXCLUDED = _PAYLOAD_VERBS | {"rest"}
+
+# Verbs excluded from the flat-control flattening: ``contribute`` keeps its
+# per-role cost (so the scene-initiation throttle is identical across arms) and
+# ``rest`` stays free. Everything else — including ``craft`` — collapses to the
+# shared per-role cost so the flat arm genuinely removes the specialty.
 _NON_SUBSTITUTABLE = frozenset({"contribute", "rest"})
 
 
@@ -154,16 +171,18 @@ class EnergyLedger:
             self.regen(actor)
 
     def cheapest_affordable_productive(self, name: str, role: str) -> str | None:
-        """The cheapest affordable verb that is neither ``contribute`` nor
-        ``rest`` (the substitution target), or ``None`` if the agent can
-        afford no productive verb (then the lever falls back to rest).
+        """The cheapest affordable substitution target, or ``None`` if the agent
+        can afford none (then the lever falls back to rest).
 
-        Ties are broken by ``ActionKind`` declaration order for determinism.
+        Candidates exclude the payload verbs (``contribute``, ``craft`` — the
+        lever cannot fabricate their payloads) and ``rest`` (the last resort),
+        so the realistic targets are ``speak``/``study``/``travel``. Ties are
+        broken by ``ActionKind`` declaration order for determinism.
         """
         from microverse.agents.base import ActionKind
 
         order = [k.value for k in ActionKind]
-        productive = [v for v in order if v not in _NON_SUBSTITUTABLE]
+        productive = [v for v in order if v not in _SUBSTITUTION_EXCLUDED]
         affordable = self.affordable_verbs(name, role, productive)
         if not affordable:
             return None

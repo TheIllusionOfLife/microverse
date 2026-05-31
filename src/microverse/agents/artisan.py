@@ -121,7 +121,13 @@ class Artisan(Agent):
         # before any lever runs, so the run loop can stamp it on the committed
         # payload (Gate 9 chosen-vs-executed). Captured even when economy is
         # off; the run loop only stamps it in substitution-enabled modes.
-        self._verb_trace = {"parsed_verb": action.action.value}
+        # ``parse_fallback`` flags a malformed/meta-leak/short-WIP payload that
+        # parse_action folded to a fallback REST (empty thought) — NOT a free
+        # verb choice, so Gate 9 drops it from the chosen-verb stream (review).
+        self._verb_trace = {
+            "parsed_verb": action.action.value,
+            "parse_fallback": action.action == ActionKind.REST and not action.thought,
+        }
         # F.2 must run BEFORE the rest rate-limiter: empty-craft is an
         # active tick that should reset the rest streak, not pass
         # through it as rest.
@@ -138,10 +144,16 @@ class Artisan(Agent):
         # engagement, so an affordability override cannot defeat the engagement
         # gate (which must win) and so the diversity lever's chosen verb is
         # what gets affordability-checked.
-        action = self._maybe_apply_economy(action, world)
+        economy_out = self._maybe_apply_economy(action, world)
         # Engagement gate runs LAST so it overrides any earlier coercion
         # (e.g. the rest rate-limiter picking a different peer).
-        return self._maybe_enforce_engagement(action, world)
+        final = self._maybe_enforce_engagement(economy_out, world)
+        # If engagement overrode the economy verb afterward, the committed verb
+        # is not the economy's — don't credit Gate 9's economy_substitution_rate
+        # for a substitution that never reached the log (review).
+        if final.action != economy_out.action:
+            self._verb_trace["economy_substituted"] = False
+        return final
 
     def _maybe_diversify(self, action: Action, world: WorldContext) -> Action:
         """Phase D Step 2 — delegate to the shared helper. The lever

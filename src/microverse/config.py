@@ -231,6 +231,10 @@ SCENE_MIN_PEERS: int = 1
 # The "flat" control and the two ablations exist to attribute any diversity
 # gain (Codex review): is it comparative advantage, or merely a uniform
 # contribute throttle, or merely executor override?
+# The full set of recognized modes. An unrecognized value (e.g. a typo) would
+# otherwise build a ledger with neither gate nor substitution — a silent,
+# unlabeled experiment arm — so run() validates against this set and fails fast.
+VALID_ECONOMY_MODES: frozenset[str] = frozenset({"0", "1", "flat", "throttle", "sub"})
 ECONOMY_MODE: str = os.environ.get("MICROVERSE_ECONOMY", "0")
 ECONOMY_ENABLED: bool = ECONOMY_MODE != "0"
 _ECONOMY_SCENE_GATE: bool = ECONOMY_MODE in ("1", "flat", "throttle")

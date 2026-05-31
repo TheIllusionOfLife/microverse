@@ -14,10 +14,12 @@ from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from microverse import config
 from microverse.agents.artisan import Artisan
 from microverse.config import VERB_COST_BY_ROLE
-from microverse.run import _compute_energy_hint, run
+from microverse.run import _compute_energy_hint, _lazy_attach_energy, run
 from microverse.world.economy import EnergyLedger
 
 
@@ -87,10 +89,11 @@ def test_economy_on_substitutes_when_drained(tmp_path: Path):
         ).fetchone()[0]
     assert subs is not None, "economy_verb_substituted metric never recorded"
     assert subs >= 1, "lever should fire once energy drains"
-    # The executed stream now contains craft (substituted) even though the
-    # model only ever chose study; parsed_verb records the model's choice.
+    # The model only ever chose study, but once drained the lever substitutes
+    # toward a payload-free verb (rest at this small pool). It must NEVER
+    # fabricate a hollow craft (review); parsed_verb records the model's choice.
     actions = {a for _, a in _events(data_dir)}
-    assert "craft" in actions
+    assert "craft" not in actions
     payloads = _payloads(data_dir)
     assert any(p.get("parsed_verb") == "study" for p in payloads)
 
@@ -164,3 +167,55 @@ def test_scene_fires_when_affordable(tmp_path: Path):
         run(ticks=12, seed=3, tempo=0, data_dir=data_dir, harvest_dir=tmp_path / "h")
     actions = [a for _, a in _events(data_dir)]
     assert "scene.open" in actions
+
+
+def _fresh_ledger() -> EnergyLedger:
+    return EnergyLedger.fresh(
+        ["Aki"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
+    )
+
+
+def test_lazy_attach_energy_attaches_unattached_agent():
+    """A Watchdog-spawned Stranger registers mid-run without an EnergyLedger;
+    the run loop must attach it so the lever applies to it like the startup
+    roster (otherwise it would execute unaffordable verbs, biasing the A/B)."""
+    led = _fresh_ledger()
+    spawned = Artisan(name="Zix")  # never in the fresh roster, no energy attached
+    assert spawned._energy is None
+    with _economy("sub"):
+        _lazy_attach_energy(spawned, led)
+    assert spawned._energy is led
+
+
+def test_lazy_attach_energy_noop_in_scene_gate_only_mode():
+    """``throttle`` is scene-gate-only: no substitution, so no agent gets the
+    ledger attached — the spawned Stranger stays consistent with the roster."""
+    led = _fresh_ledger()
+    spawned = Artisan(name="Zix")
+    with _economy("throttle"):
+        _lazy_attach_energy(spawned, led)
+    assert spawned._energy is None
+
+
+def test_lazy_attach_energy_noop_when_economy_off():
+    spawned = Artisan(name="Zix")
+    _lazy_attach_energy(spawned, None)  # economy off: no ledger to attach
+    assert spawned._energy is None
+
+
+def test_invalid_economy_mode_fails_fast(tmp_path: Path):
+    """A typo'd MICROVERSE_ECONOMY must raise, not silently run an unlabeled
+    no-op arm (ECONOMY_ENABLED but neither gate nor substitution)."""
+    with (
+        patch.object(config, "ECONOMY_MODE", "bogus"),
+        patch.object(config, "ECONOMY_ENABLED", True),
+        pytest.raises(ValueError, match="not a valid economy mode"),
+    ):
+        run(
+            ticks=1,
+            seed=1,
+            tempo=0,
+            data_dir=tmp_path / "data",
+            harvest_dir=tmp_path / "h",
+            solo=True,
+        )

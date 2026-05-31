@@ -88,10 +88,39 @@ def test_gate9_disjoint_specialists_pass():
     rows = [("Aki", "craft", {}) for _ in range(50)]
     rows += [("Cy", "study", {}) for _ in range(50)]
     g = swm.gate9_verb_diversity(_events_db(rows))
-    # Society uses two verbs equally => entropy_norm = log2(2)/log2(6).
-    assert g["executed"]["society_entropy_norm"] > 0.0
+    # Society uses two verbs equally => entropy_norm = log2(2)/log2(6) ≈ 0.387.
+    expected_norm = math.log2(2) / math.log2(6)
+    assert g["executed"]["society_entropy_norm"] == pytest.approx(expected_norm, abs=1e-4)
     # Disjoint specialists => maximal divergence.
     assert g["executed"]["jsd_norm"] == pytest.approx(1.0, abs=1e-9)
+    # This is the TARGET outcome (comparative-advantage specialization), so the
+    # gate must PASS it: the 0.35 entropy floor sits just under the 2-agent
+    # two-verb ceiling and JSD is well over its floor.
+    assert g["pass"] is True
+
+
+def test_gate9_excludes_scene_forced_contributes():
+    # Free choices: Aki craft, Cy study. The 40 forced scene contributes
+    # (tagged with scene_id) must NOT enter either diversity stream, else scene
+    # volume would swamp the signal back toward a contribute-monoculture.
+    rows = [("Aki", "craft", {}) for _ in range(20)]
+    rows += [("Cy", "study", {}) for _ in range(20)]
+    rows += [("Aki", "contribute", {"scene_id": "s1", "turn_index": 0}) for _ in range(40)]
+    g = swm.gate9_verb_diversity(_events_db(rows))
+    assert g["scene_excluded"] == 40
+    assert set(g["executed"]["society_counts"]) == {"craft", "study"}
+    assert "contribute" not in g["chosen"]["society_counts"]
+
+
+def test_gate9_parse_fallback_excluded_from_chosen_only():
+    # 20 real studies + 10 parse-fallback RESTs. The fallbacks are realized
+    # (executed=rest) but not free choices, so they count in the executed
+    # stream yet are dropped from the chosen stream.
+    rows = [("Aki", "study", {"parsed_verb": "study"}) for _ in range(20)]
+    rows += [("Aki", "rest", {"parsed_verb": "rest", "parse_fallback": True}) for _ in range(10)]
+    g = swm.gate9_verb_diversity(_events_db(rows))
+    assert g["executed"]["society_counts"] == {"study": 20, "rest": 10}
+    assert g["chosen"]["society_counts"] == {"study": 20}
 
 
 def test_gate9_excludes_world_and_namespaced_events():

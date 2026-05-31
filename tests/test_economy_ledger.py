@@ -73,15 +73,13 @@ def test_affordable_verbs_filters_by_pool(ledger: EnergyLedger):
 
 
 def test_can_afford_boundary_is_inclusive(ledger: EnergyLedger):
-    # Exactly enough energy for craft (6) must count as affordable.
-    while ledger.current("Aki") > 6.0:
-        ledger.deduct("Aki", "artisan", "craft")
-    # Now drive to exactly 6 if not already.
-    cur = ledger.current("Aki")
-    if cur > 6.0:
-        # one more craft would overshoot; instead assert >= semantics at cur
-        pass
-    assert ledger.can_afford("Aki", "artisan", "craft") == (ledger.current("Aki") >= 6.0)
+    # Exactly enough energy for craft (6) counts as affordable; a hair under
+    # does not. Pin against concrete values, not the implementation's own
+    # comparison expression.
+    ledger._pool["Aki"] = 6.0
+    assert ledger.can_afford("Aki", "artisan", "craft") is True
+    ledger._pool["Aki"] = 5.999
+    assert ledger.can_afford("Aki", "artisan", "craft") is False
 
 
 def test_comparative_advantage_table_shape():
@@ -156,5 +154,23 @@ def test_resolve_executed_verb_passes_affordable_and_substitutes_drained():
         ["Aki"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
     )
     assert led.resolve_executed_verb("Aki", "artisan", "study") == "study"  # affordable
-    led._pool["Aki"] = 8.0  # affords craft(6) but not study(14)
-    assert led.resolve_executed_verb("Aki", "artisan", "study") == "craft"
+    # At 15 the artisan cannot afford travel(18) but can afford study(14): the
+    # lever substitutes toward the cheapest affordable PAYLOAD-FREE verb.
+    led._pool["Aki"] = 15.0
+    assert led.resolve_executed_verb("Aki", "artisan", "travel") == "study"
+
+
+def test_resolve_executed_verb_never_substitutes_toward_craft():
+    """Regression (review): craft requires an artifact the lever cannot
+    fabricate, so it is never a substitution target — even when affordable.
+    A drained artisan that can pay for craft(6) but whose chosen verb is
+    unaffordable must fall back to rest, NOT a hollow craft."""
+    led = EnergyLedger.fresh(
+        ["Aki"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
+    )
+    led._pool["Aki"] = 7.0  # affords craft(6) but nothing payload-free (>=14)
+    assert led.cheapest_affordable_productive("Aki", "artisan") is None
+    assert led.resolve_executed_verb("Aki", "artisan", "study") == "rest"
+    # A model that CHOOSES craft and can afford it still crafts (craft is only
+    # excluded as a substitution TARGET, never as an affordable pass-through).
+    assert led.resolve_executed_verb("Aki", "artisan", "craft") == "craft"
