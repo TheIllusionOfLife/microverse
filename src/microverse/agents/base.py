@@ -445,11 +445,13 @@ class Agent(abc.ABC):
         # is a no-op in think() (flag off, throttle-only mode, or a test that
         # does not attach), so think() reproduces pre-spike behavior exactly.
         self._energy: EnergyLedger | None = None
-        # ADR 0008 spike telemetry: the verb the model chose this tick before
-        # the economy lever ran (the rawest parse result). The run loop reads
-        # this when stamping the committed payload so Gate 9 can compare the
-        # CHOSEN stream against the EXECUTED stream. Empty until think() runs.
-        self._verb_trace: dict[str, str] = {}
+        # ADR 0008 spike telemetry the run loop stamps onto the committed
+        # payload (Gate 9): ``parsed_verb`` (the rawest model choice, before any
+        # lever — the CHOSEN stream) and ``economy_substituted`` (bool: did the
+        # economy lever rewrite the verb — the economy-ONLY substitution signal,
+        # so Gate 9 need not conflate it with diversity/engagement/fold
+        # overrides). Empty until think() runs.
+        self._verb_trace: dict[str, object] = {}
 
     def attach_workshop(self, workshop: WorkshopProjection) -> None:
         """Bind a WorkshopProjection for the v0.3 validator hard-fold."""

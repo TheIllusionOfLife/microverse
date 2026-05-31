@@ -144,11 +144,14 @@ class EnergyLedger:
         boundary — the WAL remains the only durability contract). ADR 0009
         records that economy-on runs are not bit-identical across restart.
 
-        ``events`` yields ``(actor, role, verb)`` tuples oldest-first.
+        ``events`` yields ``(actor, role, verb)`` tuples oldest-first. Order is
+        deduct-then-regen per event, matching the live single-tick order
+        (deduct on commit, then regen); it still cannot replicate the live
+        whole-roster per-tick regen exactly, hence "approximate".
         """
         for actor, role, verb in events:
-            self.regen(actor)
             self.deduct(actor, role, verb)
+            self.regen(actor)
 
     def cheapest_affordable_productive(self, name: str, role: str) -> str | None:
         """The cheapest affordable verb that is neither ``contribute`` nor

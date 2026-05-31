@@ -295,8 +295,12 @@ def _compute_energy_hint(energy: EnergyLedger | None, agent: Agent) -> str:
     easily (the role's cheap specialty under the role-advantage table; a stable
     tie under the flat control), so the model can choose affordably on its own
     — the perception channel that lets the CHOSEN-verb stream actually move.
+
+    Gated behind ``_ECONOMY_SUBSTITUTE`` (modes 1/flat/sub) so the prompt-level
+    pressure is paired with the substitution lever: the ``throttle`` ablation
+    stays a CLEAN scene-gate-only arm with no prompt hint (Codex review).
     """
-    if energy is None:
+    if energy is None or not config._ECONOMY_SUBSTITUTE:
         return ""
     productive = ["speak", "craft", "study", "travel", "contribute"]
     unaffordable = [v for v in productive if not energy.can_afford(agent.name, agent.role, v)]
@@ -942,12 +946,18 @@ def run(
                 or not config._ECONOMY_SCENE_GATE
                 or energy.can_afford(agent.name, agent.role, "contribute")
             )
+            # The scene roll is consumed BEFORE the energy precondition so the
+            # seeded rng stream stays identical across economy arms (Codex
+            # review): an OFF run draws exactly when baseline did, and an ON run
+            # draws the same — energy only suppresses the scene, it never skips
+            # the draw. ``scene_energy_ok`` is last so OFF (always True) is
+            # rng-identical to the pre-spike loop.
             scene_eligible = (
                 config.SCENE_GATE_P > 0
                 and open_wip is not None
                 and len(other_peers) >= config.SCENE_MIN_PEERS
-                and scene_energy_ok
                 and rng.random() < config.SCENE_GATE_P
+                and scene_energy_ok
             )
             if scene_eligible and open_wip is not None:
                 # Scene path. Build a SceneRunner with closures over
@@ -1004,7 +1014,11 @@ def run(
                     _commit_action(episodic, a, act, workshop=workshop)
                     # ADR 0008 spike: the scene's forced contributes are paid
                     # here (never substituted). No telemetry stamped: a scene
-                    # turn is a forced contribute, so parsed == executed.
+                    # turn is a forced contribute, so parsed == executed. Only
+                    # the INITIATOR's contribute affordability gates the scene
+                    # (above); turn-2/3 authors are not pre-checked, so their
+                    # deduct may clamp at 0 (a known approximation — the
+                    # initiation throttle is the lever, not per-turn gating).
                     if energy is not None:
                         energy.deduct(a.name, a.role, act.action.value)
                     if act.action == ActionKind.CONTRIBUTE and act.contribute_to:

@@ -111,7 +111,7 @@ class Scholar(Agent):
         EnergyLedger is attached. See ``base.apply_economy_lever``."""
         if self._energy is None:
             return action
-        return apply_economy_lever(
+        out = apply_economy_lever(
             action,
             world,
             ledger=self._energy,
@@ -121,6 +121,8 @@ class Scholar(Agent):
             metrics=self._metrics,
             replacement_thought=_ECONOMY_REPLACEMENT_THOUGHT,
         )
+        self._verb_trace["economy_substituted"] = out.action != action.action
+        return out
 
     def _maybe_enforce_engagement(self, action: Action, world: WorldContext) -> Action:
         """Shared with Artisan (semantics identical). Coerce a non-

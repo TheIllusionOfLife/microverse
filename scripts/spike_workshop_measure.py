@@ -190,6 +190,7 @@ def gate9_verb_diversity(
     chosen_by_agent: dict[str, Counter] = defaultdict(Counter)
     n_total = 0
     n_sub = 0
+    n_econ_sub = 0
     for r in rows:
         executed = r["action"]
         if executed not in verbset:
@@ -204,6 +205,11 @@ def gate9_verb_diversity(
         n_total += 1
         if chosen != executed:
             n_sub += 1
+        # Economy-ONLY substitution flag set by the agent's economy lever,
+        # distinct from the chosen!=executed total which also folds in
+        # diversity / engagement / validator overrides (Codex review).
+        if payload.get("economy_substituted"):
+            n_econ_sub += 1
 
     executed_block = _diversity_block(exec_by_agent)
     chosen_block = _diversity_block(chosen_by_agent)
@@ -222,6 +228,7 @@ def gate9_verb_diversity(
         "executed": executed_block,
         "chosen": chosen_block,
         "substitution_rate": round((n_sub / n_total) if n_total else 0.0, 4),
+        "economy_substitution_rate": round((n_econ_sub / n_total) if n_total else 0.0, 4),
         "chosen_vs_executed_divergence": round(cxe, 4),
         "entropy_norm_floor": entropy_norm_floor,
         "jsd_norm_floor": jsd_norm_floor,

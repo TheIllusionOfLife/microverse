@@ -15,7 +15,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from microverse import config
-from microverse.run import run
+from microverse.agents.artisan import Artisan
+from microverse.config import VERB_COST_BY_ROLE
+from microverse.run import _compute_energy_hint, run
+from microverse.world.economy import EnergyLedger
 
 
 @contextmanager
@@ -106,6 +109,21 @@ def test_scene_gate_blocked_when_initiator_cannot_afford_contribute(tmp_path: Pa
         run(ticks=12, seed=3, tempo=0, data_dir=data_dir, harvest_dir=tmp_path / "h")
     actions = [a for _, a in _events(data_dir)]
     assert "scene.open" not in actions
+
+
+def test_energy_hint_only_in_substitution_modes():
+    """The energy_hint (prompt-level scarcity signal) is paired with the
+    substitution lever, so the scene-gate-only ``throttle`` ablation stays
+    clean: no prompt pressure, only the gate."""
+    led = EnergyLedger.fresh(
+        ["Aki"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
+    )
+    led._pool["Aki"] = 0.0  # drained -> hint would fire if the mode allows it
+    agent = Artisan(name="Aki")
+    with _economy("throttle"):
+        assert _compute_energy_hint(led, agent) == ""  # scene-gate-only: no hint
+    with _economy("sub"):
+        assert _compute_energy_hint(led, agent) != ""  # substitution arm: hint on
 
 
 def test_flag_off_run_is_deterministic(tmp_path: Path):

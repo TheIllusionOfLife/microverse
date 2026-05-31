@@ -71,7 +71,8 @@ def test_verb_trace_records_parsed_verb(metrics: Metrics):
         return_value=_chat("craft", artifact="a long enough fragment to be a real craft artifact"),
     ):
         a.think(WorldContext())
-    assert a._verb_trace == {"parsed_verb": "craft"}
+    assert a._verb_trace["parsed_verb"] == "craft"
+    assert a._verb_trace["economy_substituted"] is False  # full energy, no substitution
 
 
 def test_engagement_gate_wins_over_economy(metrics: Metrics):

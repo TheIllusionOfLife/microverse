@@ -126,3 +126,15 @@ def test_gate9_chosen_falls_back_to_action_when_no_payload():
     g = swm.gate9_verb_diversity(_events_db(rows))
     assert g["substitution_rate"] == pytest.approx(0.0)
     assert g["chosen"]["society_counts"] == {"craft": 20, "study": 20}
+
+
+def test_gate9_economy_substitution_rate_is_economy_only():
+    # 10 economy substitutions, 10 NON-economy overrides (e.g. diversity), 10 clean.
+    rows = [("Aki", "craft", {"parsed_verb": "contribute", "economy_substituted": True})] * 10
+    rows += [("Aki", "craft", {"parsed_verb": "speak"})] * 10  # parsed!=exec, not economy
+    rows += [("Aki", "craft", {"parsed_verb": "craft"})] * 10
+    g = swm.gate9_verb_diversity(_events_db(rows))
+    # Total override counts both the economy subs and the diversity-style ones.
+    assert g["substitution_rate"] == pytest.approx(20 / 30, abs=1e-4)
+    # Economy-only rate counts just the flagged ones.
+    assert g["economy_substitution_rate"] == pytest.approx(10 / 30, abs=1e-4)

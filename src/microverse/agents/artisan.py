@@ -167,7 +167,7 @@ class Artisan(Agent):
         contribute)."""
         if self._energy is None:
             return action
-        return apply_economy_lever(
+        out = apply_economy_lever(
             action,
             world,
             ledger=self._energy,
@@ -177,6 +177,10 @@ class Artisan(Agent):
             metrics=self._metrics,
             replacement_thought=_ECONOMY_REPLACEMENT_THOUGHT,
         )
+        # Economy-only substitution signal for Gate 9 (kept separate from the
+        # diversity/engagement overrides that also change the verb).
+        self._verb_trace["economy_substituted"] = out.action != action.action
+        return out
 
     def _maybe_enforce_engagement(self, action: Action, world: WorldContext) -> Action:
         """Layer-G slice 3 (R2.b): if the runtime set ``required_target``
