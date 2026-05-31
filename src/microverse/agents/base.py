@@ -30,6 +30,7 @@ from microverse.world.workshop import WIPView
 
 if TYPE_CHECKING:
     from microverse.ops.metrics import Metrics
+    from microverse.world.economy import EnergyLedger
     from microverse.world.workshop import WorkshopProjection
 
 
@@ -404,6 +405,14 @@ class WorldContext:
     # on #38 flagged the string-parse round-trip as brittle).
     novelty_dominant_verb: str = ""
     novelty_suggested_verb: str = ""
+    # ADR 0008 spike: one-line scarcity signal, mirroring ``novelty_hint``.
+    # Empty when the action economy is off (so flag-off prompts are
+    # byte-identical) or when reserves are ample. When the agent's energy is
+    # low it names the role's cheap specialty and the verbs that are currently
+    # out of reach, so the model can choose affordably ON ITS OWN — the
+    # perception channel without which the economy could only ever FORCE
+    # diversity at the executor, never move the model's chosen verbs.
+    energy_hint: str = ""
     # v1.1 (ADR 0007 Phase 1, Pillar 1): the agent's persistent
     # self-record — static traits, a derived relationship ledger, and a
     # periodically summarized beliefs line. The EXPLICIT Path-3 carve-out
@@ -431,10 +440,28 @@ class Agent(abc.ABC):
         # can hard-fold contributes targeting a complete WIP. Defaults
         # to None for tests that construct an agent without a workshop.
         self._workshop: WorkshopProjection | None = None
+        # ADR 0008 spike: the run loop attaches a shared EnergyLedger ONLY in
+        # economy modes that include substitution. None => the economy lever
+        # is a no-op in think() (flag off, throttle-only mode, or a test that
+        # does not attach), so think() reproduces pre-spike behavior exactly.
+        self._energy: EnergyLedger | None = None
+        # ADR 0008 spike telemetry the run loop stamps onto the committed
+        # payload (Gate 9): ``parsed_verb`` (the rawest model choice, before any
+        # lever — the CHOSEN stream) and ``economy_substituted`` (bool: did the
+        # economy lever rewrite the verb — the economy-ONLY substitution signal,
+        # so Gate 9 need not conflate it with diversity/engagement/fold
+        # overrides). Empty until think() runs.
+        self._verb_trace: dict[str, object] = {}
 
     def attach_workshop(self, workshop: WorkshopProjection) -> None:
         """Bind a WorkshopProjection for the v0.3 validator hard-fold."""
         self._workshop = workshop
+
+    def attach_energy(self, ledger: EnergyLedger) -> None:
+        """Bind the shared EnergyLedger so ``think()`` applies the economy
+        substitution lever (ADR 0008 spike). Only called by the run loop in
+        substitution-enabled economy modes."""
+        self._energy = ledger
 
     def tempo(self) -> float:
         """Seconds to sleep after this agent's tick. Override per role."""
@@ -487,6 +514,60 @@ def apply_diversity_lever(
     if rng.random() >= probability:
         return action
     metrics.bump("diversity_lever_substituted", agent=agent_name)
+    new_target: str | None = None
+    if target_verb == ActionKind.SPEAK and world.peers_today:
+        new_target = rng.choice(world.peers_today)
+    return action.model_copy(
+        update={
+            "thought": replacement_thought,
+            "action": target_verb,
+            "target": new_target,
+            "artifact": None,
+            "contribute_to": None,
+        }
+    )
+
+
+# Action-economy lever (re-diagnosis spike — ADR 0008). Sibling of
+# ``apply_diversity_lever``: a HARD substitution (not a probabilistic nudge)
+# when the LLM picks a verb the agent cannot pay for. The substitution target
+# is the cheapest affordable PRODUCTIVE verb (never ``contribute`` — cannot
+# fabricate a WIP + fragment; ``rest`` only as a last resort so the lever
+# drives specialization rather than collapsing onto rest).
+def apply_economy_lever(
+    action: Action,
+    world: WorldContext,
+    *,
+    ledger: EnergyLedger,
+    role: str,
+    agent_name: str,
+    rng: Any,
+    metrics: Metrics,
+    replacement_thought: str,
+) -> Action:
+    """Substitute an unaffordable verb for an affordable one. Returns the
+    action unchanged when:
+
+    - the call is inside a scene turn (``world.scene_wip_name`` set) — the
+      forced ``contribute`` must survive or ``SceneRunner`` aborts the scene;
+    - the parsed action is a fallback REST (empty thought) — the
+      ``json_fallback_rest`` watchdog signal must propagate;
+    - the chosen verb is already affordable;
+    - or the substitution would be a no-op (already the target verb).
+
+    Bumps ``economy_verb_substituted{agent}`` only when it changes the verb.
+    """
+    if world.scene_wip_name:
+        return action
+    is_fallback_rest = action.action == ActionKind.REST and not action.thought
+    if is_fallback_rest:
+        return action
+    if ledger.can_afford(agent_name, role, action.action.value):
+        return action
+    target_verb = ActionKind(ledger.resolve_executed_verb(agent_name, role, action.action.value))
+    if target_verb == action.action:
+        return action
+    metrics.bump("economy_verb_substituted", agent=agent_name)
     new_target: str | None = None
     if target_verb == ActionKind.SPEAK and world.peers_today:
         new_target = rng.choice(world.peers_today)

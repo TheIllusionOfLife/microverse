@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import sqlite3
 import statistics
@@ -47,6 +48,11 @@ import sys
 from collections import Counter, defaultdict
 from collections.abc import Iterable
 from pathlib import Path
+
+# Six free-choice verbs (ADR 0008 spike measurement). Gate 9 measures the
+# shape of the verb economy; namespaced events (scene.open, weather.*) and
+# the world/harvester/scene pseudo-actors are excluded.
+_VERBS: tuple[str, ...] = ("speak", "craft", "study", "rest", "travel", "contribute")
 
 # Local tokeniser to avoid pulling the package import (script is meant
 # to run standalone against arbitrary data dirs).
@@ -66,6 +72,195 @@ def _ngrams(tokens: Iterable[str], n: int) -> Iterable[tuple[str, ...]]:
     if len(buf) < n:
         return ()
     return (tuple(buf[i : i + n]) for i in range(len(buf) - n + 1))
+
+
+def _shannon_entropy_bits(counts: dict[str, int]) -> float:
+    total = sum(counts.values())
+    if total <= 0:
+        return 0.0
+    h = 0.0
+    for c in counts.values():
+        if c <= 0:
+            continue
+        p = c / total
+        h -= p * math.log2(p)
+    return h
+
+
+def _entropy_norm(counts: dict[str, int], *, k: int) -> float:
+    """Shannon entropy normalized to [0, 1] against ``k`` possible symbols."""
+    if k <= 1:
+        return 0.0
+    return _shannon_entropy_bits(counts) / math.log2(k)
+
+
+def _normalize(counter: Counter, verbs: Iterable[str]) -> dict[str, float]:
+    total = sum(counter.values())
+    if total <= 0:
+        return dict.fromkeys(verbs, 0.0)
+    return {v: counter.get(v, 0) / total for v in verbs}
+
+
+def _kl_bits(p: dict[str, float], q: dict[str, float]) -> float:
+    s = 0.0
+    for key, pk in p.items():
+        if pk <= 0:
+            continue
+        qk = q.get(key, 0.0)
+        if qk <= 0:  # never happens against the JSD mixture (M >= P/2)
+            continue
+        s += pk * math.log2(pk / qk)
+    return s
+
+
+def _jsd_bits(p: dict[str, float], q: dict[str, float]) -> float:
+    """Jensen-Shannon divergence (base 2) between two distributions. For two
+    distributions this lands in [0, 1]: 0 identical, 1 disjoint supports."""
+    keys = set(p) | set(q)
+    m = {k: 0.5 * (p.get(k, 0.0) + q.get(k, 0.0)) for k in keys}
+    return 0.5 * _kl_bits(p, m) + 0.5 * _kl_bits(q, m)
+
+
+def _multi_jsd(dists: list[dict[str, float]]) -> float:
+    """Cross-agent divergence normalized to [0, 1]. Pairwise for the 2-agent
+    roster (the headline case); generalized + normalized by log2(n) otherwise."""
+    n = len(dists)
+    if n < 2:
+        return 0.0
+    if n == 2:
+        return _jsd_bits(dists[0], dists[1])
+    keys = set().union(*(set(d) for d in dists))
+    m = {k: sum(d.get(k, 0.0) for d in dists) / n for k in keys}
+
+    def _entropy(d: dict[str, float]) -> float:
+        return -sum(v * math.log2(v) for v in d.values() if v > 0)
+
+    jsd = _entropy(m) - sum(_entropy(d) for d in dists) / n
+    return jsd / math.log2(n)
+
+
+def _diversity_block(by_agent: dict[str, Counter]) -> dict:
+    society: Counter = Counter()
+    for c in by_agent.values():
+        society.update(c)
+    society_counts = {v: int(n) for v, n in society.items()}
+    agents = sorted(by_agent)
+    dists = [_normalize(by_agent[a], _VERBS) for a in agents]
+    per_agent_top = {
+        a: (
+            round(max(by_agent[a].values()) / sum(by_agent[a].values()), 4)
+            if sum(by_agent[a].values())
+            else 0.0
+        )
+        for a in agents
+    }
+    return {
+        "society_counts": society_counts,
+        "society_entropy_bits": round(_shannon_entropy_bits(society_counts), 4),
+        "society_entropy_norm": round(_entropy_norm(society_counts, k=len(_VERBS)), 4),
+        "jsd_norm": round(_multi_jsd(dists), 4),
+        "n_agents": len(agents),
+        "per_agent_top_share": per_agent_top,
+    }
+
+
+def gate9_verb_diversity(
+    ep: sqlite3.Connection,
+    *,
+    entropy_norm_floor: float = 0.35,
+    jsd_norm_floor: float = 0.25,
+) -> dict:
+    """ADR 0008 re-diagnosis metric. Reports society verb entropy and
+    cross-agent JSD on BOTH the executed-verb stream and the model's CHOSEN
+    stream (``payload.parsed_verb``, falling back to the executed verb).
+
+    The CHOSEN stream is the headline: a positive read requires the model to
+    choose differently under economic pressure, not merely the executor to
+    override verbs (high ``substitution_rate`` with a flat chosen stream is a
+    forced-by-construction result, not emergent behavior).
+
+    Scope (review): only FREE verb choices count. Scene turns are forced
+    contributes (ADR 0006) and ``parse_action`` fallback RESTs are parse
+    failures, not choices — both are excluded (scene turns from both streams;
+    parse-fallback from the chosen stream) so neither inflates the diversity
+    signal. Scene volume is reported separately as ``scene_excluded``.
+
+    ``entropy_norm_floor`` defaults to 0.35: with the 2-agent roster two perfect
+    specialists over two verbs cap normalized society entropy at
+    ``log2(2)/log2(6) ≈ 0.387`` — the divergence we WANT — so a 0.55 floor would
+    reject the target outcome. JSD (cross-agent divergence) is the primary
+    signal; the entropy floor only certifies the society broke its single-verb
+    monoculture (baseline ≈ 0.2).
+    """
+    rows = list(
+        ep.execute(
+            "SELECT actor, action, payload_json FROM events "
+            "WHERE actor NOT IN ('world','harvester','scene')"
+        )
+    )
+    verbset = set(_VERBS)
+    exec_by_agent: dict[str, Counter] = defaultdict(Counter)
+    chosen_by_agent: dict[str, Counter] = defaultdict(Counter)
+    n_total = 0
+    n_sub = 0
+    n_econ_sub = 0
+    n_scene_excluded = 0
+    for r in rows:
+        executed = r["action"]
+        if executed not in verbset:
+            continue
+        payload = json.loads(r["payload_json"]) if r["payload_json"] else {}
+        # Forced scene contributes (ADR 0006) are not free choices: drop them
+        # from BOTH streams so scene volume can't swamp the free-choice signal.
+        if payload.get("scene_id"):
+            n_scene_excluded += 1
+            continue
+        actor = r["actor"]
+        exec_by_agent[actor][executed] += 1
+        n_total += 1
+        # Economy-ONLY substitution flag set by the agent's economy lever,
+        # distinct from the chosen!=executed total which also folds in
+        # diversity / engagement / validator overrides (Codex review).
+        if payload.get("economy_substituted"):
+            n_econ_sub += 1
+        # The CHOSEN (free-choice) stream excludes parse-fallback RESTs: a
+        # malformed payload folded to REST is a parse failure, not a verb the
+        # model freely chose, so it must not pollute chosen-verb diversity.
+        if payload.get("parse_fallback"):
+            continue
+        chosen = payload.get("parsed_verb") or executed
+        if chosen not in verbset:
+            chosen = executed
+        chosen_by_agent[actor][chosen] += 1
+        if chosen != executed:
+            n_sub += 1
+
+    executed_block = _diversity_block(exec_by_agent)
+    chosen_block = _diversity_block(chosen_by_agent)
+
+    exec_soc: Counter = Counter()
+    chosen_soc: Counter = Counter()
+    for c in exec_by_agent.values():
+        exec_soc.update(c)
+    for c in chosen_by_agent.values():
+        chosen_soc.update(c)
+    cxe = _jsd_bits(_normalize(exec_soc, _VERBS), _normalize(chosen_soc, _VERBS))
+
+    pass_entropy = chosen_block["society_entropy_norm"] >= entropy_norm_floor
+    pass_divergence = chosen_block["jsd_norm"] >= jsd_norm_floor
+    return {
+        "executed": executed_block,
+        "chosen": chosen_block,
+        "substitution_rate": round((n_sub / n_total) if n_total else 0.0, 4),
+        "economy_substitution_rate": round((n_econ_sub / n_total) if n_total else 0.0, 4),
+        "chosen_vs_executed_divergence": round(cxe, 4),
+        "scene_excluded": n_scene_excluded,
+        "entropy_norm_floor": entropy_norm_floor,
+        "jsd_norm_floor": jsd_norm_floor,
+        "pass_entropy": pass_entropy,
+        "pass_divergence": pass_divergence,
+        "pass": pass_entropy and pass_divergence,
+    }
 
 
 def _open_db(path: Path) -> sqlite3.Connection:
@@ -552,6 +747,7 @@ def main(argv: list[str]) -> int:
     g6 = gate6_acceptance_throughput(manifest, metrics)
     g7 = gate7_capacity_invariant(ep)
     g8 = gate8_scene_semantic_dependence(ep)
+    g9 = gate9_verb_diversity(ep)
 
     total_contributes = summarize_contribute_total(ep)
     g4_pass = (g4["fold_count"] / max(1, total_contributes)) < 0.01
@@ -575,6 +771,7 @@ def main(argv: list[str]) -> int:
         "gate_6_acceptance_throughput": g6,
         "gate_7_capacity_invariant": g7,
         "gate_8_scene_semantic_dependence": g8,
+        "gate_9_verb_diversity": g9,
     }
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0

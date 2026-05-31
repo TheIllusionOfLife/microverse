@@ -34,10 +34,12 @@ from microverse.agents.base import (
     Agent,
     WorldContext,
     apply_diversity_lever,
+    apply_economy_lever,
     parse_action,
 )
 from microverse.config import (
     ARTISAN_REST_STREAK_LIMIT,
+    DIVERSITY_SUBSTITUTE_PROB,
     LLM_MAX_TOKENS,
     LLM_TIMEOUT_S,
     SAMPLING_CREATIVE,
@@ -66,10 +68,14 @@ _EMPTY_CRAFT_REPLACEMENT_THOUGHT = (
 # disobeyed monologue to seed the next tick.
 _ENGAGEMENT_REPLACEMENT_THOUGHT = "I turn from my work to greet a neighbor."
 # Phase D: substitution probability when the LLM ignores novelty_hint
-# and re-emits the dominant verb. 0.30 ≈ 1-in-3, balanced between
-# "agent has agency" and "lever actually moves the share."
-_DIVERSIFY_PROB = 0.30
+# and re-emits the dominant verb. Promoted to config.DIVERSITY_SUBSTITUTE_PROB
+# (ADR 0008 spike) so the economy A/B can prove flag-off is a true no-op
+# without the diversity lever as a moving confound.
 _DIVERSITY_REPLACEMENT_THOUGHT = "I try something other than my usual rhythm today."
+# ADR 0008 spike: neutral replacement thought when the economy lever
+# substitutes an unaffordable verb. Like the F.2 / engagement thoughts it is
+# external-facing and never mentions energy/scarcity meta.
+_ECONOMY_REPLACEMENT_THOUGHT = "I turn to the work my hands have strength for today."
 
 
 class Artisan(Agent):
@@ -111,6 +117,17 @@ class Artisan(Agent):
             agent=self.name,
             workshop=self._workshop,
         )
+        # ADR 0008 spike telemetry: record the model's rawest verb choice
+        # before any lever runs, so the run loop can stamp it on the committed
+        # payload (Gate 9 chosen-vs-executed). Captured even when economy is
+        # off; the run loop only stamps it in substitution-enabled modes.
+        # ``parse_fallback`` flags a malformed/meta-leak/short-WIP payload that
+        # parse_action folded to a fallback REST (empty thought) — NOT a free
+        # verb choice, so Gate 9 drops it from the chosen-verb stream (review).
+        self._verb_trace = {
+            "parsed_verb": action.action.value,
+            "parse_fallback": action.action == ActionKind.REST and not action.thought,
+        }
         # F.2 must run BEFORE the rest rate-limiter: empty-craft is an
         # active tick that should reset the rest streak, not pass
         # through it as rest.
@@ -123,9 +140,20 @@ class Artisan(Agent):
         # vs LLM-chosen verbs. Skips when no hint is active (the
         # run-loop only sets novelty_hint above the dominance threshold).
         action = self._maybe_diversify(action, world)
+        # ADR 0008 spike: economy substitution runs AFTER diversity and BEFORE
+        # engagement, so an affordability override cannot defeat the engagement
+        # gate (which must win) and so the diversity lever's chosen verb is
+        # what gets affordability-checked.
+        economy_out = self._maybe_apply_economy(action, world)
         # Engagement gate runs LAST so it overrides any earlier coercion
         # (e.g. the rest rate-limiter picking a different peer).
-        return self._maybe_enforce_engagement(action, world)
+        final = self._maybe_enforce_engagement(economy_out, world)
+        # If engagement overrode the economy verb afterward, the committed verb
+        # is not the economy's — don't credit Gate 9's economy_substitution_rate
+        # for a substitution that never reached the log (review).
+        if final.action != economy_out.action:
+            self._verb_trace["economy_substituted"] = False
+        return final
 
     def _maybe_diversify(self, action: Action, world: WorldContext) -> Action:
         """Phase D Step 2 — delegate to the shared helper. The lever
@@ -140,8 +168,31 @@ class Artisan(Agent):
             metrics=self._metrics,
             agent_name=self.name,
             replacement_thought=_DIVERSITY_REPLACEMENT_THOUGHT,
-            probability=_DIVERSIFY_PROB,
+            probability=DIVERSITY_SUBSTITUTE_PROB,
         )
+
+    def _maybe_apply_economy(self, action: Action, world: WorldContext) -> Action:
+        """ADR 0008 spike: hard-substitute an unaffordable verb. No-op when no
+        EnergyLedger is attached (economy off / throttle-only mode / a test
+        that does not attach). See ``base.apply_economy_lever`` for the
+        contract (skips scene turns and fallback-rest; never produces
+        contribute)."""
+        if self._energy is None:
+            return action
+        out = apply_economy_lever(
+            action,
+            world,
+            ledger=self._energy,
+            role=self.role,
+            agent_name=self.name,
+            rng=self._rng,
+            metrics=self._metrics,
+            replacement_thought=_ECONOMY_REPLACEMENT_THOUGHT,
+        )
+        # Economy-only substitution signal for Gate 9 (kept separate from the
+        # diversity/engagement overrides that also change the verb).
+        self._verb_trace["economy_substituted"] = out.action != action.action
+        return out
 
     def _maybe_enforce_engagement(self, action: Action, world: WorldContext) -> Action:
         """Layer-G slice 3 (R2.b): if the runtime set ``required_target``
