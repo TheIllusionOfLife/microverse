@@ -85,6 +85,34 @@ def test_synthetic_always_contribute_single_agent_throttled():
     assert out["substitution_rate"] > 0.0
 
 
+def test_synthetic_respects_energy_overrides():
+    # The override knobs must thread through to the ledger so the Stage-1 sweep
+    # can find throttling numbers without editing config. Same 2-agent
+    # always-contribute policy + seed: a generous regen sustains it (not
+    # throttled), a tight regen drains it (throttled).
+    roster = (("Aki", "artisan"), ("Cy", "scholar"))
+    generous = replay_economy.synthetic_run(
+        "always-contribute",
+        n_ticks=400,
+        roster=roster,
+        cost_table=VERB_COST_BY_ROLE,
+        seed=42,
+        max_energy=100.0,
+        regen_per_tick=12.0,
+    )
+    tight = replay_economy.synthetic_run(
+        "always-contribute",
+        n_ticks=400,
+        roster=roster,
+        cost_table=VERB_COST_BY_ROLE,
+        seed=42,
+        max_energy=100.0,
+        regen_per_tick=8.0,
+    )
+    assert generous["substitution_rate"] == 0.0
+    assert tight["substitution_rate"] > 0.0
+
+
 def test_synthetic_role_biased_diversifies():
     out = replay_economy.synthetic_run(
         "role-biased",
