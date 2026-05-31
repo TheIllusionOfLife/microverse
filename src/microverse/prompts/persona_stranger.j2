@@ -51,6 +51,9 @@ You are opening the scene; write the first fragment.
 {% if world.novelty_hint -%}
 {{ world.novelty_hint }}
 {% endif %}
+{% if world.energy_hint -%}
+{{ world.energy_hint }}
+{% endif %}
 
 # Your task this tick
 Decide ONE action. Output STRICT JSON with exactly these keys:

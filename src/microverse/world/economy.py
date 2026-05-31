@@ -129,6 +129,27 @@ class EnergyLedger:
     def affordable_verbs(self, name: str, role: str, candidates: Iterable[str]) -> list[str]:
         return [v for v in candidates if self.can_afford(name, role, v)]
 
+    def reconstruct_from_events(self, events: Iterable[tuple[str, str, str]]) -> None:
+        """Approximate restart reconstruction from the WAL (Codex #5).
+
+        Energy is never persisted, so a naive restart resets every pool to
+        ``max_energy`` and an interrupted economy-on run would diverge from an
+        uninterrupted one. To keep restart behavior WAL-derived and
+        deterministic, replay committed agent actions in chronological order,
+        regen-then-deduct per actor event.
+
+        This is intentionally APPROXIMATE: whole-roster per-tick regen is
+        collapsed to per-own-action regen, so bit-equality across restart is
+        NOT guaranteed (energy is a soft scheduling signal, not a durability
+        boundary — the WAL remains the only durability contract). ADR 0009
+        records that economy-on runs are not bit-identical across restart.
+
+        ``events`` yields ``(actor, role, verb)`` tuples oldest-first.
+        """
+        for actor, role, verb in events:
+            self.regen(actor)
+            self.deduct(actor, role, verb)
+
     def cheapest_affordable_productive(self, name: str, role: str) -> str | None:
         """The cheapest affordable verb that is neither ``contribute`` nor
         ``rest`` (the substitution target), or ``None`` if the agent can

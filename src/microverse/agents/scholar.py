@@ -29,9 +29,15 @@ from microverse.agents.base import (
     Agent,
     WorldContext,
     apply_diversity_lever,
+    apply_economy_lever,
     parse_action,
 )
-from microverse.config import LLM_MAX_TOKENS, LLM_TIMEOUT_S, SAMPLING_FACTUAL
+from microverse.config import (
+    DIVERSITY_SUBSTITUTE_PROB,
+    LLM_MAX_TOKENS,
+    LLM_TIMEOUT_S,
+    SAMPLING_FACTUAL,
+)
 from microverse.llm.ollama_client import chat
 from microverse.ops.metrics import Metrics
 from microverse.prompts import render
@@ -39,9 +45,11 @@ from microverse.prompts import render
 _PERSONA_TEMPLATE = "persona_scholar.j2"
 
 _ENGAGEMENT_REPLACEMENT_THOUGHT = "I set my notes aside to greet a neighbor."
-# Phase D: mirror Artisan's substitution constants for scholar.
-_DIVERSIFY_PROB = 0.30
+# Phase D: mirror Artisan's substitution constants for scholar. The
+# probability is now config.DIVERSITY_SUBSTITUTE_PROB (ADR 0008 spike).
 _DIVERSITY_REPLACEMENT_THOUGHT = "I try a different rhythm today."
+# ADR 0008 spike: neutral replacement thought for economy substitution.
+_ECONOMY_REPLACEMENT_THOUGHT = "I turn to the work I have the focus for today."
 
 
 class Scholar(Agent):
@@ -79,7 +87,10 @@ class Scholar(Agent):
             agent=self.name,
             workshop=self._workshop,
         )
+        # ADR 0008 spike telemetry: rawest verb choice before any lever.
+        self._verb_trace = {"parsed_verb": action.action.value}
         action = self._maybe_diversify(action, world)
+        action = self._maybe_apply_economy(action, world)
         return self._maybe_enforce_engagement(action, world)
 
     def _maybe_diversify(self, action: Action, world: WorldContext) -> Action:
@@ -92,7 +103,23 @@ class Scholar(Agent):
             metrics=self._metrics,
             agent_name=self.name,
             replacement_thought=_DIVERSITY_REPLACEMENT_THOUGHT,
-            probability=_DIVERSIFY_PROB,
+            probability=DIVERSITY_SUBSTITUTE_PROB,
+        )
+
+    def _maybe_apply_economy(self, action: Action, world: WorldContext) -> Action:
+        """ADR 0008 spike: hard-substitute an unaffordable verb. No-op when no
+        EnergyLedger is attached. See ``base.apply_economy_lever``."""
+        if self._energy is None:
+            return action
+        return apply_economy_lever(
+            action,
+            world,
+            ledger=self._energy,
+            role=self.role,
+            agent_name=self.name,
+            rng=self._rng,
+            metrics=self._metrics,
+            replacement_thought=_ECONOMY_REPLACEMENT_THOUGHT,
         )
 
     def _maybe_enforce_engagement(self, action: Action, world: WorldContext) -> Action:

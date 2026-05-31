@@ -38,7 +38,7 @@ import signal
 import sys
 import time
 from collections import Counter
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import ExitStack
 from pathlib import Path
 
@@ -56,6 +56,7 @@ from microverse.memory.semantic import SemanticMemory
 from microverse.ops.metrics import Metrics
 from microverse.ops.watchdog import Watchdog
 from microverse.world.clock import WorldClock
+from microverse.world.economy import EnergyLedger, build_cost_table
 from microverse.world.relationships import derive_relationships
 from microverse.world.scene import SceneRunner
 from microverse.world.scheduler import WeightedScheduler
@@ -286,6 +287,50 @@ def _compute_novelty_hint(episodic: EpisodicMemory, agent: Agent) -> tuple[str, 
     return (hint, top_verb, suggested)
 
 
+def _compute_energy_hint(energy: EnergyLedger | None, agent: Agent) -> str:
+    """ADR 0008 spike: one-line scarcity signal for the persona, mirroring
+    ``novelty_hint``. Empty when the economy is off (so flag-off prompts are
+    byte-identical) or when reserves are ample. When some productive verbs are
+    unaffordable it names the verbs out of reach and the verb that still comes
+    easily (the role's cheap specialty under the role-advantage table; a stable
+    tie under the flat control), so the model can choose affordably on its own
+    — the perception channel that lets the CHOSEN-verb stream actually move.
+    """
+    if energy is None:
+        return ""
+    productive = ["speak", "craft", "study", "travel", "contribute"]
+    unaffordable = [v for v in productive if not energy.can_afford(agent.name, agent.role, v)]
+    if not unaffordable:
+        return ""
+    cheapest = energy.cheapest_affordable_productive(agent.name, agent.role)
+    out_of_reach = ", ".join(unaffordable)
+    if cheapest:
+        return (
+            f"Your reserves are low: {out_of_reach} feel out of reach right now, "
+            f"but {cheapest} still comes easily."
+        )
+    return f"Your reserves are spent; rest before attempting {out_of_reach}."
+
+
+def _replay_energy_events(episodic: EpisodicMemory) -> list[tuple[str, str, str]]:
+    """Chronological ``(actor, role, verb)`` for committed agent actions, used
+    to reconstruct the EnergyLedger on restart (ADR 0008 spike). Role is read
+    from each event's payload (written by ``_commit_action``); world/scene/
+    harvester pseudo-actors and namespaced events are skipped. Best-effort and
+    approximate — see ``EnergyLedger.reconstruct_from_events``."""
+    verbset = {k.value for k in ActionKind}
+    rows = episodic.last(episodic.count())
+    rows.reverse()  # episodic.last is newest-first; flip to chronological
+    out: list[tuple[str, str, str]] = []
+    for ev in rows:
+        if ev.actor in ("world", "scene", "harvester") or ev.action not in verbset:
+            continue
+        role = str(ev.payload.get("role", ""))
+        if role:
+            out.append((ev.actor, role, ev.action))
+    return out
+
+
 class _RelationshipLedgerCache:
     """Throttle full-history relationship derivation.
 
@@ -425,6 +470,7 @@ def _build_per_tick_world_base(
     novelty_hint: str = "",
     novelty_dominant_verb: str = "",
     novelty_suggested_verb: str = "",
+    energy_hint: str = "",
     self_view: SelfView | None = None,
 ) -> WorldContext:
     """Assemble the per-tick ``world_base`` for ``build_context``.
@@ -460,6 +506,7 @@ def _build_per_tick_world_base(
         novelty_hint=novelty_hint,
         novelty_dominant_verb=novelty_dominant_verb,
         novelty_suggested_verb=novelty_suggested_verb,
+        energy_hint=energy_hint,
         self_view=self_view if self_view is not None else SelfView(),
     )
 
@@ -470,6 +517,7 @@ def _commit_action(
     action: Action,
     *,
     workshop: WorkshopProjection | None = None,
+    extra_payload: Mapping[str, object] | None = None,
 ) -> int:
     """Append the action to the episodic log and, when it is a
     workshop ``contribute``, mirror it into the WorkshopProjection.
@@ -478,12 +526,18 @@ def _commit_action(
     projection reads (and that the workshop view renders); the
     episodic event also records ``thought`` and ``artifact`` for
     parity with other actions so the audit trail is identical.
+
+    ``extra_payload`` merges additional keys (ADR 0008 spike telemetry —
+    ``parsed_verb``). The run loop passes it only in substitution-enabled
+    economy modes, so a flag-off run writes a byte-identical payload.
     """
     payload: dict[str, object] = {
         "thought": action.thought,
         "artifact": action.artifact,
         "role": agent.role,
     }
+    if extra_payload:
+        payload.update(extra_payload)
     target: str | None = action.target
     if action.action == ActionKind.CONTRIBUTE:
         # contribute_to is the workshop WIP name; target on episodic
@@ -680,6 +734,27 @@ def run(
         # Trader scheduling is internal — it ranks the buffer at flush time,
         # not as a tick action. We don't register it in the scheduler.
 
+        # ADR 0008 spike: the shared action-economy ledger. Constructed only
+        # when the economy is enabled (mode != "0"); otherwise None, so every
+        # deduct/regen/scene-gate/substitution site below is a no-op and the
+        # run reproduces pre-spike behavior exactly. Reconstructed from the WAL
+        # so a restart approximates an uninterrupted run (energy is never
+        # persisted; the WAL stays the durability boundary). Attached to agents
+        # for the substitution lever only in substitution-enabled modes; the
+        # scene gate uses ``energy`` directly regardless.
+        energy: EnergyLedger | None = None
+        if config.ECONOMY_ENABLED:
+            energy = EnergyLedger.fresh(
+                [a.name for a in sched.agents],
+                max_energy=config.ENERGY_MAX,
+                regen_per_tick=config.ENERGY_REGEN_PER_TICK,
+                cost_table=build_cost_table(config.ECONOMY_MODE),
+            )
+            energy.reconstruct_from_events(_replay_energy_events(episodic))
+            if config._ECONOMY_SUBSTITUTE:
+                for agent in sched.agents:
+                    agent.attach_energy(energy)
+
         # v1.1: throttle-cache for the full-history relationship ledger so
         # it is not recomputed from scratch on every agent on every tick.
         rel_ledger = _RelationshipLedgerCache(episodic, refresh_events=REL_LEDGER_REFRESH_EVENTS)
@@ -825,6 +900,7 @@ def run(
                 novelty_hint=novelty_hint,
                 novelty_dominant_verb=novelty_dominant_verb,
                 novelty_suggested_verb=novelty_suggested_verb,
+                energy_hint=_compute_energy_hint(energy, agent),
                 self_view=_build_self_view(
                     episodic,
                     agent,
@@ -855,10 +931,22 @@ def run(
                 (w for w in workshop.wips() if w.phase != "complete"),
                 None,
             )
+            # ADR 0008 spike: in scene-gate economy modes (1/flat/throttle) an
+            # agent can only OPEN a scene if it can afford a contribute. This
+            # is the only economy interaction with scenes — evaluated BEFORE
+            # any scene.open is emitted, so there are no partial/orphaned
+            # scenes and the ADR 0006 scene contract is untouched. The three
+            # scene contributes are paid at commit, never substituted.
+            scene_energy_ok = (
+                energy is None
+                or not config._ECONOMY_SCENE_GATE
+                or energy.can_afford(agent.name, agent.role, "contribute")
+            )
             scene_eligible = (
                 config.SCENE_GATE_P > 0
                 and open_wip is not None
                 and len(other_peers) >= config.SCENE_MIN_PEERS
+                and scene_energy_ok
                 and rng.random() < config.SCENE_GATE_P
             )
             if scene_eligible and open_wip is not None:
@@ -884,6 +972,7 @@ def run(
                         engagement_hint="",
                         required_target=None,
                         metrics=metrics,
+                        energy_hint=_compute_energy_hint(energy, agent),
                         self_view=_build_self_view(
                             episodic,
                             agent,
@@ -913,6 +1002,11 @@ def run(
 
                 def _scene_commit(a: Agent, act: Action) -> None:
                     _commit_action(episodic, a, act, workshop=workshop)
+                    # ADR 0008 spike: the scene's forced contributes are paid
+                    # here (never substituted). No telemetry stamped: a scene
+                    # turn is a forced contribute, so parsed == executed.
+                    if energy is not None:
+                        energy.deduct(a.name, a.role, act.action.value)
                     if act.action == ActionKind.CONTRIBUTE and act.contribute_to:
                         wip_target_counts[act.contribute_to] += 1
                     _maybe_harvest(harvester, a, act)
@@ -933,6 +1027,11 @@ def run(
                 metrics.reset("consecutive_fail", agent=agent.name)
                 deadlock_breaks_since_success = 0
                 executed += 1
+                # ADR 0008 spike: whole-roster regen once per tick (fair across
+                # the scheduler's weighting; non-acting agents also recover).
+                if energy is not None:
+                    for a in sched.agents:
+                        energy.regen(a.name)
                 # Skip single-tick path for this tick.
                 # World clock + watchdog still run per-tick below via
                 # the shared trailing block.
@@ -1006,7 +1105,19 @@ def run(
                 continue
             metrics.reset("consecutive_fail", agent=agent.name)
             deadlock_breaks_since_success = 0
-            _commit_action(episodic, agent, action, workshop=workshop)
+            # ADR 0008 spike: stamp the model's pre-economy verb so Gate 9 can
+            # compare CHOSEN vs EXECUTED. Stamped ONLY in substitution-enabled
+            # modes, so a flag-off run writes a byte-identical payload.
+            extra_payload = (
+                dict(agent._verb_trace)
+                if (energy is not None and config._ECONOMY_SUBSTITUTE)
+                else None
+            )
+            _commit_action(
+                episodic, agent, action, workshop=workshop, extra_payload=extra_payload
+            )
+            if energy is not None:
+                energy.deduct(agent.name, agent.role, action.action.value)
             if action.action == ActionKind.CONTRIBUTE and action.contribute_to:
                 wip_target_counts[action.contribute_to] += 1
             _maybe_harvest(harvester, agent, action)
@@ -1016,6 +1127,10 @@ def run(
             # ``EpisodicMemory.append`` default-ts contract.
             last_tick_ts[agent.name] = time.time()
             executed += 1
+            # ADR 0008 spike: whole-roster regen once per tick.
+            if energy is not None:
+                for a in sched.agents:
+                    energy.regen(a.name)
 
             # World clock + watchdog: cheap, run every tick / every Nth.
             _safe("WorldClock.advance", lambda: clock.advance(episodic, ticks_elapsed=1))

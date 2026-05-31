@@ -405,6 +405,14 @@ class WorldContext:
     # on #38 flagged the string-parse round-trip as brittle).
     novelty_dominant_verb: str = ""
     novelty_suggested_verb: str = ""
+    # ADR 0008 spike: one-line scarcity signal, mirroring ``novelty_hint``.
+    # Empty when the action economy is off (so flag-off prompts are
+    # byte-identical) or when reserves are ample. When the agent's energy is
+    # low it names the role's cheap specialty and the verbs that are currently
+    # out of reach, so the model can choose affordably ON ITS OWN — the
+    # perception channel without which the economy could only ever FORCE
+    # diversity at the executor, never move the model's chosen verbs.
+    energy_hint: str = ""
     # v1.1 (ADR 0007 Phase 1, Pillar 1): the agent's persistent
     # self-record — static traits, a derived relationship ledger, and a
     # periodically summarized beliefs line. The EXPLICIT Path-3 carve-out
@@ -432,10 +440,26 @@ class Agent(abc.ABC):
         # can hard-fold contributes targeting a complete WIP. Defaults
         # to None for tests that construct an agent without a workshop.
         self._workshop: WorkshopProjection | None = None
+        # ADR 0008 spike: the run loop attaches a shared EnergyLedger ONLY in
+        # economy modes that include substitution. None => the economy lever
+        # is a no-op in think() (flag off, throttle-only mode, or a test that
+        # does not attach), so think() reproduces pre-spike behavior exactly.
+        self._energy: EnergyLedger | None = None
+        # ADR 0008 spike telemetry: the verb the model chose this tick before
+        # the economy lever ran (the rawest parse result). The run loop reads
+        # this when stamping the committed payload so Gate 9 can compare the
+        # CHOSEN stream against the EXECUTED stream. Empty until think() runs.
+        self._verb_trace: dict[str, str] = {}
 
     def attach_workshop(self, workshop: WorkshopProjection) -> None:
         """Bind a WorkshopProjection for the v0.3 validator hard-fold."""
         self._workshop = workshop
+
+    def attach_energy(self, ledger: EnergyLedger) -> None:
+        """Bind the shared EnergyLedger so ``think()`` applies the economy
+        substitution lever (ADR 0008 spike). Only called by the run loop in
+        substitution-enabled economy modes."""
+        self._energy = ledger
 
     def tempo(self) -> float:
         """Seconds to sleep after this agent's tick. Override per role."""
