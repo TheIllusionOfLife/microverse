@@ -562,8 +562,7 @@ def apply_economy_lever(
         return action
     if ledger.can_afford(agent_name, role, action.action.value):
         return action
-    cheapest = ledger.cheapest_affordable_productive(agent_name, role)
-    target_verb = ActionKind(cheapest) if cheapest is not None else ActionKind.REST
+    target_verb = ActionKind(ledger.resolve_executed_verb(agent_name, role, action.action.value))
     if target_verb == action.action:
         return action
     metrics.bump("economy_verb_substituted", agent=agent_name)

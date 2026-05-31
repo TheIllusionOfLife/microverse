@@ -119,3 +119,42 @@ def test_build_cost_table_selects_by_mode():
     assert build_cost_table("sub") == VERB_COST_BY_ROLE
     assert build_cost_table("throttle") == VERB_COST_BY_ROLE
     assert build_cost_table("flat") == derive_flat_table(VERB_COST_BY_ROLE)
+
+
+def _events(n: int) -> list[tuple[str, str, str]]:
+    seq = [
+        ("Aki", "artisan", "contribute"),
+        ("Cy", "scholar", "study"),
+        ("Aki", "artisan", "craft"),
+    ]
+    return seq * n
+
+
+def test_reconstruct_from_events_is_deterministic():
+    a = EnergyLedger.fresh(
+        ["Aki", "Cy"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
+    )
+    b = EnergyLedger.fresh(
+        ["Aki", "Cy"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
+    )
+    a.reconstruct_from_events(_events(5))
+    b.reconstruct_from_events(_events(5))
+    assert a.current("Aki") == b.current("Aki")
+    assert a.current("Cy") == b.current("Cy")
+
+
+def test_reconstruct_reflects_costly_activity():
+    led = EnergyLedger.fresh(
+        ["Aki"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
+    )
+    led.reconstruct_from_events([("Aki", "artisan", "contribute")] * 20)  # 22 > 12 regen
+    assert led.current("Aki") < 100.0  # restart is WAL-derived, not reset-to-full
+
+
+def test_resolve_executed_verb_passes_affordable_and_substitutes_drained():
+    led = EnergyLedger.fresh(
+        ["Aki"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
+    )
+    assert led.resolve_executed_verb("Aki", "artisan", "study") == "study"  # affordable
+    led._pool["Aki"] = 8.0  # affords craft(6) but not study(14)
+    assert led.resolve_executed_verb("Aki", "artisan", "study") == "craft"

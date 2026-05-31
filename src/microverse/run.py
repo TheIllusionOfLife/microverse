@@ -1113,9 +1113,7 @@ def run(
                 if (energy is not None and config._ECONOMY_SUBSTITUTE)
                 else None
             )
-            _commit_action(
-                episodic, agent, action, workshop=workshop, extra_payload=extra_payload
-            )
+            _commit_action(episodic, agent, action, workshop=workshop, extra_payload=extra_payload)
             if energy is not None:
                 energy.deduct(agent.name, agent.role, action.action.value)
             if action.action == ActionKind.CONTRIBUTE and action.contribute_to:

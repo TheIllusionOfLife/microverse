@@ -147,8 +147,11 @@ def _diversity_block(by_agent: dict[str, Counter]) -> dict:
     agents = sorted(by_agent)
     dists = [_normalize(by_agent[a], _VERBS) for a in agents]
     per_agent_top = {
-        a: (round(max(by_agent[a].values()) / sum(by_agent[a].values()), 4)
-            if sum(by_agent[a].values()) else 0.0)
+        a: (
+            round(max(by_agent[a].values()) / sum(by_agent[a].values()), 4)
+            if sum(by_agent[a].values())
+            else 0.0
+        )
         for a in agents
     }
     return {

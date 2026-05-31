@@ -165,3 +165,14 @@ class EnergyLedger:
         if not affordable:
             return None
         return min(affordable, key=lambda v: (self.cost(role, v), order.index(v)))
+
+    def resolve_executed_verb(self, name: str, role: str, chosen_verb: str) -> str:
+        """Verb-level core of the economy lever, shared with the offline
+        replay/simulator (``scripts/replay_economy.py``) so Stage-0/1 estimates
+        match live behavior exactly. Returns ``chosen_verb`` when affordable;
+        otherwise the cheapest affordable productive verb, or ``"rest"`` if
+        even that is out of reach. Never substitutes toward ``contribute``."""
+        if self.can_afford(name, role, chosen_verb):
+            return chosen_verb
+        cheapest = self.cheapest_affordable_productive(name, role)
+        return cheapest if cheapest is not None else "rest"

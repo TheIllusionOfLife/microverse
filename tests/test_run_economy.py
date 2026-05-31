@@ -108,6 +108,24 @@ def test_scene_gate_blocked_when_initiator_cannot_afford_contribute(tmp_path: Pa
     assert "scene.open" not in actions
 
 
+def test_flag_off_run_is_deterministic(tmp_path: Path):
+    """Two economy-off runs with the same seed + mocked chat commit an
+    identical event stream, confirming the flag-off path adds no rng
+    perturbation. The diversity lever is disabled because it draws from an
+    unseeded per-agent rng (pre-existing, unrelated to the economy) which would
+    otherwise make any two runs differ."""
+
+    def _run_once(d: Path) -> list[tuple[str, str]]:
+        with (
+            patch("microverse.agents.artisan.DIVERSITY_SUBSTITUTE_PROB", 0.0),
+            patch("microverse.agents.artisan.chat", return_value=_study_only()),
+        ):
+            run(ticks=10, seed=5, tempo=0, data_dir=d, harvest_dir=d / "h", solo=True)
+        return _events(d)
+
+    assert _run_once(tmp_path / "a") == _run_once(tmp_path / "b")
+
+
 def test_scene_fires_when_affordable(tmp_path: Path):
     """Same forced scene roll, but ample energy: scenes DO open (scene.open
     present), confirming the gate only blocks on the energy precondition."""

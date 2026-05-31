@@ -59,6 +59,7 @@ ignore = []
 "scripts/render_dashboard.py" = ["T20"]
 "scripts/spike_workshop_measure.py" = ["T20"]
 "scripts/verify_kill_drill.py" = ["T20"]
+"scripts/replay_economy.py" = ["T20"]
 
 [tool.mypy]
 python_version = "3.12"

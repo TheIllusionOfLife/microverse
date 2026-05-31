@@ -248,12 +248,30 @@ ENERGY_REGEN_PER_TICK: float = 12.0
 # (always affordable — the energy analog of the scheduler's
 # ``max(soul_tokens, 1)`` floor, so the system can never deadlock on energy).
 VERB_COST_BY_ROLE: dict[str, dict[str, float]] = {
-    "artisan": {"craft": 6.0, "study": 14.0, "speak": 16.0, "travel": 18.0,
-                "rest": 0.0, "contribute": 22.0},
-    "scholar": {"study": 6.0, "speak": 10.0, "craft": 18.0, "travel": 16.0,
-                "rest": 0.0, "contribute": 14.0},
-    "stranger": {"travel": 6.0, "speak": 10.0, "study": 12.0, "craft": 16.0,
-                 "rest": 0.0, "contribute": 18.0},
+    "artisan": {
+        "craft": 6.0,
+        "study": 14.0,
+        "speak": 16.0,
+        "travel": 18.0,
+        "rest": 0.0,
+        "contribute": 22.0,
+    },
+    "scholar": {
+        "study": 6.0,
+        "speak": 10.0,
+        "craft": 18.0,
+        "travel": 16.0,
+        "rest": 0.0,
+        "contribute": 14.0,
+    },
+    "stranger": {
+        "travel": 6.0,
+        "speak": 10.0,
+        "study": 12.0,
+        "craft": 16.0,
+        "rest": 0.0,
+        "contribute": 18.0,
+    },
 }
 
 # Phase D diversity-lever substitution probability, promoted out of the
