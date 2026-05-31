@@ -38,7 +38,7 @@ import signal
 import sys
 import time
 from collections import Counter
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import ExitStack
 from pathlib import Path
 
@@ -330,23 +330,21 @@ def _lazy_attach_energy(agent: Agent, energy: EnergyLedger | None) -> None:
         agent.attach_energy(energy)
 
 
-def _replay_energy_events(episodic: EpisodicMemory) -> list[tuple[str, str, str]]:
-    """Chronological ``(actor, role, verb)`` for committed agent actions, used
-    to reconstruct the EnergyLedger on restart (ADR 0008 spike). Role is read
-    from each event's payload (written by ``_commit_action``); world/scene/
-    harvester pseudo-actors and namespaced events are skipped. Best-effort and
-    approximate — see ``EnergyLedger.reconstruct_from_events``."""
+def _replay_energy_events(episodic: EpisodicMemory) -> Iterator[tuple[str, str, str]]:
+    """Stream chronological ``(actor, role, verb)`` for committed agent actions,
+    used to reconstruct the EnergyLedger on restart (ADR 0008 spike). Role is
+    read from each event's payload (written by ``_commit_action``); world/scene/
+    harvester pseudo-actors and namespaced events are skipped. A generator over
+    ``iter_chronological`` so a multi-week log is never fully materialized in
+    memory (review). Best-effort and approximate — see
+    ``EnergyLedger.reconstruct_from_events``."""
     verbset = {k.value for k in ActionKind}
-    rows = episodic.last(episodic.count())
-    rows.reverse()  # episodic.last is newest-first; flip to chronological
-    out: list[tuple[str, str, str]] = []
-    for ev in rows:
+    for ev in episodic.iter_chronological():
         if ev.actor in ("world", "scene", "harvester") or ev.action not in verbset:
             continue
         role = str(ev.payload.get("role", ""))
         if role:
-            out.append((ev.actor, role, ev.action))
-    return out
+            yield (ev.actor, role, ev.action)
 
 
 class _RelationshipLedgerCache:

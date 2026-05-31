@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -121,6 +122,27 @@ class EpisodicMemory:
             )
             for r in rows
         ]
+
+    def iter_chronological(self) -> Iterator[Event]:
+        """Yield every event oldest-first, streaming via a cursor.
+
+        Unlike ``last(count())`` + reverse, this never materializes the whole
+        log (plus a reversed copy) in memory — a real cost on multi-week soaks
+        whose event count grows without bound. Used by the energy-ledger restart
+        reconstruction, which replays the full history but needs only one event
+        at a time (review)."""
+        cur = self._conn.execute(
+            "SELECT id, ts, actor, action, target, payload_json FROM events ORDER BY id ASC"
+        )
+        for r in cur:
+            yield Event(
+                id=r[0],
+                ts=r[1],
+                actor=r[2],
+                action=r[3],
+                target=r[4],
+                payload=json.loads(r[5]) if r[5] else {},
+            )
 
     def since(self, ts_floor: float, *, limit: int | None = None) -> list[Event]:
         """Return events with ``ts >= ts_floor`` ordered newest-first.
