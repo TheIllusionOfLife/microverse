@@ -214,7 +214,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=ENERGY_REGEN_PER_TICK,
         help="override ENERGY_REGEN_PER_TICK (tuning sweep; defaults to config)",
     )
-    return p.parse_args(argv)
+    args = p.parse_args(argv)
+    # Fail fast on meaningless knobs: a non-positive pool or negative regen is
+    # never a valid economy and would silently yield a degenerate all-rest sweep.
+    if args.energy_max <= 0:
+        p.error("--energy-max must be > 0")
+    if args.regen < 0:
+        p.error("--regen must be >= 0")
+    return args
 
 
 def main(argv: list[str]) -> int:
