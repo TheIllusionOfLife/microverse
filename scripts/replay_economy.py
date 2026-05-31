@@ -22,6 +22,8 @@ so these are estimates, not the live measurement — run
 Usage:
     uv run python scripts/replay_economy.py --data data/econ-off-s42
     uv run python scripts/replay_economy.py --synthetic --ticks 2000 --seed 42
+    # tuning sweep: override the knobs without editing config
+    uv run python scripts/replay_economy.py --synthetic --regen 8 --energy-max 100
 """
 
 from __future__ import annotations
@@ -128,18 +130,25 @@ def synthetic_run(
     roster: tuple[tuple[str, str], ...],
     cost_table: dict[str, dict[str, float]],
     seed: int,
+    max_energy: float = ENERGY_MAX,
+    regen_per_tick: float = ENERGY_REGEN_PER_TICK,
 ) -> dict:
     """Drive the executor with a no-LLM policy to read the mechanical ceiling.
 
     Policies: ``always-contribute`` (every chosen verb is contribute),
     ``uniform-random`` (uniform over the six verbs), ``role-biased`` (each role
     mostly picks its cheapest specialty). Round-robins the roster one action
-    per tick and regenerates the whole roster each tick (matching live)."""
+    per tick and regenerates the whole roster each tick (matching live).
+
+    ``max_energy``/``regen_per_tick`` default to the config constants but can be
+    overridden so the Stage-1 sweep can search for throttling numbers without
+    editing ``config`` (the cost table being unthrottled at the default knobs is
+    the whole point of the stage)."""
     rng = random.Random(seed)
     ledger = EnergyLedger.fresh(
         [n for n, _ in roster],
-        max_energy=ENERGY_MAX,
-        regen_per_tick=ENERGY_REGEN_PER_TICK,
+        max_energy=max_energy,
+        regen_per_tick=regen_per_tick,
         cost_table=cost_table,
     )
     productive = [v for v in _VERBS if v != "rest"]
@@ -193,13 +202,25 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     p.add_argument("--ticks", type=int, default=2000, help="Stage 1 tick budget")
     p.add_argument("--seed", type=int, default=42, help="Stage 1 RNG seed")
+    p.add_argument(
+        "--energy-max",
+        type=float,
+        default=ENERGY_MAX,
+        help="override ENERGY_MAX (tuning sweep; defaults to config)",
+    )
+    p.add_argument(
+        "--regen",
+        type=float,
+        default=ENERGY_REGEN_PER_TICK,
+        help="override ENERGY_REGEN_PER_TICK (tuning sweep; defaults to config)",
+    )
     return p.parse_args(argv)
 
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
     cost_table = build_cost_table(args.mode)
-    report: dict = {"mode": args.mode, "energy_max": ENERGY_MAX, "regen": ENERGY_REGEN_PER_TICK}
+    report: dict = {"mode": args.mode, "energy_max": args.energy_max, "regen": args.regen}
 
     if args.data:
         ep = Path(args.data) / "episodic.sqlite"
@@ -208,8 +229,8 @@ def main(argv: list[str]) -> int:
             return 2
         ledger = EnergyLedger.fresh(
             [n for n, _ in _DEFAULT_ROSTER],
-            max_energy=ENERGY_MAX,
-            regen_per_tick=ENERGY_REGEN_PER_TICK,
+            max_energy=args.energy_max,
+            regen_per_tick=args.regen,
             cost_table=cost_table,
         )
         report["stage0_replay"] = replay_executor(_trace_from_episodic(ep), ledger=ledger)
@@ -222,6 +243,8 @@ def main(argv: list[str]) -> int:
                 roster=_DEFAULT_ROSTER,
                 cost_table=cost_table,
                 seed=args.seed,
+                max_energy=args.energy_max,
+                regen_per_tick=args.regen,
             )
             for pol in ("always-contribute", "uniform-random", "role-biased")
         ]
