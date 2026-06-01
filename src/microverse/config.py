@@ -244,8 +244,18 @@ _ECONOMY_SUBSTITUTE: bool = ECONOMY_MODE in ("1", "flat", "sub")
 # dear contribute (~22) so a role can sustain its specialty indefinitely but
 # must save up across cheaper/idle ticks to afford an off-specialty verb or
 # to re-initiate a scene — the scarcity pressure that should diversify the mix.
+#
+# Stage 0/1 tune (post-#45): regen 12 → 8. At 12 a pure-contribute policy was
+# NOT throttled — in the 2-agent roster the whole-roster per-tick regen returns
+# 2*12=24 between an agent's own actions, exceeding even the artisan's
+# contribute cost (22), so the pool never drains and the cost numbers never
+# bit. 8 makes contribute drain (offline replay: always-contribute sub_rate
+# 0.0 → 0.37, contribute share 1.0 → 0.63) while the role specialty (cost 6)
+# stays fully sustainable (sub_rate 0.0). ENERGY_MAX is not the lever — the
+# steady state oscillates near the regen/cost balance, not near max. Verify
+# with: uv run python scripts/replay_economy.py --synthetic --regen 8.
 ENERGY_MAX: float = 100.0
-ENERGY_REGEN_PER_TICK: float = 12.0
+ENERGY_REGEN_PER_TICK: float = 8.0
 
 # Comparative advantage: each role is cheap at exactly one productive verb
 # (its strict specialty) and dear elsewhere. ``rest`` is free for every role

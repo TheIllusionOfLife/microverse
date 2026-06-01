@@ -8,8 +8,11 @@ throttled. Zero LLM compute.
 from __future__ import annotations
 
 import importlib.util
+import sqlite3
 import sys
 from pathlib import Path
+
+import pytest
 
 from microverse.config import VERB_COST_BY_ROLE
 from microverse.world.economy import EnergyLedger
@@ -83,6 +86,94 @@ def test_synthetic_always_contribute_single_agent_throttled():
     )
     assert out["executed_contribute_share"] < 1.0
     assert out["substitution_rate"] > 0.0
+
+
+def test_synthetic_respects_energy_overrides():
+    # The override knobs must thread through to the ledger so the Stage-1 sweep
+    # can find throttling numbers without editing config. Same 2-agent
+    # always-contribute policy + seed: a generous regen sustains it (not
+    # throttled), a tight regen drains it (throttled).
+    roster = (("Aki", "artisan"), ("Cy", "scholar"))
+    generous = replay_economy.synthetic_run(
+        "always-contribute",
+        n_ticks=400,
+        roster=roster,
+        cost_table=VERB_COST_BY_ROLE,
+        seed=42,
+        max_energy=100.0,
+        regen_per_tick=12.0,
+    )
+    tight = replay_economy.synthetic_run(
+        "always-contribute",
+        n_ticks=400,
+        roster=roster,
+        cost_table=VERB_COST_BY_ROLE,
+        seed=42,
+        max_energy=100.0,
+        regen_per_tick=8.0,
+    )
+    assert generous["substitution_rate"] == 0.0
+    assert tight["substitution_rate"] > 0.0
+
+
+def test_main_threads_overrides_into_synthetic(monkeypatch):
+    # The --synthetic CLI path must hand the parsed knobs to synthetic_run, not
+    # the bare config constants (otherwise the sweep silently ignores --regen).
+    captured: dict[str, float] = {}
+
+    def _spy(policy: str, **kwargs: object) -> dict:
+        captured["max_energy"] = kwargs["max_energy"]  # type: ignore[assignment]
+        captured["regen_per_tick"] = kwargs["regen_per_tick"]  # type: ignore[assignment]
+        return {
+            "policy": policy,
+            "total": 0,
+            "executed_counts": {},
+            "substitution_rate": 0.0,
+            "executed_contribute_share": 0.0,
+            "executed_entropy_norm": 0.0,
+        }
+
+    monkeypatch.setattr(replay_economy, "synthetic_run", _spy)
+    rc = replay_economy.main(["--synthetic", "--ticks", "5", "--energy-max", "55", "--regen", "7"])
+    assert rc == 0
+    assert captured == {"max_energy": 55.0, "regen_per_tick": 7.0}
+
+
+def test_main_threads_overrides_into_stage0(monkeypatch, tmp_path):
+    # The --data (Stage 0) path must construct the ledger with the parsed knobs.
+    run = tmp_path / "run"
+    run.mkdir()
+    conn = sqlite3.connect(run / "episodic.sqlite")
+    conn.execute(
+        "CREATE TABLE events (id INTEGER PRIMARY KEY, actor TEXT, action TEXT, payload_json TEXT)"
+    )
+    conn.commit()
+    conn.close()
+
+    captured: dict[str, float] = {}
+    real_fresh = replay_economy.EnergyLedger.fresh
+
+    def _spy_fresh(names: object, **kwargs: object) -> EnergyLedger:
+        captured["max_energy"] = kwargs["max_energy"]  # type: ignore[assignment]
+        captured["regen_per_tick"] = kwargs["regen_per_tick"]  # type: ignore[assignment]
+        return real_fresh(names, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(replay_economy.EnergyLedger, "fresh", staticmethod(_spy_fresh))
+    rc = replay_economy.main(["--data", str(run), "--energy-max", "55", "--regen", "7"])
+    assert rc == 0
+    assert captured == {"max_energy": 55.0, "regen_per_tick": 7.0}
+
+
+@pytest.mark.parametrize(
+    ("flag", "value"),
+    [("--energy-max", "0"), ("--energy-max", "-5"), ("--regen", "-1")],
+)
+def test_cli_rejects_nonsensical_knobs(flag: str, value: str):
+    # Fail fast on meaningless tuning input rather than silently producing a
+    # degenerate all-rest sweep (a non-positive pool / negative regen is never a
+    # valid economy). argparse error() exits with code 2.
+    with pytest.raises(SystemExit):
+        replay_economy.parse_args(["--synthetic", flag, value])
 
 
 def test_synthetic_role_biased_diversifies():
