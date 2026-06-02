@@ -236,6 +236,6 @@ def test_cheapest_affordable_perceived_under_flat_table_is_role_symmetric():
         regen_per_tick=12.0,
         cost_table=derive_flat_table(VERB_COST_BY_ROLE),
     )
-    assert led.cheapest_affordable_perceived(
-        "Aki", "artisan"
-    ) == led.cheapest_affordable_perceived("Cy", "scholar")
+    assert led.cheapest_affordable_perceived("Aki", "artisan") == led.cheapest_affordable_perceived(
+        "Cy", "scholar"
+    )

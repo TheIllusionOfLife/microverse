@@ -173,8 +173,10 @@ def test_adv_mode_hint_differs_from_sub_mode_hint_for_artisan():
         sub_hint = _compute_energy_hint(led, agent)
     with _economy("adv"):
         adv_hint = _compute_energy_hint(led, agent)
-    assert "study" in sub_hint and "craft" not in sub_hint
-    assert "craft" in adv_hint and "study" not in adv_hint
+    assert "study" in sub_hint
+    assert "craft" not in sub_hint
+    assert "craft" in adv_hint
+    assert "study" not in adv_hint
 
 
 def test_adv_is_substitution_mode_but_executor_still_never_fabricates_craft():
