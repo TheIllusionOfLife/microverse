@@ -302,19 +302,12 @@ def _compute_energy_hint(energy: EnergyLedger | None, agent: Agent) -> str:
     """
     if energy is None or not config._ECONOMY_SUBSTITUTE:
         return ""
-    productive = ["speak", "craft", "study", "travel", "contribute"]
-    unaffordable = [v for v in productive if not energy.can_afford(agent.name, agent.role, v)]
+    unaffordable = [
+        v for v in _ENERGY_HINT_PRODUCTIVE if not energy.can_afford(agent.name, agent.role, v)
+    ]
     if not unaffordable:
         return ""
-    # ``adv`` (ADR 0009 follow-up): name the agent's TRUE cheapest affordable
-    # verb including its payload specialty (craft), so each role is nudged toward
-    # its own advantage. ``sub``/``1``/``flat`` keep the legacy selector (excludes
-    # payload verbs) so their prior reads stay byte-reproducible for the A/B. The
-    # executor's substitution target is unchanged in every mode (still payload-free).
-    if config.ECONOMY_MODE == "adv":
-        cheapest = energy.cheapest_affordable_perceived(agent.name, agent.role)
-    else:
-        cheapest = energy.cheapest_affordable_productive(agent.name, agent.role)
+    cheapest = _energy_hint_verb(energy, agent)
     out_of_reach = ", ".join(unaffordable)
     if cheapest:
         return (
@@ -322,6 +315,45 @@ def _compute_energy_hint(energy: EnergyLedger | None, agent: Agent) -> str:
             f"but {cheapest} still comes easily."
         )
     return f"Your reserves are spent; rest before attempting {out_of_reach}."
+
+
+# Verbs whose unaffordability triggers the scarcity hint (``rest`` is always free
+# and so never "out of reach"). Shared by the hint text and the named-verb helper.
+_ENERGY_HINT_PRODUCTIVE = ("speak", "craft", "study", "travel", "contribute")
+
+
+def _energy_hint_verb(energy: EnergyLedger | None, agent: Agent) -> str | None:
+    """The verb :func:`_compute_energy_hint` names as "comes easily" (mode-aware),
+    or ``None`` when the economy is off, reserves are ample, or even the cheapest
+    productive verb is unaffordable (then the hint shows the "rest before ..."
+    message and names no easy verb). Exposed so the run loop can detect the
+    novelty/energy hint conflict (ADR 0009 R4) without re-parsing the hint string.
+
+    ``adv`` names the agent's TRUE cheapest affordable verb including its payload
+    specialty (craft), so each role is nudged toward its own advantage.
+    ``sub``/``1``/``flat`` keep the legacy selector (excludes the payload verbs)
+    so their prior reads stay byte-reproducible for the A/B. The executor's
+    substitution target is unchanged in every mode (still payload-free).
+    """
+    if energy is None or not config._ECONOMY_SUBSTITUTE:
+        return None
+    unaffordable = any(
+        not energy.can_afford(agent.name, agent.role, v) for v in _ENERGY_HINT_PRODUCTIVE
+    )
+    if not unaffordable:
+        return None
+    if config.ECONOMY_MODE == "adv":
+        return energy.cheapest_affordable_perceived(agent.name, agent.role)
+    return energy.cheapest_affordable_productive(agent.name, agent.role)
+
+
+def _hints_conflict(energy_easy_verb: str | None, novelty_dominant_verb: str) -> bool:
+    """ADR 0009 R4: the honest ``energy_hint`` nudges toward the agent's cheap
+    specialty while ``novelty_hint`` steers AWAY from whatever verb has come to
+    dominate the recent mix. They contradict when the energy hint names the very
+    verb novelty is discouraging (the now-dominant specialty). ``False`` when no
+    easy verb is named or novelty is inactive (empty dominant verb)."""
+    return bool(energy_easy_verb) and energy_easy_verb == novelty_dominant_verb
 
 
 def _lazy_attach_energy(agent: Agent, energy: EnergyLedger | None) -> None:
@@ -921,6 +953,12 @@ def run(
             novelty_hint, novelty_dominant_verb, novelty_suggested_verb = _compute_novelty_hint(
                 episodic, agent
             )
+            # ADR 0009 R4: count ticks where the honest energy_hint nudges toward
+            # the very verb the novelty hint is steering away from (the agent's
+            # now-dominant specialty). High counts mean the two levers fight, which
+            # would cap chosen-verb specialization; the live Stage-4 read inspects it.
+            if _hints_conflict(_energy_hint_verb(energy, agent), novelty_dominant_verb):
+                metrics.bump("novelty_energy_hint_conflict", agent=agent.name)
             # Path-3: pull the agent's watermark. ``setdefault`` seeds
             # first-encounter to ``time.time()`` so a mid-run Stranger
             # does not see all weather/world events since process

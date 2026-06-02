@@ -20,7 +20,13 @@ from microverse import config
 from microverse.agents.artisan import Artisan
 from microverse.agents.scholar import Scholar
 from microverse.config import VERB_COST_BY_ROLE
-from microverse.run import _compute_energy_hint, _lazy_attach_energy, run
+from microverse.run import (
+    _compute_energy_hint,
+    _energy_hint_verb,
+    _hints_conflict,
+    _lazy_attach_energy,
+    run,
+)
 from microverse.world.economy import EnergyLedger
 
 
@@ -196,6 +202,44 @@ def test_adv_is_a_valid_economy_mode():
     # adv is a recognized mode so run() does not fail-fast on it (it is the new
     # honest-hint substitution arm).
     assert "adv" in config.VALID_ECONOMY_MODES
+
+
+# --- R4: novelty/energy hint conflict instrumentation (ADR 0009) ---
+# The honest energy_hint nudges an agent toward its cheap specialty, but
+# _compute_novelty_hint steers AWAY from whatever verb has come to dominate the
+# agent's recent mix. Once the artisan specializes into craft, the two hints
+# contradict. We expose the energy-hint's named verb and a pure conflict
+# predicate so the run loop can count the contradiction for the live read.
+
+
+def test_energy_hint_verb_names_specialty_in_adv_and_escape_in_sub():
+    led = EnergyLedger.fresh(
+        ["Aki"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
+    )
+    led._pool["Aki"] = 15.0  # craft(6)+study(14) affordable; speak/travel/contribute not
+    agent = Artisan(name="Aki")
+    with _economy("adv"):
+        assert _energy_hint_verb(led, agent) == "craft"
+    with _economy("sub"):
+        assert _energy_hint_verb(led, agent) == "study"
+
+
+def test_energy_hint_verb_none_when_ample_or_off():
+    led = EnergyLedger.fresh(
+        ["Aki"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
+    )
+    agent = Artisan(name="Aki")
+    with _economy("adv"):
+        assert _energy_hint_verb(led, agent) is None  # full reserves: nothing out of reach
+    assert _energy_hint_verb(None, agent) is None  # economy off
+
+
+def test_hints_conflict_only_when_energy_names_the_discouraged_verb():
+    # novelty discourages its dominant verb; conflict iff the energy hint names it.
+    assert _hints_conflict("craft", "craft") is True
+    assert _hints_conflict("craft", "study") is False
+    assert _hints_conflict(None, "craft") is False  # no verb named -> no conflict
+    assert _hints_conflict("study", "") is False  # novelty inactive -> no conflict
 
 
 def test_flag_off_run_is_deterministic(tmp_path: Path):
