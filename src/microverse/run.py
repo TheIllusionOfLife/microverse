@@ -963,12 +963,6 @@ def run(
             novelty_hint, novelty_dominant_verb, novelty_suggested_verb = _compute_novelty_hint(
                 episodic, agent
             )
-            # ADR 0009 R4: count ticks where the honest energy_hint nudges toward
-            # the very verb the novelty hint is steering away from (the agent's
-            # now-dominant specialty). High counts mean the two levers fight, which
-            # would cap chosen-verb specialization; the live Stage-4 read inspects it.
-            if _hints_conflict(_energy_hint_verb(energy, agent), novelty_dominant_verb):
-                metrics.bump("novelty_energy_hint_conflict", agent=agent.name)
             # Path-3: pull the agent's watermark. ``setdefault`` seeds
             # first-encounter to ``time.time()`` so a mid-run Stranger
             # does not see all weather/world events since process
@@ -1195,6 +1189,15 @@ def run(
                     time.sleep(sleep_s)
                 continue
 
+            # ADR 0009 R4: count single-action ticks where the honest energy_hint
+            # nudges toward the very verb the novelty hint is steering away from
+            # (the agent's now-dominant specialty). Bumped HERE, on the non-scene
+            # path, because scene turns force energy_hint="" (ADR 0006) — the model
+            # never sees the energy hint in a scene, so the two levers cannot fight
+            # there (CodeRabbit review). High counts mean the levers fight on the
+            # ticks that matter, capping specialization; the Stage-4 read inspects it.
+            if _hints_conflict(_energy_hint_verb(energy, agent), novelty_dominant_verb):
+                metrics.bump("novelty_energy_hint_conflict", agent=agent.name)
             try:
                 action = agent.think(world)
             except Exception:
