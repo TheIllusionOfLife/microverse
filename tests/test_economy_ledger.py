@@ -117,6 +117,9 @@ def test_build_cost_table_selects_by_mode():
     assert build_cost_table("sub") == VERB_COST_BY_ROLE
     assert build_cost_table("throttle") == VERB_COST_BY_ROLE
     assert build_cost_table("flat") == derive_flat_table(VERB_COST_BY_ROLE)
+    # ``adv`` (advantage-perception, ADR 0009 follow-up) is a substitution mode
+    # that keeps the role-advantage table; only the energy-HINT selector differs.
+    assert build_cost_table("adv") == VERB_COST_BY_ROLE
 
 
 def _events(n: int) -> list[tuple[str, str, str]]:
@@ -174,3 +177,65 @@ def test_resolve_executed_verb_never_substitutes_toward_craft():
     # A model that CHOOSES craft and can afford it still crafts (craft is only
     # excluded as a substitution TARGET, never as an affordable pass-through).
     assert led.resolve_executed_verb("Aki", "artisan", "craft") == "craft"
+
+
+# --- cheapest_affordable_perceived: the energy-HINT selector (ADR 0009 follow-up) ---
+# The hint is a perception nudge to a model that, when it CHOOSES a payload verb,
+# authors a real payload. So unlike the blind executor's substitution target
+# (cheapest_affordable_productive, which excludes craft/contribute), the hint may
+# name an agent's payload specialty. It excludes ONLY rest (the idle last resort).
+
+
+def test_cheapest_affordable_perceived_names_craft_for_artisan():
+    # Artisan's cheap specialty is craft(6); the honest hint names it so the
+    # model is nudged toward its OWN advantage, not the shared payload-free escape.
+    led = EnergyLedger.fresh(
+        ["Aki"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
+    )
+    assert led.cheapest_affordable_perceived("Aki", "artisan") == "craft"
+
+
+def test_cheapest_affordable_perceived_names_study_for_scholar():
+    # Scholar's cheap specialty is study(6): each role is nudged to a DISTINCT verb.
+    led = EnergyLedger.fresh(
+        ["Cy"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
+    )
+    assert led.cheapest_affordable_perceived("Cy", "scholar") == "study"
+
+
+def test_cheapest_affordable_perceived_includes_payload_unlike_executor_target():
+    # Load-bearing: the two selectors diverge exactly on the payload boundary.
+    # At pool 7.0 the artisan affords craft(6) but no payload-free verb (>=14):
+    # the executor target is None (falls back to rest), but the perception hint
+    # names craft (the model can author it).
+    led = EnergyLedger.fresh(
+        ["Aki"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
+    )
+    led._pool["Aki"] = 7.0
+    assert led.cheapest_affordable_productive("Aki", "artisan") is None
+    assert led.cheapest_affordable_perceived("Aki", "artisan") == "craft"
+
+
+def test_cheapest_affordable_perceived_returns_none_when_fully_drained():
+    # Nothing productive affordable (even craft(6)) -> None, so the hint falls
+    # back to the "rest before ..." message rather than naming an unaffordable verb.
+    led = EnergyLedger.fresh(
+        ["Aki"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
+    )
+    led._pool["Aki"] = 0.0
+    assert led.cheapest_affordable_perceived("Aki", "artisan") is None
+
+
+def test_cheapest_affordable_perceived_under_flat_table_is_role_symmetric():
+    # Flat control removes the specialty, so the honest hint has no specialty to
+    # name: both roles resolve to the SAME verb. The fix is inert under flat by
+    # construction, which keeps the A/B's role-agnostic control clean.
+    led = EnergyLedger.fresh(
+        ["Aki", "Cy"],
+        max_energy=100.0,
+        regen_per_tick=12.0,
+        cost_table=derive_flat_table(VERB_COST_BY_ROLE),
+    )
+    assert led.cheapest_affordable_perceived(
+        "Aki", "artisan"
+    ) == led.cheapest_affordable_perceived("Cy", "scholar")
