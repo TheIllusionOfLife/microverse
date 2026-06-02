@@ -125,6 +125,7 @@ calibration is on the same code path as the gate. Two takeaways:
    contrast isolates the lever's gap: growing a tail while staying clustered near `contribute`
    fails (0.212), whereas divergence passes via either route — relocating an agent's modal verb
    off `contribute` (0.335) **or** keeping `contribute` modal for both but concentrating disjoint
-   *secondary* mass (0.400). The Stage 3 lever did neither; it only thinned one agent's tail.
+   *secondary* mass (0.400). The Stage 3 lever did neither; it only grew an overlapping tail
+   for one agent.
    The concrete, falsifiable target for any next intervention: make the two agents' distributions
    *diverge* (different verbs carrying their mass), not merely spread a shared one.

@@ -192,8 +192,10 @@ def _dist_rows(by_agent: dict[str, dict[str, int]]) -> list[tuple[str, str, dict
 def test_gate9_real_stage3_codrift_flat_s42_fails():
     # The actual seed-42 `flat` chosen distribution (docs/economy-stage3-findings.md).
     # Cy is ~93% contribute; Aki diversified to ~51% contribute + a speak/rest/study
-    # tail. Society entropy clears its floor, but because BOTH agents keep contribute
-    # as their plurality the cross-agent JSD is capped well under 0.25 -> Gate 9 fails.
+    # tail. Society entropy clears its floor, but because both agents keep contribute
+    # as their plurality AND their tails overlap (not disjoint — cf. the
+    # disjoint-secondary test below, which PASSES on a shared plurality) the
+    # cross-agent JSD is capped well under 0.25 -> Gate 9 fails.
     # This is the metric reproducing the live read, not a synthetic toy.
     rows = _dist_rows(
         {
