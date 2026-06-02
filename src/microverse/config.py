@@ -234,11 +234,17 @@ SCENE_MIN_PEERS: int = 1
 # The full set of recognized modes. An unrecognized value (e.g. a typo) would
 # otherwise build a ledger with neither gate nor substitution — a silent,
 # unlabeled experiment arm — so run() validates against this set and fails fast.
-VALID_ECONOMY_MODES: frozenset[str] = frozenset({"0", "1", "flat", "throttle", "sub"})
+# ``adv`` (advantage-perception, ADR 0009 follow-up) == ``sub`` (substitution +
+# hint, no scene gate) EXCEPT the energy_hint names the agent's TRUE cheapest
+# affordable verb including its payload specialty (craft), so each role is nudged
+# toward its OWN advantage instead of the shared payload-free escape that caused
+# co-drift. The selector differs (run._compute_energy_hint dispatches on adv);
+# the cost table and gates are identical to ``sub``.
+VALID_ECONOMY_MODES: frozenset[str] = frozenset({"0", "1", "flat", "throttle", "sub", "adv"})
 ECONOMY_MODE: str = os.environ.get("MICROVERSE_ECONOMY", "0")
 ECONOMY_ENABLED: bool = ECONOMY_MODE != "0"
 _ECONOMY_SCENE_GATE: bool = ECONOMY_MODE in ("1", "flat", "throttle")
-_ECONOMY_SUBSTITUTE: bool = ECONOMY_MODE in ("1", "flat", "sub")
+_ECONOMY_SUBSTITUTE: bool = ECONOMY_MODE in ("1", "flat", "sub", "adv")
 
 # Finite stamina pool. Regen sits between the cheap specialty (~6) and the
 # dear contribute (~22) so a role can sustain its specialty indefinitely but

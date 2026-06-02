@@ -31,7 +31,7 @@ def _economy(mode: str, *, energy_max: float = 100.0):
         patch.object(config, "ECONOMY_MODE", mode),
         patch.object(config, "ECONOMY_ENABLED", mode != "0"),
         patch.object(config, "_ECONOMY_SCENE_GATE", mode in ("1", "flat", "throttle")),
-        patch.object(config, "_ECONOMY_SUBSTITUTE", mode in ("1", "flat", "sub")),
+        patch.object(config, "_ECONOMY_SUBSTITUTE", mode in ("1", "flat", "sub", "adv")),
         patch.object(config, "ENERGY_MAX", energy_max),
     ):
         yield

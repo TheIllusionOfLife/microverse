@@ -306,7 +306,15 @@ def _compute_energy_hint(energy: EnergyLedger | None, agent: Agent) -> str:
     unaffordable = [v for v in productive if not energy.can_afford(agent.name, agent.role, v)]
     if not unaffordable:
         return ""
-    cheapest = energy.cheapest_affordable_productive(agent.name, agent.role)
+    # ``adv`` (ADR 0009 follow-up): name the agent's TRUE cheapest affordable
+    # verb including its payload specialty (craft), so each role is nudged toward
+    # its own advantage. ``sub``/``1``/``flat`` keep the legacy selector (excludes
+    # payload verbs) so their prior reads stay byte-reproducible for the A/B. The
+    # executor's substitution target is unchanged in every mode (still payload-free).
+    if config.ECONOMY_MODE == "adv":
+        cheapest = energy.cheapest_affordable_perceived(agent.name, agent.role)
+    else:
+        cheapest = energy.cheapest_affordable_productive(agent.name, agent.role)
     out_of_reach = ", ".join(unaffordable)
     if cheapest:
         return (
