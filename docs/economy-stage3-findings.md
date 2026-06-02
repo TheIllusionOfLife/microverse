@@ -93,3 +93,35 @@ The action-economy lever is **necessary-ish but not sufficient**: it moves verb 
 (refuting "nothing the agent chooses can move Gate 3") but does not unlock cross-agent
 *specialization* (Gate 9 JSD — ADR 0007's actual target). The ADR 0008 HALT stays in force. See
 `docs/adr/0009-action-economy-stage3-read.md`.
+
+## Metric validation (ADR 0009 follow-up)
+
+Before spending more compute, we checked whether the Stage 3 failure is real or just a metric
+that a 2-resident world cannot satisfy. It is real. Feeding synthetic per-agent distributions
+through the production `gate9` reader (`_diversity_block`) gives a clean response curve
+(`tests/test_gate9_verb_diversity.py`):
+
+| 2-agent scenario | chosen jsd_norm | Gate 9 |
+|---|---:|:--:|
+| disjoint specialists (craft \| study) | 1.000 | PASS |
+| distinct specialties, 40% shared `contribute` each | 0.600 | PASS |
+| one agent's **modal** verb relocated off `contribute` | 0.335 | PASS |
+| both keep `contribute` as mode, one grows a long diverse tail | 0.212 | fail |
+| **real `flat-s42` (co-drift)** | 0.185 | fail |
+| identical agents | 0.000 | fail (correct) |
+
+The harness reproduces the live `flat-s42` read (entropy 0.574 / jsd 0.185) exactly, so the
+calibration is on the same code path as the gate. Two takeaways:
+
+1. **The ruler is sound.** Gate 9 is comfortably satisfiable on two agents (jsd up to 1.0) and
+   correctly scores identical agents at 0. The halt is a behavioral finding, not a measurement
+   artifact.
+2. **Sharper diagnosis than "co-drift."** The binding constraint is *shared mass on the dominant
+   verb*. The real `flat-s42` agents are not symmetric: Cy stays ~93% `contribute` while Aki
+   diversified to ~51% `contribute` + a large speak/rest/study tail. Aki moved a lot — but its
+   **plurality is still `contribute`**, so the two agents overlap there and JSD caps at 0.185.
+   The synthetic contrast is decisive: growing a tail while the mode stays `contribute` fails
+   (0.212), but relocating a single agent's **modal** verb off `contribute` passes (0.335).
+   **Gate 9 demands modal-verb relocation; the Stage 3 lever only thinned the tail.** That is the
+   concrete, falsifiable target for any next intervention: move an agent's *primary* verb off the
+   shared attractor, not merely spread its tail.
