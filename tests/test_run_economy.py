@@ -121,6 +121,34 @@ def test_scene_gate_blocked_when_initiator_cannot_afford_contribute(tmp_path: Pa
     assert "scene.open" not in actions
 
 
+def _craft_with_artifact() -> dict:
+    return {
+        "content": '{"thought": "I shape the clay.", "action": "craft", '
+        '"target": null, "artifact": "a small clay bowl"}',
+        "thinking": "",
+        "raw": {},
+    }
+
+
+def test_adv_model_chosen_craft_survives_to_chosen_stream_unsubstituted(tmp_path: Path):
+    """Offline go/no-go (ADR 0009 R2): under adv a solo Artisan that CHOOSES craft
+    lands craft in the chosen (parsed_verb) stream AND executes it un-substituted
+    (craft is affordable at full reserves), proving the perception channel is
+    mechanically open end-to-end. Whether the REAL model takes the honest hint is
+    the only remaining question, and that is live-only."""
+    data_dir = tmp_path / "data"
+    with (
+        _economy("adv"),
+        patch("microverse.agents.artisan.DIVERSITY_SUBSTITUTE_PROB", 0.0),
+        patch("microverse.agents.artisan.chat", return_value=_craft_with_artifact()),
+    ):
+        run(ticks=12, seed=1, tempo=0, data_dir=data_dir, harvest_dir=tmp_path / "h", solo=True)
+    payloads = _payloads(data_dir)
+    assert any(p.get("parsed_verb") == "craft" for p in payloads), "chosen craft not recorded"
+    actions = {a for _, a in _events(data_dir)}
+    assert "craft" in actions, "model-chosen craft was not executed (substituted away?)"
+
+
 def test_energy_hint_only_in_substitution_modes():
     """The energy_hint (prompt-level scarcity signal) is paired with the
     substitution lever, so the scene-gate-only ``throttle`` ablation stays

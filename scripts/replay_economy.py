@@ -197,8 +197,9 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument(
         "--mode",
         default="1",
-        choices=("1", "flat", "sub", "throttle"),
-        help="economy cost-table mode (role-advantage for all but 'flat')",
+        choices=("1", "flat", "sub", "throttle", "adv"),
+        help="economy cost-table mode (role-advantage for all but 'flat'); 'adv' is "
+        "identical to 'sub' offline — it differs only in the live energy_hint selector",
     )
     p.add_argument("--ticks", type=int, default=2000, help="Stage 1 tick budget")
     p.add_argument("--seed", type=int, default=42, help="Stage 1 RNG seed")
