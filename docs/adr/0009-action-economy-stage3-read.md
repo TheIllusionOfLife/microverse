@@ -32,10 +32,10 @@ The headline read is `jsd_norm`.
 
 ## Method
 
-- Runner: `MICROVERSE_ECONOMY={mode} python -m microverse.run --ticks 3000 --tempo 0
+- Runner: `MICROVERSE_ECONOMY={mode} uv run python -m microverse.run --ticks 3000 --tempo 0
   --seed {seed}` into isolated `MICROVERSE_DATA`/`MICROVERSE_HARVEST` dirs. Model `gemma4:26b`
   (the configured `agent.think()` model). 3000 ticks so the run spans ~5–6 h / ~3500–3800 agent
-  events — large enough that the early-sample noise flagged in the Stage 2 note washes out.
+  events.
 - Knobs: Stage 0/1 tune `ENERGY_REGEN_PER_TICK = 8`, all else default. `ENERGY_MAX = 100`,
   `VERB_COST_BY_ROLE` unchanged (preserves cross-mode cost parity + the strict-specialty
   invariant).
@@ -43,6 +43,11 @@ The headline read is `jsd_norm`.
   scene-initiation gate inert, so it is dropped), `flat` (role-agnostic substitution control).
 - Measurement: `scripts/spike_workshop_measure.py` `gate9_verb_diversity` on the **chosen**
   stream; scene-forced contributes (ADR 0006) and parse-fallback rests excluded as non-choices.
+  `parsed_verb` is stamped only in substitution-enabled modes (`run.py:1155-1160`), so for the
+  `0` arm the reader falls back to the *executed* verb (`measure:231`). That is exact, not an
+  approximation: with the economy off there is no substitution, so chosen ≡ executed for the
+  baseline; for `sub`/`flat` the chosen stream is the model's pick **before** the executor may
+  rewrite it.
 - **Planned seeds `{42, 38, 7}`; the sweep was stopped after seed 42** (operator decision —
   see Limitations).
 
@@ -54,24 +59,32 @@ The headline read is `jsd_norm`.
 | `sub`  | 77.3% (1975/2555)       | 0.409               | 0.109           | 0.204         | 0.078 | FAIL   |
 | `flat` | 66.9% (1826/2730)       | 0.574               | **0.185**       | 0.157         | 0.030 | FAIL   |
 
-`cxe` = `chosen_vs_executed_divergence` (≈0 → the executor is not forcing the shift; the agent
-chooses it through the `energy_hint` perception channel).
+`econ_sub_rate` = `economy_substitution_rate`, the **per-event** executor-override rate. `cxe` =
+`chosen_vs_executed_divergence`, the JSD between the **society-aggregated** chosen and executed
+distributions (`measure:248`) — a society-level summary, not a per-event rewrite count.
 
-### Scale comparison vs Stage 2 (200 ticks, same seed)
+### Scale comparison vs Stage 2 (200 ticks, same seed) — two independent runs
 
-| mode   | entropy 200t → 3000t | jsd 200t → 3000t | contribute 200t → 3000t |
+The 200-tick and 3000-tick numbers come from **separate live runs**, not two sample lengths of
+one trajectory. `--seed` seeds only the Python RNGs (scheduler/weather/clock, `run.py:695,786`);
+the `gemma4:26b` sampling is unseeded, so the runs diverge from tick 1. Read the pair as two
+independent draws at different horizons.
+
+| mode   | entropy 200t / 3000t | jsd 200t / 3000t | contribute 200t / 3000t |
 |--------|:--------------------:|:----------------:|:-----------------------:|
-| `0`    | 0.258 → 0.274        | 0.031 → 0.017    | 88.7% → 88.1%           |
-| `sub`  | 0.534 → 0.409        | 0.222 → 0.109    | 66.7% → 77.3%           |
-| `flat` | 0.642 → 0.574        | 0.168 → 0.185    | 60.7% → 66.9%           |
+| `0`    | 0.258 / 0.274        | 0.031 / 0.017    | 88.7% / 88.1%           |
+| `sub`  | 0.534 / 0.409        | 0.222 / 0.109    | 66.7% / 77.3%           |
+| `flat` | 0.642 / 0.574        | 0.168 / 0.185    | 60.7% / 66.9%           |
 
 ## Findings
 
 1. **The lever moves verb diversity — ADR 0008's re-diagnosis is half right.** Both lever modes
-   clear the entropy floor and cut the chosen contribute share from 88% to 67–77%, and the shift
-   is genuine model choice (`cxe ≤ 0.078`, `econ_sub` below the total chosen shift), not executor
-   forcing. So the monoculture is *not* immovable: an identity-independent change to the action
-   economy does diversify chosen verbs.
+   clear the entropy floor and cut the chosen contribute share from 88% to 67–77%. The chosen
+   stream is `parsed_verb`, the model's pick **before** the executor may rewrite it, so the
+   entropy/JSD numbers are model choice by construction; the per-event override rate (`econ_sub`
+   0.157–0.204) is real but below the total chosen shift, and `cxe` (0.03–0.08) shows the override
+   barely moves the society-level mix. The monoculture is *not* immovable: an
+   identity-independent change to the action economy does diversify chosen verbs.
 
 2. **But it does not unlock cross-agent specialization — Gate 9 FAILS in every mode.** `jsd_norm`
    tops out at 0.185 (`flat`), 26% under the 0.25 floor. Agents reduce the monoculture by
@@ -79,15 +92,15 @@ chooses it through the `energy_hint` perception channel).
    rather than splitting into distinct profiles. Cross-agent divergence — the actual ADR 0007
    target — does not emerge.
 
-3. **At scale the divergence decays.** Stage 2's near-floor `sub` read (jsd 0.222) was
-   small-sample optimism: over 3000 ticks `sub` regresses (jsd → 0.109, contribute → 77.3%). More
-   events make the gap worse, not better — evidence the co-drift is the equilibrium, not a
-   transient.
+3. **The longer run does not move toward the floor.** The independent 3000-tick `sub` run lands
+   at jsd 0.109 / contribute 77.3% vs the 200-tick run's 0.222 / 66.7%. Two draws is too few to
+   assert a trend, but the larger-sample run is no closer to passing, so the near-floor Stage 2
+   `sub` read does not survive as evidence that more events produce specialization.
 
 4. **Comparative advantage is not the driver.** `flat` (role-agnostic) matches or beats `sub`
-   (role-specific costs) on both entropy and JSD and is more stable over the long run. The agents
-   are not exploiting cost structure to differentiate; raw substitution pressure, not comparative
-   advantage, is what little movement there is.
+   (role-specific costs) on both entropy and JSD. The agents are not exploiting cost structure to
+   differentiate; raw substitution pressure, not comparative advantage, is what little movement
+   there is.
 
 ## Decision
 
@@ -96,19 +109,23 @@ chooses it through the `energy_hint` perception channel).
 ADR 0008 framed verb monoculture as the structural blocker and the action economy as the
 unlock. Stage 3 shows the action economy unlocks *diversity* (society entropy) but **not
 specialization** (cross-agent JSD), and specialization is what "from workshop to civilization"
-actually requires. Tuning the economy harder is unlikely to close a 0.185 → 0.25 gap that
-*widens* with scale; the missing ingredient is a force that makes agents differentiate from each
-other, not merely vary their own output. That is a deeper design question than the spike was
-built to answer, and it stays open. Do not start Phase 2 on the strength of the economy lever.
+actually requires. The JSD shortfall is wide (0.185 vs 0.25) and does not close in the longer
+run; the missing ingredient is a force that makes agents differentiate from each other, not
+merely vary their own output. That is a deeper design question than the spike was built to
+answer, and it stays open. Do not start Phase 2 on the strength of the economy lever.
 
 ## Limitations
 
 - **Single seed at scale.** Seeds 38 and 7 were planned but not run; the sweep was stopped after
   seed 42 once the within-seed signal was unambiguous and consistent with Stage 2. The numeric
-  JSD/entropy values are therefore one-seed point estimates without a cross-seed variance band.
-  The *qualitative* verdict (entropy floor cleared, JSD floor missed by a wide and scale-widening
-  margin) is robust to plausible seed variance; a specific mode's borderline pass on a lucky seed
-  would not constitute a robust Gate 9 PASS.
+  JSD/entropy values are therefore one-seed point estimates with no cross-seed variance band. The
+  *qualitative* verdict (entropy floor cleared, JSD floor missed by a wide margin that does not
+  close in the longer run) is robust to plausible seed variance; a specific mode's borderline pass
+  on a lucky seed would not constitute a robust Gate 9 PASS.
+- **`cxe` is a society-level summary.** A low `chosen_vs_executed_divergence` means the
+  *aggregate* chosen and executed verb mixes are close; it does not bound the per-event rewrite
+  count (that is `economy_substitution_rate`, 0.16–0.20 here). The "model choice, not executor
+  forcing" claim rests on the chosen stream being pre-substitution `parsed_verb`, not on `cxe`.
 - Two-resident roster (Aki/artisan, Cy/scholar). JSD across two agents is a coarse divergence
   estimate; a larger roster could change the specialization dynamics and is untested here.
 - The spike deliberately did not tune prompts to manufacture movement (ADR 0008 constraint
