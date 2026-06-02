@@ -54,6 +54,11 @@ _PAYLOAD_VERBS = frozenset({"contribute", "craft"})
 # every constrained tick onto rest.
 _SUBSTITUTION_EXCLUDED = _PAYLOAD_VERBS | {"rest"}
 
+# The energy_hint perception selector (mode ``adv``) excludes ONLY ``rest``: the
+# model authoring a payload verb does real work, so the hint may name a role's
+# payload specialty (the Artisan's ``craft``). See ``cheapest_affordable_perceived``.
+_PERCEIVED_EXCLUDED = frozenset({"rest"})
+
 # Verbs excluded from the flat-control flattening: ``contribute`` keeps its
 # per-role cost (so the scene-initiation throttle is identical across arms) and
 # ``rest`` stays free. Everything else — including ``craft`` — collapses to the
@@ -186,14 +191,7 @@ class EnergyLedger:
         so the realistic targets are ``speak``/``study``/``travel``. Ties are
         broken by ``ActionKind`` declaration order for determinism.
         """
-        from microverse.agents.base import ActionKind
-
-        order = [k.value for k in ActionKind]
-        productive = [v for v in order if v not in _SUBSTITUTION_EXCLUDED]
-        affordable = self.affordable_verbs(name, role, productive)
-        if not affordable:
-            return None
-        return min(affordable, key=lambda v: (self.cost(role, v), order.index(v)))
+        return self._cheapest_affordable(name, role, excluded=_SUBSTITUTION_EXCLUDED)
 
     def cheapest_affordable_perceived(self, name: str, role: str) -> str | None:
         """The cheapest affordable productive verb to name in the ``energy_hint``
@@ -207,16 +205,25 @@ class EnergyLedger:
         excludes only ``rest`` (the idle last resort) and may name a role's
         payload specialty. This is what lets the Artisan's hint name ``craft``
         (cost 6) rather than the shared payload-free escape ``study`` (the
-        Scholar's specialty) — the fix for the ADR 0009 co-drift. Ties are
-        broken by ``ActionKind`` declaration order for determinism, identical to
-        the executor selector, so under the flat control (no specialty) both
-        roles resolve to the same verb and the fix is inert.
+        Scholar's specialty) — the fix for the ADR 0009 co-drift. It shares
+        :meth:`_cheapest_affordable`'s ``ActionKind`` tie-break with the executor
+        selector, so under the flat control (no specialty) both roles resolve to
+        the same verb and the fix is inert.
         """
+        return self._cheapest_affordable(name, role, excluded=_PERCEIVED_EXCLUDED)
+
+    def _cheapest_affordable(self, name: str, role: str, *, excluded: frozenset[str]) -> str | None:
+        """Cheapest affordable verb not in ``excluded``, or ``None`` if none is
+        affordable. Shared body of :meth:`cheapest_affordable_productive` (the
+        executor's payload-free substitution target) and
+        :meth:`cheapest_affordable_perceived` (the hint's perception signal);
+        they differ ONLY in ``excluded``, so the ``ActionKind`` tie-break stays in
+        lock-step (the flat-control symmetry invariant cannot drift)."""
         from microverse.agents.base import ActionKind
 
         order = [k.value for k in ActionKind]
-        productive = [v for v in order if v != "rest"]
-        affordable = self.affordable_verbs(name, role, productive)
+        candidates = [v for v in order if v not in excluded]
+        affordable = self.affordable_verbs(name, role, candidates)
         if not affordable:
             return None
         return min(affordable, key=lambda v: (self.cost(role, v), order.index(v)))

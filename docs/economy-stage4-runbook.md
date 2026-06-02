@@ -55,6 +55,14 @@ reuse the archived Stage-3 `sub`/`0` reads as the comparator: `gemma4:26b` sampl
 unseeded, so even a byte-identical harness produces different draws — the only causally
 clean `adv`-vs-`sub` contrast is paired in the same sweep.
 
+`flat` is in the A/B matrix above but is **intentionally omitted from this run**: the
+hint fix is inert under `flat` (it removes specialties, so there is nothing to name —
+proven by `test_cheapest_affordable_perceived_under_flat_table_is_role_symmetric`), so
+`flat` is identical to its Stage-3 read and adds no information about the `adv`
+intervention. Reuse the Stage-3 `flat` numbers (ADR 0009) only as a static reference for
+"specialty removed"; do not treat it as a paired comparator. Add it back to the loop
+only if a reviewer wants a fresh `flat` baseline at the same wall-clock as `adv`.
+
 ```bash
 for SEED in 42 38 7; do
   for M in 0 sub adv; do
