@@ -307,7 +307,9 @@ def _compute_energy_hint(energy: EnergyLedger | None, agent: Agent) -> str:
     ]
     if not unaffordable:
         return ""
-    cheapest = _energy_hint_verb(energy, agent)
+    # Preconditions already checked above; dispatch the selector directly rather
+    # than re-running them through _energy_hint_verb (CodeRabbit/Gemini review).
+    cheapest = _select_easy_verb(energy, agent)
     out_of_reach = ", ".join(unaffordable)
     if cheapest:
         return (
@@ -322,19 +324,29 @@ def _compute_energy_hint(energy: EnergyLedger | None, agent: Agent) -> str:
 _ENERGY_HINT_PRODUCTIVE = ("speak", "craft", "study", "travel", "contribute")
 
 
-def _energy_hint_verb(energy: EnergyLedger | None, agent: Agent) -> str | None:
-    """The verb :func:`_compute_energy_hint` names as "comes easily" (mode-aware),
-    or ``None`` when the economy is off, reserves are ample, or even the cheapest
-    productive verb is unaffordable (then the hint shows the "rest before ..."
-    message and names no easy verb). Exposed so the run loop can detect the
-    novelty/energy hint conflict (ADR 0009 R4) without re-parsing the hint string.
+def _select_easy_verb(energy: EnergyLedger, agent: Agent) -> str | None:
+    """The mode-aware "comes easily" verb, assuming the caller has already
+    confirmed the hint fires (energy present, substitution mode, some verb out of
+    reach). Single source of truth for the selector so the hint text and the R4
+    conflict counter never disagree.
 
     ``adv`` names the agent's TRUE cheapest affordable verb including its payload
     specialty (craft), so each role is nudged toward its own advantage.
     ``sub``/``1``/``flat`` keep the legacy selector (excludes the payload verbs)
     so their prior reads stay byte-reproducible for the A/B. The executor's
-    substitution target is unchanged in every mode (still payload-free).
-    """
+    substitution target is unchanged in every mode (still payload-free)."""
+    if config.ECONOMY_MODE == "adv":
+        return energy.cheapest_affordable_perceived(agent.name, agent.role)
+    return energy.cheapest_affordable_productive(agent.name, agent.role)
+
+
+def _energy_hint_verb(energy: EnergyLedger | None, agent: Agent) -> str | None:
+    """Gated wrapper of :func:`_select_easy_verb`: the verb
+    :func:`_compute_energy_hint` names as "comes easily", or ``None`` when the
+    economy is off, reserves are ample, or even the cheapest productive verb is
+    unaffordable (then the hint shows the "rest before ..." message and names no
+    easy verb). Exposed so the run loop can detect the novelty/energy hint
+    conflict (ADR 0009 R4) without re-parsing the hint string."""
     if energy is None or not config._ECONOMY_SUBSTITUTE:
         return None
     unaffordable = any(
@@ -342,9 +354,7 @@ def _energy_hint_verb(energy: EnergyLedger | None, agent: Agent) -> str | None:
     )
     if not unaffordable:
         return None
-    if config.ECONOMY_MODE == "adv":
-        return energy.cheapest_affordable_perceived(agent.name, agent.role)
-    return energy.cheapest_affordable_productive(agent.name, agent.role)
+    return _select_easy_verb(energy, agent)
 
 
 def _hints_conflict(energy_easy_verb: str | None, novelty_dominant_verb: str) -> bool:
