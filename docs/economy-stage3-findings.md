@@ -105,7 +105,8 @@ through the production `gate9` reader (`_diversity_block`) gives a clean respons
 |---|---:|:--:|
 | disjoint specialists (craft \| study) | 1.000 | PASS |
 | distinct specialties, 40% shared `contribute` each | 0.600 | PASS |
-| one agent's **modal** verb relocated off `contribute` | 0.335 | PASS |
+| both keep `contribute` as mode, but disjoint *secondary* mass | 0.400 | PASS |
+| one agent's modal verb relocated off `contribute` | 0.335 | PASS |
 | both keep `contribute` as mode, one grows a long diverse tail | 0.212 | fail |
 | **real `flat-s42` (co-drift)** | 0.185 | fail |
 | identical agents | 0.000 | fail (correct) |
@@ -116,12 +117,14 @@ calibration is on the same code path as the gate. Two takeaways:
 1. **The ruler is sound.** Gate 9 is comfortably satisfiable on two agents (jsd up to 1.0) and
    correctly scores identical agents at 0. The halt is a behavioral finding, not a measurement
    artifact.
-2. **Sharper diagnosis than "co-drift."** The binding constraint is *shared mass on the dominant
-   verb*. The real `flat-s42` agents are not symmetric: Cy stays ~93% `contribute` while Aki
-   diversified to ~51% `contribute` + a large speak/rest/study tail. Aki moved a lot — but its
-   **plurality is still `contribute`**, so the two agents overlap there and JSD caps at 0.185.
-   The synthetic contrast is decisive: growing a tail while the mode stays `contribute` fails
-   (0.212), but relocating a single agent's **modal** verb off `contribute` passes (0.335).
-   **Gate 9 demands modal-verb relocation; the Stage 3 lever only thinned the tail.** That is the
-   concrete, falsifiable target for any next intervention: move an agent's *primary* verb off the
-   shared attractor, not merely spread its tail.
+2. **Sharper diagnosis than "co-drift."** Gate 9 compares the agents' *full* verb distributions;
+   it passes when they put **different mass on different verbs** and fails when they cluster near
+   the same corner. The real `flat-s42` agents are not symmetric — Cy stays ~93% `contribute`
+   while Aki diversified to ~51% `contribute` + a large speak/rest/study tail — but both keep
+   their plurality on `contribute` *and* their tails overlap, so JSD caps at 0.185. The synthetic
+   contrast isolates the lever's gap: growing a tail while staying clustered near `contribute`
+   fails (0.212), whereas divergence passes via either route — relocating an agent's modal verb
+   off `contribute` (0.335) **or** keeping `contribute` modal for both but concentrating disjoint
+   *secondary* mass (0.400). The Stage 3 lever did neither; it only thinned one agent's tail.
+   The concrete, falsifiable target for any next intervention: make the two agents' distributions
+   *diverge* (different verbs carrying their mass), not merely spread a shared one.

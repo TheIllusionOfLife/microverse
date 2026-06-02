@@ -181,11 +181,12 @@ def test_gate9_economy_substitution_rate_is_economy_only():
 def _dist_rows(by_agent: dict[str, dict[str, int]]) -> list[tuple[str, str, dict]]:
     """Expand {agent: {verb: count}} into free-choice rows (empty payload =>
     chosen stream == executed stream, which is what `pass` reads)."""
-    rows: list[tuple[str, str, dict]] = []
-    for agent, dist in by_agent.items():
-        for verb, count in dist.items():
-            rows += [(agent, verb, {}) for _ in range(count)]
-    return rows
+    return [
+        (agent, verb, {})
+        for agent, dist in by_agent.items()
+        for verb, count in dist.items()
+        for _ in range(count)
+    ]
 
 
 def test_gate9_real_stage3_codrift_flat_s42_fails():
@@ -220,7 +221,7 @@ def test_gate9_shared_modal_verb_caps_divergence_even_with_a_long_tail():
     )
     g = swm.gate9_verb_diversity(_events_db(rows))
     ch = g["chosen"]
-    assert ch["society_entropy_norm"] >= 0.35  # entropy floor is cleared...
+    assert ch["society_entropy_norm"] == pytest.approx(0.4633, abs=1e-3)  # clears 0.35...
     assert ch["jsd_norm"] == pytest.approx(0.2122, abs=1e-3)  # ...but JSD is not
     assert g["pass"] is False
 
@@ -229,9 +230,9 @@ def test_gate9_relocating_one_agents_modal_verb_passes():
     # Diagnostic half 2: identical heavy `contribute` overlap, but now Aki's MODE
     # is `craft` (it still contributes, just not as its plurality) while Cy stays
     # contribute-dominant. Moving a single agent's modal verb off the shared
-    # attractor lifts JSD over the floor -> Gate 9 PASSES. So the gate demands
-    # modal-verb relocation, not mere tail diversification. The Stage 3 lever did
-    # the latter, never the former.
+    # attractor lifts JSD over the floor -> Gate 9 PASSES. Modal relocation is ONE
+    # sufficient route to divergence (see the disjoint-secondary test below for
+    # another); the Stage 3 lever achieved neither, only tail diversification.
     rows = _dist_rows(
         {
             "Aki": {"craft": 500, "contribute": 300, "speak": 200},
@@ -240,7 +241,28 @@ def test_gate9_relocating_one_agents_modal_verb_passes():
     )
     g = swm.gate9_verb_diversity(_events_db(rows))
     ch = g["chosen"]
+    assert ch["society_entropy_norm"] == pytest.approx(0.5566, abs=1e-3)
     assert ch["jsd_norm"] == pytest.approx(0.3351, abs=1e-3)  # clears 0.25
+    assert g["pass"] is True
+
+
+def test_gate9_shared_modal_verb_but_disjoint_secondary_mass_passes():
+    # Counter to any "the gate requires moving the modal verb" reading: Gate 9
+    # inspects the FULL distributions, not the mode. Both agents keep `contribute`
+    # as their plurality (60% each), but their remaining 40% is on DISJOINT verbs
+    # (craft vs study). The distributions diverge enough to clear the floor ->
+    # PASS, without either agent relocating its modal verb. Divergence, not modal
+    # relocation specifically, is what the metric demands.
+    rows = _dist_rows(
+        {
+            "Aki": {"contribute": 600, "craft": 400},
+            "Cy": {"contribute": 600, "study": 400},
+        }
+    )
+    g = swm.gate9_verb_diversity(_events_db(rows))
+    ch = g["chosen"]
+    assert ch["society_entropy_norm"] == pytest.approx(0.5304, abs=1e-3)
+    assert ch["jsd_norm"] == pytest.approx(0.4, abs=1e-3)  # clears 0.25
     assert g["pass"] is True
 
 
@@ -254,5 +276,6 @@ def test_gate9_partial_specialization_with_shared_contribute_passes():
         }
     )
     g = swm.gate9_verb_diversity(_events_db(rows))
+    assert g["chosen"]["society_entropy_norm"] == pytest.approx(0.6077, abs=1e-3)
     assert g["chosen"]["jsd_norm"] == pytest.approx(0.6, abs=1e-3)
     assert g["pass"] is True
