@@ -18,8 +18,15 @@ import pytest
 
 from microverse import config
 from microverse.agents.artisan import Artisan
+from microverse.agents.scholar import Scholar
 from microverse.config import VERB_COST_BY_ROLE
-from microverse.run import _compute_energy_hint, _lazy_attach_energy, run
+from microverse.run import (
+    _compute_energy_hint,
+    _energy_hint_verb,
+    _hints_conflict,
+    _lazy_attach_energy,
+    run,
+)
 from microverse.world.economy import EnergyLedger
 
 
@@ -30,7 +37,7 @@ def _economy(mode: str, *, energy_max: float = 100.0):
         patch.object(config, "ECONOMY_MODE", mode),
         patch.object(config, "ECONOMY_ENABLED", mode != "0"),
         patch.object(config, "_ECONOMY_SCENE_GATE", mode in ("1", "flat", "throttle")),
-        patch.object(config, "_ECONOMY_SUBSTITUTE", mode in ("1", "flat", "sub")),
+        patch.object(config, "_ECONOMY_SUBSTITUTE", mode in ("1", "flat", "sub", "adv")),
         patch.object(config, "ENERGY_MAX", energy_max),
     ):
         yield
@@ -114,6 +121,34 @@ def test_scene_gate_blocked_when_initiator_cannot_afford_contribute(tmp_path: Pa
     assert "scene.open" not in actions
 
 
+def _craft_with_artifact() -> dict:
+    return {
+        "content": '{"thought": "I shape the clay.", "action": "craft", '
+        '"target": null, "artifact": "a small clay bowl"}',
+        "thinking": "",
+        "raw": {},
+    }
+
+
+def test_adv_model_chosen_craft_survives_to_chosen_stream_unsubstituted(tmp_path: Path):
+    """Offline go/no-go (ADR 0009 R2): under adv a solo Artisan that CHOOSES craft
+    lands craft in the chosen (parsed_verb) stream AND executes it un-substituted
+    (craft is affordable at full reserves), proving the perception channel is
+    mechanically open end-to-end. Whether the REAL model takes the honest hint is
+    the only remaining question, and that is live-only."""
+    data_dir = tmp_path / "data"
+    with (
+        _economy("adv"),
+        patch("microverse.agents.artisan.DIVERSITY_SUBSTITUTE_PROB", 0.0),
+        patch("microverse.agents.artisan.chat", return_value=_craft_with_artifact()),
+    ):
+        run(ticks=12, seed=1, tempo=0, data_dir=data_dir, harvest_dir=tmp_path / "h", solo=True)
+    payloads = _payloads(data_dir)
+    assert any(p.get("parsed_verb") == "craft" for p in payloads), "chosen craft not recorded"
+    actions = {a for _, a in _events(data_dir)}
+    assert "craft" in actions, "model-chosen craft was not executed (substituted away?)"
+
+
 def test_energy_hint_only_in_substitution_modes():
     """The energy_hint (prompt-level scarcity signal) is paired with the
     substitution lever, so the scene-gate-only ``throttle`` ablation stays
@@ -127,6 +162,112 @@ def test_energy_hint_only_in_substitution_modes():
         assert _compute_energy_hint(led, agent) == ""  # scene-gate-only: no hint
     with _economy("sub"):
         assert _compute_energy_hint(led, agent) != ""  # substitution arm: hint on
+
+
+# --- adv mode: honest per-agent scarcity hint (ADR 0009 follow-up) ---
+# adv == sub (substitution + hint, no scene gate) EXCEPT the energy_hint names
+# the agent's TRUE cheapest affordable verb including its payload specialty, so
+# the artisan is nudged toward craft and the scholar toward study instead of both
+# co-drifting onto the shared payload-free escape (study/speak). The fix is the
+# hint selector only; the blind executor still never fabricates a craft payload.
+
+
+def test_energy_hint_names_craft_for_drained_artisan_in_adv_mode():
+    # At pool 15 the artisan can afford craft(6) and study(14) but not
+    # speak/travel/contribute, so the hint fires; adv names the role specialty.
+    led = EnergyLedger.fresh(
+        ["Aki"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
+    )
+    led._pool["Aki"] = 15.0
+    with _economy("adv"):
+        assert "craft" in _compute_energy_hint(led, Artisan(name="Aki"))
+
+
+def test_energy_hint_names_study_for_drained_scholar_in_adv_mode():
+    # Symmetric: the scholar is nudged to its own specialty (study), a DISTINCT
+    # verb from the artisan's craft -> the chosen distributions are pushed apart.
+    led = EnergyLedger.fresh(
+        ["Cy"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
+    )
+    led._pool["Cy"] = 15.0
+    with _economy("adv"):
+        assert "study" in _compute_energy_hint(led, Scholar(name="Cy"))
+
+
+def test_adv_mode_hint_differs_from_sub_mode_hint_for_artisan():
+    # Same drained artisan: the buggy sub hint names study (Cy's specialty, the
+    # shared escape that causes co-drift); the honest adv hint names craft. This
+    # single-variable difference is exactly what the live A/B isolates.
+    led = EnergyLedger.fresh(
+        ["Aki"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
+    )
+    led._pool["Aki"] = 15.0
+    agent = Artisan(name="Aki")
+    with _economy("sub"):
+        sub_hint = _compute_energy_hint(led, agent)
+    with _economy("adv"):
+        adv_hint = _compute_energy_hint(led, agent)
+    assert "study" in sub_hint
+    assert "craft" not in sub_hint
+    assert "craft" in adv_hint
+    assert "study" not in adv_hint
+
+
+def test_adv_is_substitution_mode_but_executor_still_never_fabricates_craft():
+    # adv must be a substitution mode (hint fires), yet the perception fix must
+    # NOT weaken the executor contract: a drained artisan whose chosen verb is
+    # unaffordable still falls back to rest, never a hollow fabricated craft.
+    led = EnergyLedger.fresh(
+        ["Aki"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
+    )
+    led._pool["Aki"] = 7.0  # affords craft(6) but nothing payload-free
+    with _economy("adv"):
+        assert _compute_energy_hint(led, Artisan(name="Aki")) != ""  # hint on
+    assert led.resolve_executed_verb("Aki", "artisan", "study") == "rest"
+
+
+def test_adv_is_a_valid_economy_mode():
+    # adv is a recognized mode so run() does not fail-fast on it (it is the new
+    # honest-hint substitution arm).
+    assert "adv" in config.VALID_ECONOMY_MODES
+
+
+# --- R4: novelty/energy hint conflict instrumentation (ADR 0009) ---
+# The honest energy_hint nudges an agent toward its cheap specialty, but
+# _compute_novelty_hint steers AWAY from whatever verb has come to dominate the
+# agent's recent mix. Once the artisan specializes into craft, the two hints
+# contradict. We expose the energy-hint's named verb and a pure conflict
+# predicate so the run loop can count the contradiction for the live read.
+
+
+def test_energy_hint_verb_names_specialty_in_adv_and_escape_in_sub():
+    led = EnergyLedger.fresh(
+        ["Aki"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
+    )
+    led._pool["Aki"] = 15.0  # craft(6)+study(14) affordable; speak/travel/contribute not
+    agent = Artisan(name="Aki")
+    with _economy("adv"):
+        assert _energy_hint_verb(led, agent) == "craft"
+    with _economy("sub"):
+        assert _energy_hint_verb(led, agent) == "study"
+
+
+def test_energy_hint_verb_none_when_ample_or_off():
+    led = EnergyLedger.fresh(
+        ["Aki"], max_energy=100.0, regen_per_tick=12.0, cost_table=VERB_COST_BY_ROLE
+    )
+    agent = Artisan(name="Aki")
+    with _economy("adv"):
+        assert _energy_hint_verb(led, agent) is None  # full reserves: nothing out of reach
+    assert _energy_hint_verb(None, agent) is None  # economy off
+
+
+def test_hints_conflict_only_when_energy_names_the_discouraged_verb():
+    # novelty discourages its dominant verb; conflict iff the energy hint names it.
+    assert _hints_conflict("craft", "craft") is True
+    assert _hints_conflict("craft", "study") is False
+    assert _hints_conflict(None, "craft") is False  # no verb named -> no conflict
+    assert _hints_conflict("study", "") is False  # novelty inactive -> no conflict
 
 
 def test_flag_off_run_is_deterministic(tmp_path: Path):
