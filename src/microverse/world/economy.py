@@ -98,9 +98,13 @@ def derive_balanced_table(table: CostTable) -> dict[str, dict[str, float]]:
     scholar drains too, so the (still honest) hint fires and names its ``study``
     specialty. Comparative advantage is preserved: each role's strict specialty
     is unchanged, only the shared escape verb ``contribute`` becomes uniformly
-    expensive.
+    expensive. A role without a ``contribute`` entry is left untouched (no key is
+    added) and does not contribute to the ``dearest`` max (review).
     """
-    dearest = max(costs["contribute"] for costs in table.values())
+    dearest = max(
+        (costs["contribute"] for costs in table.values() if "contribute" in costs),
+        default=0.0,
+    )
     return {
         role: {v: (dearest if v == "contribute" else cost) for v, cost in costs.items()}
         for role, costs in table.items()
