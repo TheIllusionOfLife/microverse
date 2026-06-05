@@ -11,7 +11,12 @@ from __future__ import annotations
 import pytest
 
 from microverse.config import ENERGY_MAX, ENERGY_REGEN_PER_TICK, VERB_COST_BY_ROLE
-from microverse.world.economy import EnergyLedger, build_cost_table, derive_flat_table
+from microverse.world.economy import (
+    EnergyLedger,
+    build_cost_table,
+    derive_balanced_table,
+    derive_flat_table,
+)
 
 
 @pytest.fixture
@@ -120,6 +125,58 @@ def test_build_cost_table_selects_by_mode():
     # ``adv`` (advantage-perception, ADR 0009 follow-up) is a substitution mode
     # that keeps the role-advantage table; only the energy-HINT selector differs.
     assert build_cost_table("adv") == VERB_COST_BY_ROLE
+    # ``bal`` (balanced contribute, ADR 0010 follow-up) raises every role's
+    # contribute to the dearest (the artisan's 22) so the scarcity hint fires for
+    # the scholar too; otherwise it is the advantage table.
+    assert build_cost_table("bal") == derive_balanced_table(VERB_COST_BY_ROLE)
+
+
+# --- bal mode: balanced (symmetric-dear) contribute cost (ADR 0010 follow-up) ---
+# Stage 4 found the honest hint specializes the artisan but not the scholar,
+# because the scholar's contribute is cheap (14) so its scarcity hint rarely
+# fires. ``bal`` raises every role's contribute to the dearest one (22) so a
+# contribute-heavy scholar drains and is hinted toward its study specialty, while
+# each role's cheap specialty (artisan craft 6, scholar study 6) is untouched.
+
+
+def test_derive_balanced_table_raises_every_contribute_to_the_dearest():
+    bal = derive_balanced_table(VERB_COST_BY_ROLE)
+    dearest = max(costs["contribute"] for costs in VERB_COST_BY_ROLE.values())  # artisan 22
+    for role, costs in VERB_COST_BY_ROLE.items():
+        assert bal[role]["contribute"] == dearest, f"{role} contribute must be the dearest"
+        assert bal[role]["rest"] == 0.0
+        # Every non-contribute, non-rest verb is unchanged: the specialty survives.
+        for v in costs:
+            if v not in ("contribute", "rest"):
+                assert bal[role][v] == costs[v], f"{role} {v} must be unchanged"
+
+
+def test_balanced_table_preserves_strict_specialty():
+    # Raising contribute must not disturb each role's single strict specialty.
+    bal = derive_balanced_table(VERB_COST_BY_ROLE)
+    assert min(bal["artisan"], key=lambda v: bal["artisan"][v]) == "rest"  # rest is 0
+    non_rest = {v: c for v, c in bal["scholar"].items() if v != "rest"}
+    assert min(non_rest, key=lambda v: non_rest[v]) == "study"  # scholar specialty intact
+
+
+def test_balanced_scholar_contribute_drains_while_study_sustains():
+    # Under the balanced table a contribute-heavy scholar drains below its
+    # (now-dear) contribute cost so the lever/hint can fire, while a study-heavy
+    # scholar stays sustainable (its specialty is untouched).
+    bal = derive_balanced_table(VERB_COST_BY_ROLE)
+    drained = EnergyLedger.fresh(["Cy"], max_energy=100.0, regen_per_tick=8.0, cost_table=bal)
+    for _ in range(40):  # contribute 22 > regen 8: drains to empty
+        drained.regen("Cy")
+        drained.deduct("Cy", "scholar", "contribute")
+    drained.regen("Cy")  # next tick's regen, before the action: pool ~8
+    assert not drained.can_afford("Cy", "scholar", "contribute")  # 22 out of reach
+    assert drained.can_afford("Cy", "scholar", "study")  # specialty (6) affordable
+
+    sustained = EnergyLedger.fresh(["Cy"], max_energy=100.0, regen_per_tick=8.0, cost_table=bal)
+    for _ in range(40):  # study 6 < regen 8: sustainable
+        sustained.regen("Cy")
+        sustained.deduct("Cy", "scholar", "study")
+    assert sustained.can_afford("Cy", "scholar", "contribute")
 
 
 def _events(n: int) -> list[tuple[str, str, str]]:

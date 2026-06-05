@@ -86,18 +86,43 @@ def derive_flat_table(table: CostTable) -> dict[str, dict[str, float]]:
     return flat
 
 
+def derive_balanced_table(table: CostTable) -> dict[str, dict[str, float]]:
+    """Balanced-contribute variant of ``table`` (ADR 0010 follow-up, mode ``bal``).
+
+    Raises every role's ``contribute`` to the dearest one in the table (the
+    artisan's 22) and leaves everything else — including each role's cheap
+    specialty — untouched. Stage 4 found the honest hint (``adv``) specializes
+    the artisan but not the scholar, because the scholar's ``contribute`` is
+    cheap (14) and so almost always affordable: its scarcity hint never fires.
+    Making every role's ``contribute`` equally dear means a contribute-heavy
+    scholar drains too, so the (still honest) hint fires and names its ``study``
+    specialty. Comparative advantage is preserved: each role's strict specialty
+    is unchanged, only the shared escape verb ``contribute`` becomes uniformly
+    expensive.
+    """
+    dearest = max(costs["contribute"] for costs in table.values())
+    return {
+        role: {v: (dearest if v == "contribute" else cost) for v, cost in costs.items()}
+        for role, costs in table.items()
+    }
+
+
 def build_cost_table(mode: str) -> dict[str, dict[str, float]]:
     """Resolve the per-mode cost table.
 
-    ``"flat"`` returns the role-agnostic control; every other economy mode
-    (``"1"``, ``"sub"``, ``"throttle"``, ``"adv"``) uses the role-advantage
-    table. ``"adv"`` shares ``"sub"``'s costs and differs only in the
-    ``energy_hint`` selector (see ``run._compute_energy_hint``).
+    ``"flat"`` returns the role-agnostic control; ``"bal"`` returns the
+    balanced-contribute table (every role's contribute raised to the dearest);
+    every other economy mode (``"1"``, ``"sub"``, ``"throttle"``, ``"adv"``)
+    uses the role-advantage table. ``"adv"`` and ``"bal"`` share the ``adv``
+    energy-hint selector (see ``run._compute_energy_hint``); ``"bal"`` adds the
+    balanced cost table so the scholar's scarcity hint actually fires.
     """
     from microverse.config import VERB_COST_BY_ROLE
 
     if mode == "flat":
         return derive_flat_table(VERB_COST_BY_ROLE)
+    if mode == "bal":
+        return derive_balanced_table(VERB_COST_BY_ROLE)
     return {role: dict(costs) for role, costs in VERB_COST_BY_ROLE.items()}
 
 

@@ -330,12 +330,13 @@ def _select_easy_verb(energy: EnergyLedger, agent: Agent) -> str | None:
     reach). Single source of truth for the selector so the hint text and the R4
     conflict counter never disagree.
 
-    ``adv`` names the agent's TRUE cheapest affordable verb including its payload
-    specialty (craft), so each role is nudged toward its own advantage.
+    ``adv``/``bal`` name the agent's TRUE cheapest affordable verb including its
+    payload specialty (craft), so each role is nudged toward its own advantage
+    (``bal`` adds a balanced cost table so the scholar's hint also fires).
     ``sub``/``1``/``flat`` keep the legacy selector (excludes the payload verbs)
     so their prior reads stay byte-reproducible for the A/B. The executor's
     substitution target is unchanged in every mode (still payload-free)."""
-    if config.ECONOMY_MODE == "adv":
+    if config.ECONOMY_MODE in ("adv", "bal"):
         return energy.cheapest_affordable_perceived(agent.name, agent.role)
     return energy.cheapest_affordable_productive(agent.name, agent.role)
 

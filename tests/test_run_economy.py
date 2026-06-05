@@ -37,7 +37,7 @@ def _economy(mode: str, *, energy_max: float = 100.0):
         patch.object(config, "ECONOMY_MODE", mode),
         patch.object(config, "ECONOMY_ENABLED", mode != "0"),
         patch.object(config, "_ECONOMY_SCENE_GATE", mode in ("1", "flat", "throttle")),
-        patch.object(config, "_ECONOMY_SUBSTITUTE", mode in ("1", "flat", "sub", "adv")),
+        patch.object(config, "_ECONOMY_SUBSTITUTE", mode in ("1", "flat", "sub", "adv", "bal")),
         patch.object(config, "ENERGY_MAX", energy_max),
     ):
         yield
@@ -230,6 +230,76 @@ def test_adv_is_a_valid_economy_mode():
     # adv is a recognized mode so run() does not fail-fast on it (it is the new
     # honest-hint substitution arm).
     assert "adv" in config.VALID_ECONOMY_MODES
+
+
+# --- bal mode: balanced contribute cost so the scholar's hint fires (ADR 0010 follow-up) ---
+# bal == adv (honest hint) PLUS a balanced cost table where every role's
+# contribute is dear (22). Under adv the scholar's cheap contribute (14) means
+# its scarcity hint rarely fires; bal makes a contribute-heavy scholar drain so
+# the hint fires and names its study specialty.
+
+
+def _bal_scholar_ledger(level: float) -> EnergyLedger:
+    from microverse.world.economy import derive_balanced_table
+
+    led = EnergyLedger.fresh(
+        ["Cy"],
+        max_energy=100.0,
+        regen_per_tick=8.0,
+        cost_table=derive_balanced_table(VERB_COST_BY_ROLE),
+    )
+    led._pool["Cy"] = level
+    return led
+
+
+def test_bal_is_a_valid_economy_mode():
+    assert "bal" in config.VALID_ECONOMY_MODES
+
+
+def test_bal_hint_fires_for_drained_scholar_naming_study():
+    # At pool 10 the balanced scholar affords study(6) but not contribute(22),
+    # speak(10 is exactly affordable -> not unaffordable), craft(18), travel(16):
+    # the hint fires and names study, the scholar's specialty.
+    led = _bal_scholar_ledger(10.0)
+    with _economy("bal"):
+        hint = _compute_energy_hint(led, Scholar(name="Cy"))
+    assert "study" in hint
+    assert "contribute" in hint  # contribute is now out of reach for the scholar
+
+
+def test_bal_uses_perceived_hint_like_adv_for_artisan():
+    # bal must keep the adv honest-hint selector so the artisan is still nudged to
+    # craft (its payload specialty), not the shared payload-free escape.
+    from microverse.world.economy import derive_balanced_table
+
+    led = EnergyLedger.fresh(
+        ["Aki"],
+        max_energy=100.0,
+        regen_per_tick=8.0,
+        cost_table=derive_balanced_table(VERB_COST_BY_ROLE),
+    )
+    led._pool["Aki"] = 15.0  # affords craft(6) but not study(14)/speak(16)/...
+    with _economy("bal"):
+        assert _energy_hint_verb(led, Artisan(name="Aki")) == "craft"
+
+
+def test_bal_pushes_scholar_off_contribute_where_adv_leaves_it_affordable():
+    # The isolation that motivates bal. At pool 16 the scholar can still afford
+    # contribute under the advantage table (cost 14) but NOT under the balanced
+    # table (cost 22). So adv's hint never flags contribute as out of reach,
+    # while bal's hint does and points the scholar at study.
+    adv_led = EnergyLedger.fresh(
+        ["Cy"], max_energy=100.0, regen_per_tick=8.0, cost_table=VERB_COST_BY_ROLE
+    )
+    adv_led._pool["Cy"] = 16.0  # advantage scholar contribute (14) still affordable
+    bal_led = _bal_scholar_ledger(16.0)  # balanced scholar contribute (22) out of reach
+    with _economy("adv"):
+        adv_hint = _compute_energy_hint(adv_led, Scholar(name="Cy"))
+    with _economy("bal"):
+        bal_hint = _compute_energy_hint(bal_led, Scholar(name="Cy"))
+    assert "contribute" not in adv_hint  # adv: scholar's contribute is cheap, never flagged
+    assert "contribute" in bal_hint  # bal: contribute is dear and out of reach
+    assert "study" in bal_hint  # ... so the scholar is nudged to its specialty
 
 
 # --- R4: novelty/energy hint conflict instrumentation (ADR 0009) ---
