@@ -6,50 +6,64 @@ shipped in PR #52; this is the deferred live run from `docs/economy-stage4-runbo
 
 ## Setup
 
-- Runner: `MICROVERSE_ECONOMY={mode} uv run python -m microverse.run --ticks 3000
-  --tempo 0 --seed {seed}`, model `gemma4:26b`, isolated `MICROVERSE_DATA`/
-  `MICROVERSE_HARVEST` per run. Each run ~5.7–6.3 h / ~3760 agent events.
+- Runner (per mode `{0, sub, adv}` × seed `{42, 38, 7}`), model `gemma4:26b`, isolated
+  `MICROVERSE_DATA`/`MICROVERSE_HARVEST` per run, ~5.7–6.3 h / ~3760 agent events each:
+
+  ```bash
+  MICROVERSE_ECONOMY=$MODE uv run python -m microverse.run --ticks 3000 --tempo 0 --seed $SEED
+  ```
 - Modes: `0` (economy off / baseline), `sub` (substitution lever, legacy hint naming
   `cheapest_affordable_productive`), `adv` (substitution lever, **honest** hint naming
   `cheapest_affordable_perceived` — includes the agent's payload specialty, ADR 0009 fix).
-- Seeds `{42, 38, 7}`, all run (concurrent comparators — `gemma4:26b` sampling is unseeded,
-  so `0`/`sub`/`adv` were paired in the same sweep, not compared to archived Stage-3 reads).
+- Seeds all run as concurrent comparators — `gemma4:26b` sampling is unseeded, so `0`/`sub`/`adv`
+  were paired in the same sweep, not compared to archived Stage-3 reads.
 - Metric: `gate9_verb_diversity` (`scripts/spike_workshop_measure.py`), **chosen**
-  (`parsed_verb`) stream. **PASS = chosen `entropy_norm ≥ 0.35` AND chosen `jsd_norm ≥
-  0.25`.** Primary read is `jsd_norm` (cross-agent divergence — ADR 0007's real target).
+  (`parsed_verb`) stream. **PASS = chosen `entropy_norm ≥ 0.35` AND chosen `jsd_norm ≥ 0.25`.**
+  Primary read is `jsd_norm` (cross-agent divergence — ADR 0007's real target).
 
 ## Results (all 9 runs)
 
-`aki_craft`/`cy_craft` = each agent's **chosen** (`parsed_verb`) craft share. `conflict` =
-true `novelty_energy_hint_conflict` count (the cumulative metric's MAX; the per-run progress
-log printed a SUM over the time-series, ~1000× inflated — disregard that column there).
+`aki_craft` = Aki's **chosen** (`parsed_verb`) share of its OWN specialty (artisan: craft).
+`cy_study` = Cy's chosen share of its OWN specialty (scholar: study); `cy_contrib` = Cy's
+chosen contribute share. (Each agent measured against the verb it *should* specialize into,
+not the other's — the scholar's specialty is study, not craft.) `conflict` = true
+`novelty_energy_hint_conflict` count (the cumulative metric's MAX; the per-run progress log
+printed a SUM over the time-series, ~1000× inflated — disregard that column there). For mode
+`0` the economy is off so `parsed_verb` is unstamped; its shares are executed (chosen ≡
+executed when nothing substitutes).
 
-| mode  | seed | entropy_norm | jsd_norm | aki_craft | cy_craft | conflict | Gate 9 |
-|-------|------|-------------:|---------:|----------:|---------:|---------:|:------:|
-| `0`   | 42   | 0.259        | 0.019    | 0.000     | 0.000    | 0        | FAIL   |
-| `sub` | 42   | 0.426        | 0.119    | 0.024     | 0.014    | 5        | FAIL   |
-| `adv` | 42   | 0.380        | **0.175**| **0.350** | 0.011    | 177      | FAIL   |
-| `0`   | 38   | 0.257        | 0.010    | 0.000     | 0.000    | 0        | FAIL   |
-| `sub` | 38   | 0.497        | 0.171    | 0.020     | 0.013    | 25       | FAIL   |
-| `adv` | 38   | 0.378        | **0.168**| **0.336** | 0.011    | 51       | FAIL   |
-| `0`   | 7    | 0.267        | 0.014    | 0.000     | 0.000    | 0        | FAIL   |
-| `sub` | 7    | 0.456        | 0.119    | 0.027     | 0.009    | 5        | FAIL   |
-| `adv` | 7    | 0.374        | **0.143**| **0.312** | 0.015    | 79       | FAIL   |
+| mode  | seed | entropy_norm | jsd_norm | aki_craft | cy_study | cy_contrib | conflict | Gate 9 |
+|-------|------|-------------:|---------:|----------:|---------:|-----------:|---------:|:------:|
+| `0`   | 42   | 0.259        | 0.019    | 0.028     | 0.018    | 0.923      | 0        | FAIL   |
+| `sub` | 42   | 0.426        | 0.119    | 0.024     | 0.022    | 0.934      | 5        | FAIL   |
+| `adv` | 42   | 0.380        | **0.175**| **0.350** | 0.031    | 0.938      | 177      | FAIL   |
+| `0`   | 38   | 0.257        | 0.010    | 0.025     | 0.011    | 0.926      | 0        | FAIL   |
+| `sub` | 38   | 0.497        | 0.171    | 0.020     | 0.032    | 0.925      | 25       | FAIL   |
+| `adv` | 38   | 0.378        | **0.168**| **0.336** | 0.030    | 0.929      | 51       | FAIL   |
+| `0`   | 7    | 0.267        | 0.014    | 0.023     | 0.014    | 0.915      | 0        | FAIL   |
+| `sub` | 7    | 0.456        | 0.119    | 0.027     | 0.037    | 0.923      | 5        | FAIL   |
+| `adv` | 7    | 0.374        | **0.143**| **0.312** | 0.030    | 0.926      | 79       | FAIL   |
 
-Means: `0` jsd 0.014 / `sub` 0.136 / `adv` 0.162. `adv` aki_craft mean **0.333**;
-`adv` cy_craft mean **0.012**. `adv` entropy mean 0.377; `sub` entropy mean 0.460.
+Means: `0`/`sub`/`adv` jsd 0.014 / 0.136 / 0.162. `aki_craft` 0.025 / 0.024 / **0.333** —
+the artisan moves only under `adv`. `cy_study` 0.014 / 0.030 / 0.030 — flat; the scholar
+never moves toward its specialty, and stays ~0.92–0.94 `contribute` in every mode. `adv`
+entropy mean 0.377; `sub` 0.460.
 
 ## Read
 
 1. **The honest hint robustly specializes the ARTISAN.** Aki's chosen-craft share is
-   0.00 (off) → 0.024 (sub) → **0.33 (adv)**, stable across all three seeds (0.350 / 0.336 /
-   0.312). The ADR 0009 fix works exactly as designed: naming `craft` as "comes easily" moves
-   the artisan to its own cheap specialty instead of the shared payload-free escape (`study`).
+   ~0.025 (off/sub) → **0.33 (adv)**, stable across all three seeds (0.350 / 0.336 / 0.312).
+   The ADR 0009 fix works exactly as designed: naming `craft` as "comes easily" moves the
+   artisan to its own cheap specialty instead of the shared payload-free escape (`study`).
    `sub` never does this (Aki craft ~0.024) — it is specific to the honest hint.
 
-2. **But it does NOT specialize the SCHOLAR.** Cy's chosen-craft is ~0.012 everywhere, and Cy
-   stays contribute-dominated under `adv` (its plurality remains `contribute`). The
-   differentiation is one-sided: one role retreats to its specialty, the other does not.
+2. **But it does NOT specialize the SCHOLAR.** Measured against the scholar's *own* specialty
+   (`study`, not craft): Cy's chosen-study share is flat at ~0.03 under `adv`, indistinguishable
+   from `sub` (~0.03) and barely above baseline (~0.014) — the honest hint does not move the
+   scholar at all. Cy stays a ~0.92–0.94 `contribute` monoculture in every mode. The
+   differentiation is one-sided: the artisan retreats to its specialty, the scholar does not.
+   (The scholar's `contribute` costs only 14, so it is usually affordable and the scarcity hint
+   rarely fires for Cy; even when it does, its persona/sampling keep it on contribute.)
 
 3. **So cross-agent JSD never clears the floor — Gate 9 FAILS in every run.** `adv` jsd lands a
    stable ~0.16 (0.175 / 0.168 / 0.143), below the 0.25 floor at all three seeds. `adv` edges
