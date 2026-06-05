@@ -245,9 +245,7 @@ SCENE_MIN_PEERS: int = 1
 # contribute-heavy scholar drains and its scarcity hint fires (Stage 4 showed adv
 # specializes the artisan but not the scholar, whose cheap contribute never
 # triggers the hint). Same hint selector as ``adv``; differs only in the table.
-VALID_ECONOMY_MODES: frozenset[str] = frozenset(
-    {"0", "1", "flat", "throttle", "sub", "adv", "bal"}
-)
+VALID_ECONOMY_MODES: frozenset[str] = frozenset({"0", "1", "flat", "throttle", "sub", "adv", "bal"})
 ECONOMY_MODE: str = os.environ.get("MICROVERSE_ECONOMY", "0")
 ECONOMY_ENABLED: bool = ECONOMY_MODE != "0"
 _ECONOMY_SCENE_GATE: bool = ECONOMY_MODE in ("1", "flat", "throttle")

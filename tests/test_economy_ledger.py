@@ -154,9 +154,12 @@ def test_derive_balanced_table_raises_every_contribute_to_the_dearest():
 def test_balanced_table_preserves_strict_specialty():
     # Raising contribute must not disturb each role's single strict specialty.
     bal = derive_balanced_table(VERB_COST_BY_ROLE)
-    assert min(bal["artisan"], key=lambda v: bal["artisan"][v]) == "rest"  # rest is 0
-    non_rest = {v: c for v, c in bal["scholar"].items() if v != "rest"}
-    assert min(non_rest, key=lambda v: non_rest[v]) == "study"  # scholar specialty intact
+    # Excluding the always-free rest, each role's strict cheapest verb is still
+    # its specialty (raising contribute must not steal the title).
+    art = {v: c for v, c in bal["artisan"].items() if v != "rest"}
+    assert min(art, key=lambda v: art[v]) == "craft"  # artisan specialty intact
+    sch = {v: c for v, c in bal["scholar"].items() if v != "rest"}
+    assert min(sch, key=lambda v: sch[v]) == "study"  # scholar specialty intact
 
 
 def test_balanced_scholar_contribute_drains_while_study_sustains():

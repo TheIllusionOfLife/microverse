@@ -278,7 +278,7 @@ def test_bal_uses_perceived_hint_like_adv_for_artisan():
         regen_per_tick=8.0,
         cost_table=derive_balanced_table(VERB_COST_BY_ROLE),
     )
-    led._pool["Aki"] = 15.0  # affords craft(6) but not study(14)/speak(16)/...
+    led._pool["Aki"] = 15.0  # affords craft(6) and study(14) but not speak(16)/travel(18)/...
     with _economy("bal"):
         assert _energy_hint_verb(led, Artisan(name="Aki")) == "craft"
 
