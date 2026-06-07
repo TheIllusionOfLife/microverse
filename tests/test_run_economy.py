@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import subprocess
+import sys
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
@@ -261,10 +263,17 @@ def test_bal_hint_fires_for_drained_scholar_naming_study():
     # speak(10 is exactly affordable -> not unaffordable), craft(18), travel(16):
     # the hint fires and names study, the scholar's specialty.
     led = _bal_scholar_ledger(10.0)
+    cy = Scholar(name="Cy")
     with _economy("bal"):
-        hint = _compute_energy_hint(led, Scholar(name="Cy"))
-    assert "study" in hint
-    assert "contribute" in hint  # contribute is now out of reach for the scholar
+        hint = _compute_energy_hint(led, cy)
+        easy_verb = _energy_hint_verb(led, cy)
+    # Structural, not substring: "study" must be the "comes easily" verb and
+    # "contribute" must sit in the out-of-reach clause, not merely appear
+    # somewhere in the free text (Codex review).
+    assert easy_verb == "study"
+    out_of_reach = hint.split(" feel out of reach", 1)[0]
+    assert "contribute" in out_of_reach  # contribute is now out of reach for the scholar
+    assert "study" not in out_of_reach  # ... and study is the escape, not blocked
 
 
 def test_bal_uses_perceived_hint_like_adv_for_artisan():
@@ -412,6 +421,30 @@ def test_lazy_attach_energy_noop_when_economy_off():
     spawned = Artisan(name="Zix")
     _lazy_attach_energy(spawned, None)  # economy off: no ledger to attach
     assert spawned._energy is None
+
+
+def test_bal_cold_import_wiring_matches_economy_helper():
+    """The _economy() helper hand-mirrors config's membership tuples, so a drift
+    between it and the real import-time derivation would be invisible to every
+    test that uses the helper. Import config COLD in a subprocess with
+    MICROVERSE_ECONOMY=bal and assert the three flags the run loop actually
+    reads (Codex review): bal == enabled + substitute + no scene gate."""
+    code = (
+        "import os, json\n"
+        "os.environ['MICROVERSE_ECONOMY'] = 'bal'\n"
+        "import microverse.config as c\n"
+        "print(json.dumps([c.ECONOMY_ENABLED, c._ECONOMY_SUBSTITUTE, c._ECONOMY_SCENE_GATE]))\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    enabled, substitute, scene_gate = json.loads(result.stdout.strip().splitlines()[-1])
+    assert enabled is True
+    assert substitute is True  # bal substitutes like adv/sub
+    assert scene_gate is False  # ... and, unlike 1/flat/throttle, does not scene-gate
 
 
 def test_invalid_economy_mode_fails_fast(tmp_path: Path):

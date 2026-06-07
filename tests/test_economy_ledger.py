@@ -151,6 +151,22 @@ def test_derive_balanced_table_raises_every_contribute_to_the_dearest():
                 assert bal[role][v] == costs[v], f"{role} {v} must be unchanged"
 
 
+def test_derive_balanced_table_leaves_role_without_contribute_untouched():
+    # The docstring promises a role with no "contribute" entry is left untouched
+    # (no key added) and is excluded from the dearest max. Exercise that branch
+    # directly with a synthetic table (Codex review): the cheaper-contribute role
+    # is still raised to the dearest, the contribute-less role is byte-identical.
+    synthetic = {
+        "artisan": {"contribute": 22.0, "craft": 6.0, "rest": 0.0},
+        "scholar": {"contribute": 14.0, "study": 6.0, "rest": 0.0},
+        "wanderer": {"travel": 4.0, "rest": 0.0},  # no contribute key
+    }
+    bal = derive_balanced_table(synthetic)
+    assert bal["scholar"]["contribute"] == 22.0  # cheaper contribute raised to dearest
+    assert "contribute" not in bal["wanderer"]  # no key fabricated
+    assert bal["wanderer"] == synthetic["wanderer"]  # role left wholly untouched
+
+
 def test_balanced_table_preserves_strict_specialty():
     # Raising contribute must not disturb each role's single strict specialty.
     bal = derive_balanced_table(VERB_COST_BY_ROLE)
