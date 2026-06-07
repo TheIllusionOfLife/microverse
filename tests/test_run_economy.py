@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import subprocess
+import sys
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
@@ -37,7 +39,7 @@ def _economy(mode: str, *, energy_max: float = 100.0):
         patch.object(config, "ECONOMY_MODE", mode),
         patch.object(config, "ECONOMY_ENABLED", mode != "0"),
         patch.object(config, "_ECONOMY_SCENE_GATE", mode in ("1", "flat", "throttle")),
-        patch.object(config, "_ECONOMY_SUBSTITUTE", mode in ("1", "flat", "sub", "adv")),
+        patch.object(config, "_ECONOMY_SUBSTITUTE", mode in ("1", "flat", "sub", "adv", "bal")),
         patch.object(config, "ENERGY_MAX", energy_max),
     ):
         yield
@@ -232,6 +234,83 @@ def test_adv_is_a_valid_economy_mode():
     assert "adv" in config.VALID_ECONOMY_MODES
 
 
+# --- bal mode: balanced contribute cost so the scholar's hint fires (ADR 0010 follow-up) ---
+# bal == adv (honest hint) PLUS a balanced cost table where every role's
+# contribute is dear (22). Under adv the scholar's cheap contribute (14) means
+# its scarcity hint rarely fires; bal makes a contribute-heavy scholar drain so
+# the hint fires and names its study specialty.
+
+
+def _bal_scholar_ledger(level: float) -> EnergyLedger:
+    from microverse.world.economy import derive_balanced_table
+
+    led = EnergyLedger.fresh(
+        ["Cy"],
+        max_energy=100.0,
+        regen_per_tick=8.0,
+        cost_table=derive_balanced_table(VERB_COST_BY_ROLE),
+    )
+    led._pool["Cy"] = level
+    return led
+
+
+def test_bal_is_a_valid_economy_mode():
+    assert "bal" in config.VALID_ECONOMY_MODES
+
+
+def test_bal_hint_fires_for_drained_scholar_naming_study():
+    # At pool 10 the balanced scholar affords study(6) but not contribute(22),
+    # speak(10 is exactly affordable -> not unaffordable), craft(18), travel(16):
+    # the hint fires and names study, the scholar's specialty.
+    led = _bal_scholar_ledger(10.0)
+    cy = Scholar(name="Cy")
+    with _economy("bal"):
+        hint = _compute_energy_hint(led, cy)
+        easy_verb = _energy_hint_verb(led, cy)
+    # Structural, not substring: "study" must be the "comes easily" verb and
+    # "contribute" must sit in the out-of-reach clause, not merely appear
+    # somewhere in the free text (Codex review).
+    assert easy_verb == "study"
+    out_of_reach = hint.split(" feel out of reach", 1)[0]
+    assert "contribute" in out_of_reach  # contribute is now out of reach for the scholar
+    assert "study" not in out_of_reach  # ... and study is the escape, not blocked
+
+
+def test_bal_uses_perceived_hint_like_adv_for_artisan():
+    # bal must keep the adv honest-hint selector so the artisan is still nudged to
+    # craft (its payload specialty), not the shared payload-free escape.
+    from microverse.world.economy import derive_balanced_table
+
+    led = EnergyLedger.fresh(
+        ["Aki"],
+        max_energy=100.0,
+        regen_per_tick=8.0,
+        cost_table=derive_balanced_table(VERB_COST_BY_ROLE),
+    )
+    led._pool["Aki"] = 15.0  # affords craft(6) and study(14) but not speak(16)/travel(18)/...
+    with _economy("bal"):
+        assert _energy_hint_verb(led, Artisan(name="Aki")) == "craft"
+
+
+def test_bal_pushes_scholar_off_contribute_where_adv_leaves_it_affordable():
+    # The isolation that motivates bal. At pool 16 the scholar can still afford
+    # contribute under the advantage table (cost 14) but NOT under the balanced
+    # table (cost 22). So adv's hint never flags contribute as out of reach,
+    # while bal's hint does and points the scholar at study.
+    adv_led = EnergyLedger.fresh(
+        ["Cy"], max_energy=100.0, regen_per_tick=8.0, cost_table=VERB_COST_BY_ROLE
+    )
+    adv_led._pool["Cy"] = 16.0  # advantage scholar contribute (14) still affordable
+    bal_led = _bal_scholar_ledger(16.0)  # balanced scholar contribute (22) out of reach
+    with _economy("adv"):
+        adv_hint = _compute_energy_hint(adv_led, Scholar(name="Cy"))
+    with _economy("bal"):
+        bal_hint = _compute_energy_hint(bal_led, Scholar(name="Cy"))
+    assert "contribute" not in adv_hint  # adv: scholar's contribute is cheap, never flagged
+    assert "contribute" in bal_hint  # bal: contribute is dear and out of reach
+    assert "study" in bal_hint  # ... so the scholar is nudged to its specialty
+
+
 # --- R4: novelty/energy hint conflict instrumentation (ADR 0009) ---
 # The honest energy_hint nudges an agent toward its cheap specialty, but
 # _compute_novelty_hint steers AWAY from whatever verb has come to dominate the
@@ -342,6 +421,30 @@ def test_lazy_attach_energy_noop_when_economy_off():
     spawned = Artisan(name="Zix")
     _lazy_attach_energy(spawned, None)  # economy off: no ledger to attach
     assert spawned._energy is None
+
+
+def test_bal_cold_import_wiring_matches_economy_helper():
+    """The _economy() helper hand-mirrors config's membership tuples, so a drift
+    between it and the real import-time derivation would be invisible to every
+    test that uses the helper. Import config COLD in a subprocess with
+    MICROVERSE_ECONOMY=bal and assert the three flags the run loop actually
+    reads (Codex review): bal == enabled + substitute + no scene gate."""
+    code = (
+        "import os, json\n"
+        "os.environ['MICROVERSE_ECONOMY'] = 'bal'\n"
+        "import microverse.config as c\n"
+        "print(json.dumps([c.ECONOMY_ENABLED, c._ECONOMY_SUBSTITUTE, c._ECONOMY_SCENE_GATE]))\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    enabled, substitute, scene_gate = json.loads(result.stdout.strip().splitlines()[-1])
+    assert enabled is True
+    assert substitute is True  # bal substitutes like adv/sub
+    assert scene_gate is False  # ... and, unlike 1/flat/throttle, does not scene-gate
 
 
 def test_invalid_economy_mode_fails_fast(tmp_path: Path):
