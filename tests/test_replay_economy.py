@@ -176,6 +176,78 @@ def test_cli_rejects_nonsensical_knobs(flag: str, value: str):
         replay_economy.parse_args(["--synthetic", flag, value])
 
 
+# --- Stage 6 R2: bal-contribute target + per-actor scarcity probe ---
+# The offline instrument that pins the live tune target T* WITHOUT live compute:
+# replay a locked economy-OFF trace at candidate contribute targets and read how
+# often the lower-weight scholar's contribute is out of reach while its study
+# specialty stays affordable (the mechanical proxy for the live hint firing).
+
+
+def _scholar_ledger(level: float, *, target: float | None = None) -> EnergyLedger:
+    from microverse.world.economy import build_cost_table
+
+    led = EnergyLedger.fresh(
+        ["Cy"],
+        max_energy=100.0,
+        regen_per_tick=8.0,
+        cost_table=build_cost_table("bal", balanced_contribute=target),
+    )
+    led._pool["Cy"] = level
+    return led
+
+
+def test_classify_scarcity_states():
+    # bal@30: contribute costs 30, study 6. Pool 10 -> contribute out of reach,
+    # study affordable (the desired drain state). Pool 2 -> nothing productive
+    # (rest only). Pool 100 -> all affordable.
+    blocked_study_ok = replay_economy._classify_scarcity(_scholar_ledger(10.0, target=30.0), "Cy", "scholar")
+    assert blocked_study_ok == (False, True, True)  # (contribute_ok, study_ok, any_productive_ok)
+    rest_only = replay_economy._classify_scarcity(_scholar_ledger(2.0, target=30.0), "Cy", "scholar")
+    assert rest_only == (False, False, False)
+    ample = replay_economy._classify_scarcity(_scholar_ledger(100.0, target=30.0), "Cy", "scholar")
+    assert ample == (True, True, True)
+
+
+def test_replay_executor_reports_per_actor_scarcity():
+    # A scholar contributing every turn under bal@30 (regen 8 < contribute 30):
+    # contribute is out of reach most turns while study stays affordable, so the
+    # probe reports a high contribute-out / study-ok rate and near-zero rest-only.
+    trace = [("Cy", "scholar", "contribute")] * 80
+    r = replay_economy.replay_executor(trace, ledger=_scholar_ledger(20.0, target=30.0))
+    sc = r["scarcity"]["Cy"]
+    assert sc["free_turns"] == 80
+    assert sc["contribute_out_study_ok_rate"] > 0.8
+    assert sc["rest_only_rate"] < 0.05
+
+
+def test_replay_executor_scarcity_excludes_forced_turns():
+    # Forced scene turns are never substituted and must not count as free turns
+    # in the scarcity denominator (they cannot trigger the hint).
+    trace = [("Cy", "scholar", "contribute", True)] * 40
+    r = replay_economy.replay_executor(trace, ledger=_scholar_ledger(20.0, target=30.0))
+    assert r["scarcity"]["Cy"]["free_turns"] == 0
+
+
+def test_main_threads_bal_contribute_into_cost_table(monkeypatch):
+    captured: dict[str, object] = {}
+    real = replay_economy.build_cost_table
+
+    def _spy(mode: str, **kwargs: object) -> dict:
+        captured["mode"] = mode
+        captured["balanced_contribute"] = kwargs.get("balanced_contribute")
+        return real(mode, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(replay_economy, "build_cost_table", _spy)
+    rc = replay_economy.main(["--synthetic", "--ticks", "5", "--mode", "bal", "--bal-contribute", "28"])
+    assert rc == 0
+    assert captured == {"mode": "bal", "balanced_contribute": 28.0}
+
+
+def test_cli_rejects_nonpositive_bal_contribute():
+    with pytest.raises(SystemExit):
+        replay_economy.parse_args(["--synthetic", "--mode", "bal", "--bal-contribute", "0"])
+
+
 def test_synthetic_role_biased_diversifies():
     out = replay_economy.synthetic_run(
         "role-biased",
