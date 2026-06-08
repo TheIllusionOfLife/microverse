@@ -212,6 +212,14 @@ class EnergyLedger:
     def regen(self, name: str) -> None:
         self._pool[name] = min(self.current(name) + self.regen_per_tick, self.max_energy)
 
+    def regen_all(self) -> None:
+        """Regenerate every roster member once (the live per-tick whole-roster
+        regen). Use this, not per-actor ``regen``, when modelling a tick: a
+        lightly-scheduled agent still regenerates while others act, so per-actor
+        regen would under-regenerate it (Stage 6 R2 fidelity)."""
+        for name in list(self._pool):
+            self.regen(name)
+
     def affordable_verbs(self, name: str, role: str, candidates: Iterable[str]) -> list[str]:
         return [v for v in candidates if self.can_afford(name, role, v)]
 

@@ -103,7 +103,10 @@ def replay_executor(
                 rest_only[actor] += 1
         ex = verb if forced else ledger.resolve_executed_verb(actor, role, verb)
         ledger.deduct(actor, role, ex)
-        ledger.regen(actor)
+        # Whole-roster regen per event (each event ~= one live tick): a
+        # lightly-scheduled actor still regenerates on others' turns, so it is
+        # not under-regenerated as per-actor regen would (Stage 6 R2 fidelity).
+        ledger.regen_all()
         chosen[verb] += 1
         executed[ex] += 1
         if ex != verb:
