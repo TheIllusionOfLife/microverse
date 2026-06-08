@@ -200,9 +200,13 @@ def test_classify_scarcity_states():
     # bal@30: contribute costs 30, study 6. Pool 10 -> contribute out of reach,
     # study affordable (the desired drain state). Pool 2 -> nothing productive
     # (rest only). Pool 100 -> all affordable.
-    blocked_study_ok = replay_economy._classify_scarcity(_scholar_ledger(10.0, target=30.0), "Cy", "scholar")
+    blocked_study_ok = replay_economy._classify_scarcity(
+        _scholar_ledger(10.0, target=30.0), "Cy", "scholar"
+    )
     assert blocked_study_ok == (False, True, True)  # (contribute_ok, study_ok, any_productive_ok)
-    rest_only = replay_economy._classify_scarcity(_scholar_ledger(2.0, target=30.0), "Cy", "scholar")
+    rest_only = replay_economy._classify_scarcity(
+        _scholar_ledger(2.0, target=30.0), "Cy", "scholar"
+    )
     assert rest_only == (False, False, False)
     ample = replay_economy._classify_scarcity(_scholar_ledger(100.0, target=30.0), "Cy", "scholar")
     assert ample == (True, True, True)
@@ -238,7 +242,9 @@ def test_main_threads_bal_contribute_into_cost_table(monkeypatch):
         return real(mode, **kwargs)  # type: ignore[arg-type]
 
     monkeypatch.setattr(replay_economy, "build_cost_table", _spy)
-    rc = replay_economy.main(["--synthetic", "--ticks", "5", "--mode", "bal", "--bal-contribute", "28"])
+    rc = replay_economy.main(
+        ["--synthetic", "--ticks", "5", "--mode", "bal", "--bal-contribute", "28"]
+    )
     assert rc == 0
     assert captured == {"mode": "bal", "balanced_contribute": 28.0}
 

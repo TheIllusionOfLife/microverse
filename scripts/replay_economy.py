@@ -53,6 +53,19 @@ def _entropy_norm(counts: Counter, *, k: int = 6) -> float:
     return h / math.log2(k)
 
 
+def _classify_scarcity(ledger: EnergyLedger, actor: str, role: str) -> tuple[bool, bool, bool]:
+    """Snapshot a pool's affordability state for the scarcity probe:
+    ``(contribute_affordable, study_affordable, any_productive_affordable)``.
+    Read BEFORE the turn resolves/deducts. The live energy hint fires exactly
+    when contribute is NOT affordable, and names study when study still is — so
+    these three booleans are the mechanical proxy for "would the hint push this
+    actor off contribute toward its specialty" at the current cost target."""
+    contribute_ok = ledger.can_afford(actor, role, "contribute")
+    study_ok = ledger.can_afford(actor, role, "study")
+    productive_ok = any(ledger.can_afford(actor, role, v) for v in _VERBS if v != "rest")
+    return contribute_ok, study_ok, productive_ok
+
+
 def replay_executor(
     events: list[tuple[str, str, str]] | list[tuple[str, str, str, bool]],
     *,
@@ -62,19 +75,32 @@ def replay_executor(
     through the executor. Per event: resolve (afford-or-substitute) at the
     current pool, deduct the executed verb, then regen the actor (per-actor
     approximation of the live whole-roster per-tick regen). Returns
-    chosen/executed counts and the substitution rate.
+    chosen/executed counts, the substitution rate, and a per-actor scarcity probe.
 
     ``forced`` (4th element, default False) marks a scene turn (ADR 0006). Live
     scene contributes are NEVER substituted (the lever skips scene turns), so a
     forced event is deducted at its chosen verb without substitution — otherwise
     the offline estimate would predict substitutions that cannot happen live and
-    inflate the substitution rate (review)."""
+    inflate the substitution rate (review). Forced turns are also excluded from
+    the scarcity denominator: they cannot trigger the hint, so they are not
+    "free turns" the lever could act on (Stage 6)."""
     chosen: Counter = Counter()
     executed: Counter = Counter()
     subs = 0
+    # Per-actor scarcity tallies over non-forced ("free") turns.
+    free_turns: Counter = Counter()
+    contribute_out_study_ok: Counter = Counter()
+    rest_only: Counter = Counter()
     for event in events:
         actor, role, verb, *rest = event
         forced = bool(rest[0]) if rest else False
+        if not forced:
+            contribute_ok, study_ok, productive_ok = _classify_scarcity(ledger, actor, role)
+            free_turns[actor] += 1
+            if not contribute_ok and study_ok:
+                contribute_out_study_ok[actor] += 1
+            if not productive_ok:
+                rest_only[actor] += 1
         ex = verb if forced else ledger.resolve_executed_verb(actor, role, verb)
         ledger.deduct(actor, role, ex)
         ledger.regen(actor)
@@ -83,6 +109,23 @@ def replay_executor(
         if ex != verb:
             subs += 1
     total = sum(executed.values())
+    scarcity = {
+        actor: {
+            "free_turns": n,
+            "contribute_out_study_ok_rate": round(contribute_out_study_ok[actor] / n, 4),
+            "rest_only_rate": round(rest_only[actor] / n, 4),
+        }
+        if n
+        else {"free_turns": 0, "contribute_out_study_ok_rate": 0.0, "rest_only_rate": 0.0}
+        for actor, n in free_turns.items()
+    }
+    # Actors that appeared only in forced turns still deserve a (zeroed) entry.
+    for actor in {a for a, _, *_ in events} - set(scarcity):
+        scarcity[actor] = {
+            "free_turns": 0,
+            "contribute_out_study_ok_rate": 0.0,
+            "rest_only_rate": 0.0,
+        }
     return {
         "total": total,
         "chosen_counts": dict(chosen),
@@ -93,6 +136,7 @@ def replay_executor(
         if total
         else 0.0,
         "executed_entropy_norm": round(_entropy_norm(executed), 4),
+        "scarcity": scarcity,
     }
 
 
@@ -216,6 +260,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=ENERGY_REGEN_PER_TICK,
         help="override ENERGY_REGEN_PER_TICK (tuning sweep; defaults to config)",
     )
+    p.add_argument(
+        "--bal-contribute",
+        type=float,
+        default=None,
+        help="mode 'bal' only (Stage 6 R2): raise the balanced contribute target "
+        "above the natural dearest (22) so the lower-weight scholar drains harder. "
+        "A target below 22 is rejected at table build (never silently clamped).",
+    )
     args = p.parse_args(argv)
     # Fail fast on meaningless knobs: a non-positive pool or negative regen is
     # never a valid economy and would silently yield a degenerate all-rest sweep.
@@ -223,13 +275,20 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         p.error("--energy-max must be > 0")
     if args.regen < 0:
         p.error("--regen must be >= 0")
+    if args.bal_contribute is not None and args.bal_contribute <= 0:
+        p.error("--bal-contribute must be > 0")
     return args
 
 
 def main(argv: list[str]) -> int:
     args = parse_args(argv)
-    cost_table = build_cost_table(args.mode)
-    report: dict = {"mode": args.mode, "energy_max": args.energy_max, "regen": args.regen}
+    cost_table = build_cost_table(args.mode, balanced_contribute=args.bal_contribute)
+    report: dict = {
+        "mode": args.mode,
+        "energy_max": args.energy_max,
+        "regen": args.regen,
+        "bal_contribute": args.bal_contribute,
+    }
 
     if args.data:
         ep = Path(args.data) / "episodic.sqlite"

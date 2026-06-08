@@ -251,6 +251,28 @@ ECONOMY_ENABLED: bool = ECONOMY_MODE != "0"
 _ECONOMY_SCENE_GATE: bool = ECONOMY_MODE in ("1", "flat", "throttle")
 _ECONOMY_SUBSTITUTE: bool = ECONOMY_MODE in ("1", "flat", "sub", "adv", "bal")
 
+
+def _parse_bal_contribute(raw: str | None) -> float | None:
+    """Parse MICROVERSE_BAL_CONTRIBUTE (Stage 6 R2 tune knob). Unset/empty -> None
+    (mode ``bal`` uses the table's natural dearest contribute, 22 — the original
+    behaviour). A set value raises the balanced contribute target so the
+    lower-weight scholar drains further; it must be a positive number (a
+    non-positive target is never a valid cost and would break the ledger)."""
+    if raw is None or raw.strip() == "":
+        return None
+    value = float(raw)
+    if value <= 0:
+        raise ValueError(f"MICROVERSE_BAL_CONTRIBUTE must be > 0, got {value}")
+    return value
+
+
+# Stage 6 R2 tune: the dear contribute target for mode ``bal`` (None = natural
+# dearest, 22). Raising it drains the under-scheduled scholar harder; the table
+# build rejects a target below the natural dearest (derive_balanced_table).
+ECONOMY_BALANCED_CONTRIBUTE: float | None = _parse_bal_contribute(
+    os.environ.get("MICROVERSE_BAL_CONTRIBUTE")
+)
+
 # Finite stamina pool. Regen sits between the cheap specialty (~6) and the
 # dear contribute (~22) so a role can sustain its specialty indefinitely but
 # must save up across cheaper/idle ticks to afford an off-specialty verb or
