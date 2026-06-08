@@ -196,6 +196,22 @@ def _scholar_ledger(level: float, *, target: float | None = None) -> EnergyLedge
     return led
 
 
+def test_replay_regens_whole_roster_per_event():
+    # Faithful per-tick regen: a non-acting roster member still regenerates each
+    # event (each trace event ~= one live tick). Without this the lightly-
+    # scheduled scholar is under-regenerated ~2.4x, overstating its scarcity and
+    # mis-pinning the Stage 6 tune target (R2 fidelity).
+    from microverse.world.economy import EnergyLedger
+
+    trace = [("Aki", "artisan", "craft")] * 10  # only Aki acts
+    led = EnergyLedger.fresh(
+        ["Aki", "Cy"], max_energy=100.0, regen_per_tick=8.0, cost_table=VERB_COST_BY_ROLE
+    )
+    led._pool["Cy"] = 10.0
+    replay_economy.replay_executor(trace, ledger=led)
+    assert led.current("Cy") == pytest.approx(90.0)  # +8 on each of Aki's 10 events
+
+
 def test_classify_scarcity_states():
     # bal@30: contribute costs 30, study 6. Pool 10 -> contribute out of reach,
     # study affordable (the desired drain state). Pool 2 -> nothing productive

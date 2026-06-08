@@ -54,6 +54,24 @@ def test_regen_caps_at_max(ledger: EnergyLedger):
     assert ledger.current("Aki") == 100.0  # never exceeds max
 
 
+def test_regen_all_regenerates_every_pool_member(ledger: EnergyLedger):
+    # Live regenerates the WHOLE roster each tick, not just the acting agent.
+    # regen_all is the faithful per-tick primitive the offline replay needs so a
+    # lightly-scheduled agent is not under-regenerated (Stage 6 R2 fidelity).
+    ledger.deduct("Aki", "artisan", "contribute")  # 100 -> 78
+    ledger.deduct("Cy", "scholar", "contribute")  # 100 -> 86
+    ledger.regen_all()  # +12 each
+    assert ledger.current("Aki") == pytest.approx(90.0)
+    assert ledger.current("Cy") == pytest.approx(98.0)
+
+
+def test_regen_all_caps_each_member_at_max(ledger: EnergyLedger):
+    for _ in range(20):
+        ledger.regen_all()
+    assert ledger.current("Aki") == 100.0
+    assert ledger.current("Cy") == 100.0
+
+
 def test_rest_always_affordable_even_at_zero(ledger: EnergyLedger):
     for _ in range(20):
         ledger.deduct("Aki", "artisan", "contribute")
