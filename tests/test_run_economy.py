@@ -447,6 +447,33 @@ def test_bal_cold_import_wiring_matches_economy_helper():
     assert scene_gate is False  # ... and, unlike 1/flat/throttle, does not scene-gate
 
 
+def test_bal_contribute_knob_parses_from_env_cold_import():
+    """MICROVERSE_BAL_CONTRIBUTE feeds config.ECONOMY_BALANCED_CONTRIBUTE (Stage 6
+    R2 tune): unset -> None (natural dearest), set -> float. Cold subprocess so
+    the import-time parse is exercised, not a patched value."""
+    code = (
+        "import os, json\n"
+        "os.environ['MICROVERSE_BAL_CONTRIBUTE'] = '28'\n"
+        "import microverse.config as c\n"
+        "print(json.dumps(c.ECONOMY_BALANCED_CONTRIBUTE))\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    )
+    assert json.loads(result.stdout.strip().splitlines()[-1]) == 28.0
+
+    unset = (
+        "import os, json\n"
+        "os.environ.pop('MICROVERSE_BAL_CONTRIBUTE', None)\n"
+        "import microverse.config as c\n"
+        "print(json.dumps(c.ECONOMY_BALANCED_CONTRIBUTE))\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", unset], capture_output=True, text=True, check=True
+    )
+    assert json.loads(result.stdout.strip().splitlines()[-1]) is None
+
+
 def test_invalid_economy_mode_fails_fast(tmp_path: Path):
     """A typo'd MICROVERSE_ECONOMY must raise, not silently run an unlabeled
     no-op arm (ECONOMY_ENABLED but neither gate nor substitution)."""

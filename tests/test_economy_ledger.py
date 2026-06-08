@@ -8,8 +8,11 @@ scheduler's ``max(soul_tokens, 1)`` floor).
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
+from microverse import config
 from microverse.config import ENERGY_MAX, ENERGY_REGEN_PER_TICK, VERB_COST_BY_ROLE
 from microverse.world.economy import (
     EnergyLedger,
@@ -149,6 +152,63 @@ def test_derive_balanced_table_raises_every_contribute_to_the_dearest():
         for v in costs:
             if v not in ("contribute", "rest"):
                 assert bal[role][v] == costs[v], f"{role} {v} must be unchanged"
+
+
+# --- bal target knob (Stage 6 tune-to-clear, R2): the balanced contribute target
+# is a config knob so a dearer contribute can drain the lower-weight scholar
+# further. target=None reproduces the natural-dearest behaviour byte-for-byte;
+# a target below the natural dearest is a metadata-poisoning mislabel and must
+# fail loud, never silently clamp (Codex review).
+
+
+def test_derive_balanced_table_target_none_reproduces_dearest():
+    assert derive_balanced_table(VERB_COST_BY_ROLE, target=None) == derive_balanced_table(
+        VERB_COST_BY_ROLE
+    )
+
+
+def test_derive_balanced_table_target_equal_dearest_matches_default():
+    # 22 is the natural dearest; passing it explicitly must equal the default.
+    assert derive_balanced_table(VERB_COST_BY_ROLE, target=22.0) == derive_balanced_table(
+        VERB_COST_BY_ROLE
+    )
+
+
+def test_derive_balanced_table_target_raises_contribute_above_dearest():
+    bal = derive_balanced_table(VERB_COST_BY_ROLE, target=30.0)
+    for role, costs in VERB_COST_BY_ROLE.items():
+        assert bal[role]["contribute"] == 30.0, f"{role} contribute must be the raised target"
+        assert bal[role]["rest"] == 0.0
+        for v in costs:
+            if v not in ("contribute", "rest"):
+                assert bal[role][v] == costs[v], f"{role} {v} must be unchanged"
+
+
+def test_derive_balanced_table_target_below_dearest_fails_loud():
+    # Silent clamp would let a run's metadata claim target=10 while the table
+    # actually used 22, poisoning pre-registration. Fail fast instead.
+    with pytest.raises(ValueError, match="below the natural dearest"):
+        derive_balanced_table(VERB_COST_BY_ROLE, target=10.0)
+
+
+def test_build_cost_table_bal_honours_balanced_contribute_knob():
+    # build_cost_table reads config.ECONOMY_BALANCED_CONTRIBUTE for bal; None
+    # keeps the natural dearest (22), a set value raises the contribute target.
+    with patch.object(config, "ECONOMY_BALANCED_CONTRIBUTE", None):
+        assert build_cost_table("bal") == derive_balanced_table(VERB_COST_BY_ROLE)
+    with patch.object(config, "ECONOMY_BALANCED_CONTRIBUTE", 28.0):
+        bal = build_cost_table("bal")
+        assert bal["scholar"]["contribute"] == 28.0
+        assert bal["artisan"]["contribute"] == 28.0
+        assert bal["scholar"]["study"] == VERB_COST_BY_ROLE["scholar"]["study"]  # specialty intact
+
+
+def test_build_cost_table_bal_explicit_override_beats_config_knob():
+    # The offline replay sweep passes balanced_contribute= directly so it can
+    # probe targets without mutating the process env (config knob untouched).
+    with patch.object(config, "ECONOMY_BALANCED_CONTRIBUTE", None):
+        bal = build_cost_table("bal", balanced_contribute=26.0)
+        assert bal["scholar"]["contribute"] == 26.0
 
 
 def test_derive_balanced_table_leaves_role_without_contribute_untouched():
