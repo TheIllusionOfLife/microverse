@@ -174,7 +174,7 @@ def _trace_from_episodic(path: Path) -> list[tuple[str, str, str, bool, str | No
     the executor must deduct without substituting (review). ``scene_id`` lets the
     replay group a scene's three forced contributes into one regen tick, matching
     the live loop's single whole-roster regen per scene (run.py:1127)."""
-    conn = sqlite3.connect(str(path))
+    conn = sqlite3.connect(path)
     try:
         rows = conn.execute(
             "SELECT actor, action, payload_json FROM events "
@@ -297,7 +297,7 @@ def _audit_trace_from_episodic(path: Path) -> list[AuditEvent]:
     of :func:`_trace_from_episodic` (kept separate so Stage-0 replay output
     stays byte-stable) that also carries the EXECUTED verb (the ``action``
     column — what live deducted) and the gate9 telemetry flags."""
-    conn = sqlite3.connect(str(path))
+    conn = sqlite3.connect(path)
     try:
         rows = conn.execute(
             "SELECT actor, action, payload_json FROM events "

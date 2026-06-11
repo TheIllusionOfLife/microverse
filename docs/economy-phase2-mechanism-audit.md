@@ -15,10 +15,13 @@ an in-band fidelity check on that reconstruction. Parity between the offline pre
 `run._compute_energy_hint` / `run._energy_hint_verb` is pinned by unit test
 (`tests/test_economy_audit.py::test_hint_state_parity_with_run_helpers`).
 
-**Headline: CONFIRMED — the hint is the operative channel. C5 (fidelity), C1 (dose), C2
-(conditional shift), C3 (decomposition) pass at all three seeds with wide margins; the
-deconfound stratum rules out a raw-energy channel. C4 failed as literally drafted — a
-mis-specification of the criterion, not a spillover signal (see Findings F5).**
+**Headline: CONFIRMED, with one disclosed deviation. C5 (fidelity), C1 (dose), C2 (conditional
+shift), C3 (decomposition) pass at all three seeds with wide margins; the deconfound stratum
+rules out a raw-energy channel. C4 fails as literally drafted — a criterion mis-specified
+against already-published facts (Findings F5) — so under the strict literal rule the read is
+INCONCLUSIVE. The CONFIRMED verdict is issued under an amended rule (C4 replaced by the
+corrected no-cross-role-bleed falsification, which passes), with the amendment disclosed in the
+scorecard below and carried into the item 3 pre-registration.**
 
 ## Setup
 
@@ -126,6 +129,19 @@ Raw report: `data/econ-phase2-mechanism-audit.json` (untracked, alongside the fr
   (never `craft`), and its top-verb share moved −0.108 across arms (band ±0.08).
 - **Obedience (advisory) PASS** — Cy 0.50–0.67 per run (floor 0.30); the named verb was
   `study` on 100% of Cy's fired turns, `craft` on 100% of Aki's.
+
+**Verdict under the rule.** The pre-registered rule reads "confirmed iff all of C1–C4 hold";
+C4 failed, so the strict literal reading is INCONCLUSIVE. The verdict issued here is
+**CONFIRMED under a post-hoc amended rule**, and the amendment is disclosed rather than
+silently substituted: C4's predicate ("Aki's top chosen verb is craft") was false in the
+already-frozen pre-Stage-6 data at the moment it was drafted — it tested a baseline that never
+existed, not a hypothesis the audit could inform — and its share-stability clause contradicts
+the audited design itself (`bal` raises Aki's contribute cost too, so Aki's mix moving WITH its
+own firing rate is the mechanism working, not spillover). The amended C4 — Aki's top
+NON-contribute chosen verb is `craft` in all nine runs, and neither agent drifts toward the
+other's specialty — passes everywhere (F5). Readers who reject post-hoc amendments on principle
+should treat this audit as INCONCLUSIVE-pending-replication; the item 3 replication carries the
+corrected criterion as a properly pre-registered test either way (ADR 0013 Decision 2).
 
 ## Findings
 

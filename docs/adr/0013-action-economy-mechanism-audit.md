@@ -1,11 +1,15 @@
 # ADR 0013: Action-economy mechanism audit — the scarcity hint IS the operative channel
 
 **Status:** Accepted (measurement record) — records the offline mechanism audit (ADR 0012
-Phase 2 item 2) of the Stage 6 Gate 9 PASS. **Verdict: CONFIRMED.** The pre-registered C5
-(reconstruction fidelity), C1 (dose), C2 (conditional shift, with the deconfound stratum), and
-C3 (decomposition consistency) all pass at all three seeds with wide margins. C4 failed as
-literally drafted — a criterion mis-specification, not a spillover signal; its underlying
-falsification (no cross-role identity bleed) holds. The Stage 6 causal narrative survives.
+Phase 2 item 2) of the Stage 6 Gate 9 PASS. **Verdict: CONFIRMED, under one disclosed
+deviation from the pre-registered rule.** C5 (reconstruction fidelity), C1 (dose), C2
+(conditional shift, with the deconfound stratum), and C3 (decomposition consistency) all pass
+at all three seeds with wide margins. C4 failed as literally drafted; since the rule read
+"confirmed iff all of C1–C4 hold", the strict literal reading is INCONCLUSIVE. The verdict is
+issued under an amended rule — C4's predicate was mis-specified against already-published facts
+(it tested a baseline that never existed), and the corrected falsification (no cross-role
+identity bleed) passes everywhere. The amendment is disclosed, not silently substituted; see
+the findings doc's "Verdict under the rule". The Stage 6 causal narrative survives.
 
 **Date:** 2026-06-12
 
@@ -56,7 +60,8 @@ real event table (`docs/economy-phase2-mechanism-audit.md`, the full write-up).
 
 ## Decision
 
-1. **The mechanism claim is confirmed.** ADR 0012's bounded PASS is upgraded from "the tuned
+1. **The mechanism claim is confirmed (under the disclosed C4 amendment).** ADR 0012's bounded
+   PASS is upgraded from "the tuned
    economy produced divergence" to "the tuned economy produced divergence THROUGH the measured
    hint channel, at quantified firing/obedience rates, with the raw-energy confound excluded."
 2. **Phase 2 item 3 (held-out replication, T fixed at 30) proceeds** on this foundation. Its
