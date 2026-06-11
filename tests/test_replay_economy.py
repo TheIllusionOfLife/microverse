@@ -177,6 +177,23 @@ def test_cli_rejects_nonsensical_knobs(flag: str, value: str):
         replay_economy.parse_args(["--synthetic", flag, value])
 
 
+@pytest.mark.parametrize(
+    ("flag", "value"),
+    [
+        ("--energy-max", "nan"),
+        ("--energy-max", "inf"),
+        ("--regen", "nan"),
+        ("--regen", "inf"),
+    ],
+)
+def test_cli_rejects_non_finite_knobs(flag: str, value: str):
+    # float("nan")/inf pass the <= 0 / < 0 guards (nan comparisons are False, inf
+    # is positive) and corrupt the replay the same way a non-finite bal target
+    # would. Reject them consistently with --bal-contribute (Codex review).
+    with pytest.raises(SystemExit):
+        replay_economy.parse_args(["--synthetic", flag, value])
+
+
 # --- Stage 6 R2: bal-contribute target + per-actor scarcity probe ---
 # The offline instrument that pins the live tune target T* WITHOUT live compute:
 # replay a locked economy-OFF trace at candidate contribute targets and read how
@@ -313,6 +330,24 @@ def test_replay_free_turn_after_scene_is_its_own_tick():
     replay_economy.replay_executor(trace, ledger=led)
     # scene block regen once (+8 -> 18); Cy free turn deduct study 6 (-> 12) then regen +8 (-> 20)
     assert led.current("Cy") == pytest.approx(20.0)
+
+
+def test_replay_free_turns_keyed_on_forced_not_scene_id():
+    # The scene collapse must key on `forced`, not scene_id alone. Real traces
+    # never emit a non-forced turn carrying a scene_id (forced == bool(scene_id)),
+    # but the grouping must still treat two non-forced turns as two ticks even if
+    # they happen to share a scene_id, so a malformed/hand-built trace cannot
+    # suppress a free-turn regen (Codex review, defensive).
+    trace = [
+        ("Aki", "artisan", "craft", False, "s1"),
+        ("Aki", "artisan", "craft", False, "s1"),
+    ]
+    led = EnergyLedger.fresh(
+        ["Aki", "Cy"], max_energy=100.0, regen_per_tick=8.0, cost_table=VERB_COST_BY_ROLE
+    )
+    led._pool["Cy"] = 10.0
+    replay_economy.replay_executor(trace, ledger=led)
+    assert led.current("Cy") == pytest.approx(26.0)  # two free ticks => +8 twice, not once
 
 
 def test_replay_two_adjacent_scenes_regen_once_each():

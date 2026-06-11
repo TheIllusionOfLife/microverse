@@ -120,10 +120,14 @@ def replay_executor(
         # regenerates on others' turns, so it is not under-regenerated — Stage 6
         # R2 fidelity). A scene is one tick: collapse consecutive same-scene
         # forced turns so the regen fires only on the scene's last turn, matching
-        # the live single post-scene regen (Codex review P1).
+        # the live single post-scene regen (Codex review P1). Key on ``forced``,
+        # not scene_id alone, so a non-forced turn is always its own tick even if
+        # a malformed trace attaches a scene_id to it (Codex review, defensive).
         nxt = ev_list[idx + 1] if idx + 1 < len(ev_list) else None
+        next_forced = bool(nxt[3]) if nxt is not None and len(nxt) > 3 else False
         next_scene = nxt[4] if nxt is not None and len(nxt) > 4 else None
-        if scene_id is None or scene_id != next_scene:
+        in_same_scene = forced and scene_id is not None and next_forced and next_scene == scene_id
+        if not in_same_scene:
             ledger.regen_all()
         chosen[verb] += 1
         executed[ex] += 1
@@ -295,10 +299,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     args = p.parse_args(argv)
     # Fail fast on meaningless knobs: a non-positive pool or negative regen is
     # never a valid economy and would silently yield a degenerate all-rest sweep.
-    if args.energy_max <= 0:
-        p.error("--energy-max must be > 0")
-    if args.regen < 0:
-        p.error("--regen must be >= 0")
+    if not math.isfinite(args.energy_max) or args.energy_max <= 0:
+        p.error("--energy-max must be a positive finite number")
+    if not math.isfinite(args.regen) or args.regen < 0:
+        p.error("--regen must be a finite non-negative number")
     if args.bal_contribute is not None and (
         not math.isfinite(args.bal_contribute) or args.bal_contribute <= 0
     ):
