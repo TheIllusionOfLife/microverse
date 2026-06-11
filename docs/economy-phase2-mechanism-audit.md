@@ -15,7 +15,10 @@ an in-band fidelity check on that reconstruction. Parity between the offline pre
 `run._compute_energy_hint` / `run._energy_hint_verb` is pinned by unit test
 (`tests/test_economy_audit.py::test_hint_state_parity_with_run_helpers`).
 
-**Headline: TBD (criteria below committed before the audit read any real event table).**
+**Headline: CONFIRMED — the hint is the operative channel. C5 (fidelity), C1 (dose), C2
+(conditional shift), C3 (decomposition) pass at all three seeds with wide margins; the
+deconfound stratum rules out a raw-energy channel. C4 failed as literally drafted — a
+mis-specification of the criterion, not a spillover signal (see Findings F5).**
 
 ## Setup
 
@@ -78,11 +81,79 @@ failure (claim stands but unaudited until live hint logging exists).
 
 ## Results
 
-TBD — filled in after the locked run of the command above.
+Per run (Cy = scholar, Aki = artisan; all shares on the free chosen stream, gate9 filters;
+`fire` = hint firing rate over free turns; `p(v|h)` / `p(v|a)` = chosen-verb probability given
+hint present / absent; `fid_on` = predicted-vs-logged substitution agreement on predicted-hint-on
+turns — hint-off agreement was **1.0000 in all nine runs**):
+
+| arm    | seed | cy_fire | p(study\|h) | p(study\|a) | cy_obed | aki_fire | p(craft\|h) | p(craft\|a) | fid_on |
+|--------|-----:|--------:|------------:|------------:|--------:|---------:|------------:|------------:|-------:|
+| adv    | 42   | 0.038   | 0.525       | 0.023       | 0.525   | 0.680    | 0.443       | 0.025       | 0.942  |
+| bal@22 | 42   | 0.422   | 0.621       | 0.002       | 0.621   | 0.698    | 0.531       | 0.031       | 0.919  |
+| bal@30 | 42   | 0.658   | 0.603       | 0.003       | 0.603   | 0.849    | 0.455       | 0.041       | 0.934  |
+| adv    | 38   | 0.023   | 0.542       | 0.011       | 0.542   | 0.715    | 0.426       | 0.026       | 0.948  |
+| bal@22 | 38   | 0.420   | 0.602       | 0.002       | 0.602   | 0.727    | 0.478       | 0.036       | 0.929  |
+| bal@30 | 38   | 0.663   | 0.608       | 0.000       | 0.608   | 0.853    | 0.493       | 0.045       | 0.928  |
+| adv    | 7    | 0.014   | 0.500       | 0.018       | 0.500   | 0.709    | 0.475       | 0.041       | 0.945  |
+| bal@22 | 7    | 0.389   | 0.557       | 0.002       | 0.557   | 0.702    | 0.506       | 0.011       | 0.944  |
+| bal@30 | 7    | 0.661   | 0.667       | 0.000       | 0.667   | 0.850    | 0.503       | 0.040       | 0.936  |
+
+Deconfound stratum (Cy, study share among hint-ABSENT turns, split by the energy band):
+`P(study | absent_low)` is 0.000–0.006 in every bal run (n = 149–200 per run) and
+`P(study | absent_comfortable)` is 0.000–0.003 (n = 185–437) — indistinguishable from each
+other and from zero, against 0.56–0.67 under the hint.
+
+Decomposition (aggregate, bal@22 → bal@30): Cy observed Δstudy **+0.169** vs predicted
+Δfiring × conditional effect = 0.251 × 0.612 = **+0.153**, fit ratio **1.10**. Aki observed
+Δcraft +0.053 vs predicted +0.065, fit ratio 0.80.
+
+Cy energy equilibria (mean of last quarter of free turns): ~71–83 in `adv`, ~27–31 in `bal@22`,
+~24–27 in `bal@30` — the bal arms hold the scholar hovering at the affordability threshold,
+exactly the drain regime the R2 story requires.
+
+Raw report: `data/econ-phase2-mechanism-audit.json` (untracked, alongside the frozen run dirs).
+
+## Criteria scorecard
+
+- **C5 PASS** — hint-on agreement 0.919–0.948, hint-off 1.000, all nine runs (floor 0.90).
+- **C1 PASS** — Cy firing ordered `adv ≤ bal@22 < bal@30` at every seed; bal-pair gaps
+  +0.237 / +0.243 / +0.272 (floor 0.15).
+- **C2 PASS** — conditional study shift +0.600 / +0.608 / +0.667 at bal@30 (floor 0.10);
+  contribute suppressed under the hint in every run (0.26–0.31 vs 0.88–0.92). Deconfound
+  stratum flat at ~0 (see above): the effect follows the hint TEXT, not the energy level.
+- **C3 PASS** — Cy fit ratio 1.10 (band 0.5–1.5; even within ±30%).
+- **C4 FAIL as drafted** — see F5. Aki's top chosen verb is `contribute` in all nine runs
+  (never `craft`), and its top-verb share moved −0.108 across arms (band ±0.08).
+- **Obedience (advisory) PASS** — Cy 0.50–0.67 per run (floor 0.30); the named verb was
+  `study` on 100% of Cy's fired turns, `craft` on 100% of Aki's.
 
 ## Findings
 
-TBD.
+- **F1 — the dose-response chain is real and quantified.** Raising the balanced contribute
+  target 22→30 raises Cy's hint firing 0.41→0.66 (and `adv` explains itself: firing 1–4%,
+  which is why the honest hint alone never specialized the scholar — ADR 0010's diagnosis,
+  now measured). Firing × obedience reproduces the observed study rise within 10% (C3).
+- **F2 — the hint text, not the energy level, moves the model.** On energetically-adjacent
+  hint-absent turns (`absent_low`) Cy chooses study at ~0, identical to comfortable turns.
+  There is no path from the pool level into the prompt except the hint string, and the
+  behavior confirms it.
+- **F3 — the model obeys the named verb at ~0.5–0.67**, far above the 0.30 floor; the
+  remainder mostly stays on contribute (which the executor then substitutes). Specialization
+  is perception-mediated, with the hard lever as backstop — the ADR 0009 design intent.
+- **F4 — reconstruction validity.** Hint-off turns agree perfectly (no phantom scarcity);
+  hint-on agreement 0.92–0.95, the slack matching the known lever ordering (diversity lever
+  and engagement gate sit between `parsed_verb` and the economy lever; see Limitations).
+- **F5 — C4 was mis-specified, and the underlying falsification still passes.** The criterion
+  assumed `craft` was Aki's top chosen verb; it never was — `contribute` tops every arm
+  including `adv` (0.56–0.68), a fact already visible in pre-Stage-6 data. The share movement
+  across arms is also not spillover: `bal` raises AKI's contribute cost too (22→30), so Aki's
+  own firing rises 0.70→0.85 and its craft share 0.32→0.42 — the same mechanism, the same
+  comparative-advantage direction, decomposition-consistent (fit 0.80). The intent of C4
+  (no cross-role identity bleed) holds cleanly: the hint named `craft` on 100% of Aki's fired
+  turns and `study` on 100% of Cy's; neither agent drifted toward the other's specialty
+  (Aki study ≤ 0.02, Cy craft ≤ 0.01 everywhere). Recorded as FAIL-as-drafted per
+  pre-registration discipline; the corrected falsification belongs to the Phase 2 item 3
+  replication's pre-registration.
 
 ## Limitations
 
