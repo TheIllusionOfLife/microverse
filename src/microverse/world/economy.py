@@ -86,48 +86,76 @@ def derive_flat_table(table: CostTable) -> dict[str, dict[str, float]]:
     return flat
 
 
-def derive_balanced_table(table: CostTable) -> dict[str, dict[str, float]]:
+def derive_balanced_table(
+    table: CostTable, target: float | None = None
+) -> dict[str, dict[str, float]]:
     """Balanced-contribute variant of ``table`` (ADR 0010 follow-up, mode ``bal``).
 
-    Raises every role's ``contribute`` to the dearest one in the table (the
-    artisan's 22) and leaves everything else — including each role's cheap
-    specialty — untouched. Stage 4 found the honest hint (``adv``) specializes
-    the artisan but not the scholar, because the scholar's ``contribute`` is
-    cheap (14) and so almost always affordable: its scarcity hint never fires.
-    Making every role's ``contribute`` equally dear means a contribute-heavy
-    scholar drains too, so the (still honest) hint fires and names its ``study``
-    specialty. Comparative advantage is preserved: each role's strict specialty
-    is unchanged, only the shared escape verb ``contribute`` becomes uniformly
-    expensive. A role without a ``contribute`` entry is left untouched (no key is
-    added) and does not contribute to the ``dearest`` max (review).
+    Raises every role's ``contribute`` to a single dear value and leaves
+    everything else — including each role's cheap specialty — untouched. Stage 4
+    found the honest hint (``adv``) specializes the artisan but not the scholar,
+    because the scholar's ``contribute`` is cheap (14) and so almost always
+    affordable: its scarcity hint never fires. Making every role's ``contribute``
+    equally dear means a contribute-heavy scholar drains too, so the (still
+    honest) hint fires and names its ``study`` specialty. Comparative advantage
+    is preserved: each role's strict specialty is unchanged, only the shared
+    escape verb ``contribute`` becomes uniformly expensive. A role without a
+    ``contribute`` entry is left untouched (no key is added) and does not
+    contribute to the natural-dearest max (review).
+
+    ``target`` is the Stage 6 R2 tune knob. When ``None`` the dear value is the
+    table's natural dearest contribute (the artisan's 22) — byte-identical to the
+    original ``bal``. A ``target`` raises it further so the lower-weight scholar
+    (scheduled less often, hence regenerating more between its own actions)
+    drains below affordability more often. A ``target`` BELOW the natural dearest
+    is rejected: silently clamping it up would let a run's pre-registration
+    metadata claim a target the table never used (Codex review).
     """
     dearest = max(
         (costs["contribute"] for costs in table.values() if "contribute" in costs),
         default=0.0,
     )
+    if target is not None and target < dearest:
+        raise ValueError(
+            f"balanced contribute target {target} is below the natural dearest "
+            f"{dearest}; the balanced table only raises contribute, never lowers it"
+        )
+    dear = dearest if target is None else target
     return {
-        role: {v: (dearest if v == "contribute" else cost) for v, cost in costs.items()}
+        role: {v: (dear if v == "contribute" else cost) for v, cost in costs.items()}
         for role, costs in table.items()
     }
 
 
-def build_cost_table(mode: str) -> dict[str, dict[str, float]]:
+def build_cost_table(
+    mode: str, *, balanced_contribute: float | None = None
+) -> dict[str, dict[str, float]]:
     """Resolve the per-mode cost table.
 
     ``"flat"`` returns the role-agnostic control; ``"bal"`` returns the
-    balanced-contribute table (every role's contribute raised to the dearest);
-    every other economy mode (``"1"``, ``"sub"``, ``"throttle"``, ``"adv"``)
-    uses the role-advantage table. ``"adv"`` and ``"bal"`` share the ``adv``
-    energy-hint selector (see ``run._compute_energy_hint``); ``"bal"`` adds the
-    balanced cost table so the scholar's scarcity hint actually fires.
+    balanced-contribute table (every role's contribute raised to a single dear
+    value); every other economy mode (``"1"``, ``"sub"``, ``"throttle"``,
+    ``"adv"``) uses the role-advantage table. ``"adv"`` and ``"bal"`` share the
+    ``adv`` energy-hint selector (see ``run._compute_energy_hint``); ``"bal"``
+    adds the balanced cost table so the scholar's scarcity hint actually fires.
+
+    For ``"bal"`` the dear contribute target is ``balanced_contribute`` when
+    given (the offline replay sweep passes it directly so it can probe targets
+    without mutating the process env), else ``config.ECONOMY_BALANCED_CONTRIBUTE``
+    (Stage 6 R2 knob), else the table's natural dearest.
     """
-    from microverse.config import VERB_COST_BY_ROLE
+    from microverse import config
 
     if mode == "flat":
-        return derive_flat_table(VERB_COST_BY_ROLE)
+        return derive_flat_table(config.VERB_COST_BY_ROLE)
     if mode == "bal":
-        return derive_balanced_table(VERB_COST_BY_ROLE)
-    return {role: dict(costs) for role, costs in VERB_COST_BY_ROLE.items()}
+        target = (
+            balanced_contribute
+            if balanced_contribute is not None
+            else config.ECONOMY_BALANCED_CONTRIBUTE
+        )
+        return derive_balanced_table(config.VERB_COST_BY_ROLE, target=target)
+    return {role: dict(costs) for role, costs in config.VERB_COST_BY_ROLE.items()}
 
 
 class EnergyLedger:
@@ -183,6 +211,14 @@ class EnergyLedger:
 
     def regen(self, name: str) -> None:
         self._pool[name] = min(self.current(name) + self.regen_per_tick, self.max_energy)
+
+    def regen_all(self) -> None:
+        """Regenerate every roster member once (the live per-tick whole-roster
+        regen). Use this, not per-actor ``regen``, when modelling a tick: a
+        lightly-scheduled agent still regenerates while others act, so per-actor
+        regen would under-regenerate it (Stage 6 R2 fidelity)."""
+        for name in list(self._pool):
+            self.regen(name)
 
     def affordable_verbs(self, name: str, role: str, candidates: Iterable[str]) -> list[str]:
         return [v for v in candidates if self.can_afford(name, role, v)]

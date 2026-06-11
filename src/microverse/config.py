@@ -6,6 +6,7 @@ caps. Importable from anywhere — keep this module dependency-free.
 
 from __future__ import annotations
 
+import math
 import os
 
 # Single-model invariant. Every LLM call goes here. No router, no fallback.
@@ -250,6 +251,30 @@ ECONOMY_MODE: str = os.environ.get("MICROVERSE_ECONOMY", "0")
 ECONOMY_ENABLED: bool = ECONOMY_MODE != "0"
 _ECONOMY_SCENE_GATE: bool = ECONOMY_MODE in ("1", "flat", "throttle")
 _ECONOMY_SUBSTITUTE: bool = ECONOMY_MODE in ("1", "flat", "sub", "adv", "bal")
+
+
+def _parse_bal_contribute(raw: str | None) -> float | None:
+    """Parse MICROVERSE_BAL_CONTRIBUTE (Stage 6 R2 tune knob). Unset/empty -> None
+    (mode ``bal`` uses the table's natural dearest contribute, 22 — the original
+    behaviour). A set value raises the balanced contribute target so the
+    lower-weight scholar drains further; it must be a positive, finite number (a
+    non-positive or non-finite target is never a valid cost and would break the
+    ledger: ``float("nan")``/``inf`` pass ``<= 0`` yet make every affordability
+    comparison degenerate, so reject them explicitly)."""
+    if raw is None or raw.strip() == "":
+        return None
+    value = float(raw)
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError(f"MICROVERSE_BAL_CONTRIBUTE must be a positive finite number, got {value}")
+    return value
+
+
+# Stage 6 R2 tune: the dear contribute target for mode ``bal`` (None = natural
+# dearest, 22). Raising it drains the under-scheduled scholar harder; the table
+# build rejects a target below the natural dearest (derive_balanced_table).
+ECONOMY_BALANCED_CONTRIBUTE: float | None = _parse_bal_contribute(
+    os.environ.get("MICROVERSE_BAL_CONTRIBUTE")
+)
 
 # Finite stamina pool. Regen sits between the cheap specialty (~6) and the
 # dear contribute (~22) so a role can sustain its specialty indefinitely but
