@@ -37,6 +37,7 @@ import sqlite3
 import sys
 from collections import Counter
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from microverse.config import ENERGY_MAX, ENERGY_REGEN_PER_TICK
@@ -173,7 +174,7 @@ def _trace_from_episodic(path: Path) -> list[tuple[str, str, str, bool, str | No
     the executor must deduct without substituting (review). ``scene_id`` lets the
     replay group a scene's three forced contributes into one regen tick, matching
     the live loop's single whole-roster regen per scene (run.py:1127)."""
-    conn = sqlite3.connect(str(path))
+    conn = sqlite3.connect(path)
     try:
         rows = conn.execute(
             "SELECT actor, action, payload_json FROM events "
@@ -193,6 +194,411 @@ def _trace_from_episodic(path: Path) -> list[tuple[str, str, str, bool, str | No
         if role and chosen in _VERBS:
             out.append((actor, role, chosen, forced, scene_id))
     return out
+
+
+# --- Mechanism audit (ADR 0012 Phase 2 item 2) -------------------------------
+#
+# The Stage 6 PASS claims the scarcity hint is the operative channel: the
+# balanced contribute cost drains the scholar, the hint fires and names study,
+# the model obeys. The hint text itself is never persisted, but its state is
+# deterministically reconstructable: replay the energy ledger over the LOGGED
+# executed-verb stream (exact live arithmetic — live deducts the committed
+# verb, run.py:1222) and re-evaluate run.py's hint predicate at each free turn
+# pre-deduct (the live hint is computed before think(), run.py:983). The
+# logged ``economy_substituted`` flag provides a per-event fidelity check on
+# the reconstruction (the audit's C5 gate).
+
+# Mirrors run.py's _ENERGY_HINT_PRODUCTIVE; the parity test in
+# tests/test_economy_audit.py pins the two against each other so they cannot
+# drift silently.
+_HINT_PRODUCTIVE = ("speak", "craft", "study", "travel", "contribute")
+# Modes whose live prompts carry the scarcity hint (config._ECONOMY_SUBSTITUTE).
+_SUBSTITUTE_MODES = frozenset({"1", "flat", "sub", "adv", "bal"})
+
+
+@dataclass(frozen=True)
+class AuditEvent:
+    """One committed agent action with both verb streams + telemetry flags."""
+
+    actor: str
+    role: str
+    chosen: str
+    executed: str
+    forced: bool = False
+    scene_id: str | None = None
+    parse_fallback: bool = False
+    economy_substituted: bool = False
+
+
+@dataclass(frozen=True)
+class AuditSpec:
+    """One ``--audit MODE[@TARGET]=PATH`` run assignment. The run dir does not
+    record its economy mode, so the operator must restate it (the dir naming
+    convention ``econ-stage6-<arm>-s<seed>`` carries it)."""
+
+    mode: str
+    target: float | None
+    path: Path
+    arm: str
+
+
+def parse_audit_spec(spec: str) -> AuditSpec:
+    """Parse ``MODE[@TARGET]=PATH``. Raises ``ValueError`` (never clamps) on a
+    malformed spec so a typo cannot silently audit the wrong cost table."""
+    arm, sep, path = spec.partition("=")
+    if not sep or not path or not arm:
+        raise ValueError(f"invalid audit spec {spec!r}: expected MODE[@TARGET]=PATH")
+    mode, tsep, traw = arm.partition("@")
+    target: float | None = None
+    if tsep:
+        if mode != "bal":
+            raise ValueError(f"invalid audit spec {spec!r}: a @TARGET is only valid for mode 'bal'")
+        try:
+            target = float(traw)
+        except ValueError:
+            raise ValueError(
+                f"invalid audit spec {spec!r}: target {traw!r} is not a number"
+            ) from None
+        if not math.isfinite(target) or target <= 0:
+            raise ValueError(
+                f"invalid audit spec {spec!r}: target must be a positive finite number"
+            )
+    if mode not in _SUBSTITUTE_MODES:
+        raise ValueError(
+            f"invalid audit spec {spec!r}: mode {mode!r} has no live scarcity hint "
+            f"(expected one of {sorted(_SUBSTITUTE_MODES)})"
+        )
+    return AuditSpec(mode=mode, target=target, path=Path(path), arm=arm)
+
+
+def _hint_state(
+    ledger: EnergyLedger, actor: str, role: str, *, mode: str
+) -> tuple[bool, str | None]:
+    """Offline reimplementation of run.py's live hint predicate + selector:
+    ``(fired, easy_verb)``. Fires iff any productive verb is unaffordable
+    (``_compute_energy_hint``); the named "comes easily" verb is the perceived
+    selector for ``adv``/``bal`` and the legacy productive selector otherwise
+    (``_select_easy_verb``). Takes ``mode`` explicitly — run.py reads the
+    process-global ``config.ECONOMY_MODE``, which cannot audit three arms in
+    one process. ``easy_verb`` is ``None`` when nothing productive is
+    affordable (live shows the "rest before ..." message)."""
+    if mode not in _SUBSTITUTE_MODES:
+        return (False, None)
+    unaffordable = any(not ledger.can_afford(actor, role, v) for v in _HINT_PRODUCTIVE)
+    if not unaffordable:
+        return (False, None)
+    if mode in ("adv", "bal"):
+        return (True, ledger.cheapest_affordable_perceived(actor, role))
+    return (True, ledger.cheapest_affordable_productive(actor, role))
+
+
+def _audit_trace_from_episodic(path: Path) -> list[AuditEvent]:
+    """Chronological :class:`AuditEvent` stream from a committed run. Sibling
+    of :func:`_trace_from_episodic` (kept separate so Stage-0 replay output
+    stays byte-stable) that also carries the EXECUTED verb (the ``action``
+    column — what live deducted) and the gate9 telemetry flags."""
+    conn = sqlite3.connect(path)
+    try:
+        rows = conn.execute(
+            "SELECT actor, action, payload_json FROM events "
+            "WHERE actor NOT IN ('world','harvester','scene') ORDER BY id ASC"
+        ).fetchall()
+    finally:
+        conn.close()
+    out: list[AuditEvent] = []
+    for actor, action, payload_json in rows:
+        if action not in _VERBS:
+            continue
+        payload = json.loads(payload_json) if payload_json else {}
+        role = str(payload.get("role", ""))
+        if not role:
+            continue
+        chosen = payload.get("parsed_verb") or action
+        if chosen not in _VERBS:
+            chosen = action
+        scene_id = payload.get("scene_id")
+        out.append(
+            AuditEvent(
+                actor=actor,
+                role=role,
+                chosen=chosen,
+                executed=action,
+                forced=bool(scene_id),
+                scene_id=scene_id,
+                parse_fallback=bool(payload.get("parse_fallback")),
+                economy_substituted=bool(payload.get("economy_substituted")),
+            )
+        )
+    return out
+
+
+def _rate(num: int, den: int) -> float:
+    return round(num / den, 4) if den else 0.0
+
+
+def _shares(counts: Counter) -> dict[str, float]:
+    total = sum(counts.values())
+    return {v: round(n / total, 4) for v, n in sorted(counts.items())} if total else {}
+
+
+def audit_run(events: Sequence[AuditEvent], *, ledger: EnergyLedger, mode: str) -> dict:
+    """Single chronological pass over a run's committed actions.
+
+    Per free (non-scene) turn, BEFORE deducting (matching live, where the hint
+    is computed pre-think and the deduct lands post-commit): snapshot the
+    actor's energy, evaluate the hint predicate, classify the turn's stratum
+    (``hint`` / ``absent_low`` / ``absent_comfortable`` — low means contribute
+    is affordable but within one regen of the threshold, the deconfound band),
+    and compare the offline executor's predicted substitution against the
+    logged ``economy_substituted`` flag (fidelity). Then deduct the LOGGED
+    executed verb and regen the whole roster once per live tick, collapsing a
+    scene's forced turns into a single regen (same tick model as
+    :func:`replay_executor`, PR #55 fidelity fix).
+
+    Conditional chosen-verb streams exclude parse-fallback RESTs (gate9
+    parity: a malformed payload is not a free verb choice); the hint-rate
+    denominator keeps them (live computed the hint regardless of how the
+    think() output parsed)."""
+
+    def _new_acc(role: str) -> dict:
+        return {
+            "role": role,
+            "free": 0,
+            "energies": [],
+            "contribute_out": 0,
+            "hint_fired": 0,
+            "easy": Counter(),
+            "chosen": {"hint": Counter(), "absent_low": Counter(), "absent_comfortable": Counter()},
+            "obey": 0,
+            "obey_total": 0,
+        }
+
+    acc: dict[str, dict] = {}
+    fid = {"hint_on": [0, 0], "hint_off": [0, 0]}  # [events, agreements]
+    ev_list = list(events)
+    for idx, ev in enumerate(ev_list):
+        st = acc.setdefault(ev.actor, _new_acc(ev.role))
+        if not ev.forced:
+            energy = ledger.current(ev.actor)
+            fired, easy = _hint_state(ledger, ev.actor, ev.role, mode=mode)
+            contribute_cost = ledger.cost(ev.role, "contribute")
+            st["free"] += 1
+            st["energies"].append(energy)
+            if energy < contribute_cost:
+                st["contribute_out"] += 1
+            if fired:
+                st["hint_fired"] += 1
+                st["easy"][easy or "none"] += 1
+            if not ev.parse_fallback:
+                if fired:
+                    stratum = "hint"
+                elif energy < contribute_cost + ledger.regen_per_tick:
+                    stratum = "absent_low"
+                else:
+                    stratum = "absent_comfortable"
+                st["chosen"][stratum][ev.chosen] += 1
+                if fired and easy is not None:
+                    st["obey_total"] += 1
+                    if ev.chosen == easy:
+                        st["obey"] += 1
+                predicted = ledger.resolve_executed_verb(ev.actor, ev.role, ev.chosen) != ev.chosen
+                bucket = fid["hint_on" if fired else "hint_off"]
+                bucket[0] += 1
+                if predicted == ev.economy_substituted:
+                    bucket[1] += 1
+        ledger.deduct(ev.actor, ev.role, ev.executed)
+        nxt = ev_list[idx + 1] if idx + 1 < len(ev_list) else None
+        in_same_scene = (
+            ev.forced
+            and ev.scene_id is not None
+            and nxt is not None
+            and nxt.forced
+            and nxt.scene_id == ev.scene_id
+        )
+        if not in_same_scene:
+            ledger.regen_all()
+
+    agents: dict[str, dict] = {}
+    for actor, st in acc.items():
+        samples: list[float] = st["energies"]
+        tail = samples[-max(1, len(samples) // 4) :] if samples else []
+        absent = st["chosen"]["absent_low"] + st["chosen"]["absent_comfortable"]
+        agents[actor] = {
+            "role": st["role"],
+            "free_turns": st["free"],
+            "energy": {
+                "min": round(min(samples), 4) if samples else None,
+                "mean": round(sum(samples) / len(samples), 4) if samples else None,
+                "equilibrium": round(sum(tail) / len(tail), 4) if tail else None,
+                "contribute_unaffordable_rate": _rate(st["contribute_out"], st["free"]),
+            },
+            "hint": {
+                "fired": st["hint_fired"],
+                "rate": _rate(st["hint_fired"], st["free"]),
+                "easy_verbs": dict(sorted(st["easy"].items())),
+            },
+            "chosen": {k: dict(sorted(c.items())) for k, c in st["chosen"].items()},
+            "p_chosen": {
+                "hint": _shares(st["chosen"]["hint"]),
+                "absent": _shares(absent),
+                "absent_low": _shares(st["chosen"]["absent_low"]),
+                "absent_comfortable": _shares(st["chosen"]["absent_comfortable"]),
+            },
+            "obedience_rate": _rate(st["obey"], st["obey_total"]) if st["obey_total"] else None,
+        }
+
+    def _fid_block(events_n: int, agree_n: int) -> dict:
+        return {
+            "events": events_n,
+            "agreements": agree_n,
+            "rate": round(agree_n / events_n, 4) if events_n else None,
+        }
+
+    on_n, on_a = fid["hint_on"]
+    off_n, off_a = fid["hint_off"]
+    return {
+        "events": len(ev_list),
+        "mode": mode,
+        "agents": agents,
+        "fidelity": {
+            **_fid_block(on_n + off_n, on_a + off_a),
+            "hint_on": _fid_block(on_n, on_a),
+            "hint_off": _fid_block(off_n, off_a),
+        },
+    }
+
+
+def _combined_chosen(report_agent: dict) -> Counter:
+    out: Counter = Counter()
+    for counts in report_agent["chosen"].values():
+        out.update(counts)
+    return out
+
+
+def aggregate_audit(runs: Sequence[dict]) -> dict:
+    """Cross-run aggregate of ``audit_run`` reports (each wrapped as
+    ``{"arm", "run", "report"}``): per-arm per-agent means, per-agent top-verb
+    stability across every run, and — when two or more ``bal@T`` arms are
+    present — the decomposition check (is the observed chosen-share delta of
+    the agent's modal easy verb consistent with delta-firing-rate times the
+    pooled conditional effect?). Conditional probabilities are POOLED (counts
+    summed before dividing) across a (arm, agent) group: more stable than a
+    mean of per-run ratios when hint turns are scarce."""
+    by_arm: dict[str, list[dict]] = {}
+    for item in runs:
+        by_arm.setdefault(item["arm"], []).append(item)
+
+    def _agent_names(items: Sequence[dict]) -> list[str]:
+        names: list[str] = []
+        for it in items:
+            for name in it["report"]["agents"]:
+                if name not in names:
+                    names.append(name)
+        return names
+
+    arms: dict[str, dict] = {}
+    pooled: dict[tuple[str, str], dict[str, Counter]] = {}
+    for arm, items in by_arm.items():
+        arm_out: dict[str, dict] = {}
+        for name in _agent_names(items):
+            reports = [
+                it["report"]["agents"][name] for it in items if name in it["report"]["agents"]
+            ]
+            hint_counts: Counter = Counter()
+            absent_counts: Counter = Counter()
+            combined: Counter = Counter()
+            easy: Counter = Counter()
+            for rep in reports:
+                hint_counts.update(rep["chosen"]["hint"])
+                absent_counts.update(rep["chosen"]["absent_low"])
+                absent_counts.update(rep["chosen"]["absent_comfortable"])
+                combined.update(_combined_chosen(rep))
+                easy.update(rep["hint"]["easy_verbs"])
+            pooled[(arm, name)] = {
+                "hint": hint_counts,
+                "absent": absent_counts,
+                "combined": combined,
+                "easy": easy,
+            }
+            arm_out[name] = {
+                "runs": len(reports),
+                "hint_rate_mean": round(sum(r["hint"]["rate"] for r in reports) / len(reports), 4),
+                "chosen_share": _shares(combined),
+                "p_chosen_hint_pooled": _shares(hint_counts),
+                "p_chosen_absent_pooled": _shares(absent_counts),
+            }
+        arms[arm] = arm_out
+
+    stability: dict[str, dict] = {}
+    for name in _agent_names(list(runs)):
+        top_by_run: dict[str, str] = {}
+        top_shares: list[float] = []
+        for item in runs:
+            rep = item["report"]["agents"].get(name)
+            if rep is None:
+                continue
+            combined = _combined_chosen(rep)
+            total = sum(combined.values())
+            if not total:
+                continue
+            verb, count = combined.most_common(1)[0]
+            top_by_run[f"{item['arm']}/{item['run']}"] = verb
+            top_shares.append(count / total)
+        stability[name] = {
+            "top_verb_by_run": top_by_run,
+            "stable": len(set(top_by_run.values())) == 1 if top_by_run else False,
+            "top_share_spread": round(max(top_shares) - min(top_shares), 4) if top_shares else None,
+        }
+
+    decomposition: dict[str, dict] = {}
+    bal_targets: list[tuple[float, str]] = []
+    for arm in by_arm:
+        mode, tsep, traw = arm.partition("@")
+        if mode == "bal" and tsep:
+            bal_targets.append((float(traw), arm))
+    if len(bal_targets) >= 2:
+        bal_targets.sort()
+        (_, low_arm), (_, high_arm) = bal_targets[0], bal_targets[-1]
+        bal_arms = [arm for _, arm in bal_targets]
+        for name in _agent_names(list(runs)):
+            if name not in arms.get(low_arm, {}) or name not in arms.get(high_arm, {}):
+                continue
+            hint_counts = Counter()
+            absent_counts = Counter()
+            easy = Counter()
+            for arm in bal_arms:
+                grp = pooled.get((arm, name))
+                if grp:
+                    hint_counts.update(grp["hint"])
+                    absent_counts.update(grp["absent"])
+                    easy.update(grp["easy"])
+            easy.pop("none", None)
+            if not easy:
+                continue
+            verb = easy.most_common(1)[0][0]
+            p_hint = _shares(hint_counts).get(verb, 0.0)
+            p_absent = _shares(absent_counts).get(verb, 0.0)
+            cond_effect = round(p_hint - p_absent, 4)
+            d_firing = round(
+                arms[high_arm][name]["hint_rate_mean"] - arms[low_arm][name]["hint_rate_mean"], 4
+            )
+            observed = round(
+                arms[high_arm][name]["chosen_share"].get(verb, 0.0)
+                - arms[low_arm][name]["chosen_share"].get(verb, 0.0),
+                4,
+            )
+            predicted = round(d_firing * cond_effect, 4)
+            decomposition[name] = {
+                "verb": verb,
+                "arms": [low_arm, high_arm],
+                "delta_firing": d_firing,
+                "conditional_effect": cond_effect,
+                "observed_delta": observed,
+                "predicted_delta": predicted,
+                "fit_ratio": round(observed / predicted, 4) if predicted else None,
+            }
+
+    return {"arms": arms, "stability": stability, "decomposition": decomposition}
 
 
 def synthetic_run(
@@ -296,7 +702,20 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "above the natural dearest (22) so the lower-weight scholar drains harder. "
         "A target below 22 is rejected at table build (never silently clamped).",
     )
+    p.add_argument(
+        "--audit",
+        action="append",
+        metavar="MODE[@TARGET]=PATH",
+        help="mechanism audit (ADR 0012 Phase 2): assign a run dir to its economy "
+        "arm, e.g. bal@30=data/econ-stage6-bal30-s42. Repeatable; the report "
+        "carries per-run reconstructions plus the cross-run aggregate.",
+    )
     args = p.parse_args(argv)
+    for spec in args.audit or []:
+        try:
+            parse_audit_spec(spec)
+        except ValueError as exc:
+            p.error(str(exc))
     # Fail fast on meaningless knobs: a non-positive pool or negative regen is
     # never a valid economy and would silently yield a degenerate all-rest sweep.
     if not math.isfinite(args.energy_max) or args.energy_max <= 0:
@@ -358,8 +777,36 @@ def main(argv: list[str]) -> int:
             for pol in ("always-contribute", "uniform-random", "role-biased")
         ]
 
-    if not args.data and not args.synthetic:
-        print("nothing to do: pass --data <dir> and/or --synthetic", file=sys.stderr)
+    if args.audit:
+        audit_runs: list[dict] = []
+        for spec_raw in args.audit:
+            spec = parse_audit_spec(spec_raw)
+            ep = spec.path / "episodic.sqlite"
+            if not ep.exists():
+                print(f"FATAL: {ep} not found", file=sys.stderr)
+                return 2
+            ledger = EnergyLedger.fresh(
+                [n for n, _ in _DEFAULT_ROSTER],
+                max_energy=args.energy_max,
+                regen_per_tick=args.regen,
+                cost_table=build_cost_table(spec.mode, balanced_contribute=spec.target),
+            )
+            audit_runs.append(
+                {
+                    "arm": spec.arm,
+                    "run": spec.path.name,
+                    "report": audit_run(
+                        _audit_trace_from_episodic(ep), ledger=ledger, mode=spec.mode
+                    ),
+                }
+            )
+        report["mechanism_audit"] = {
+            "runs": audit_runs,
+            "aggregate": aggregate_audit(audit_runs),
+        }
+
+    if not args.data and not args.synthetic and not args.audit:
+        print("nothing to do: pass --data <dir>, --synthetic, and/or --audit", file=sys.stderr)
         return 1
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0
