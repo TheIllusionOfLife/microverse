@@ -120,7 +120,11 @@ The claim is bounded and should be carried forward as such:
   verbs toward specialties," not "energy costs force actions." A different base model may obey
   differently.
 - **T\* = 30 was target-selected** (offline mechanical rule, raise-only). The pass is confirmatory
-  at this roster/model, not evidence that 30 is universal.
+  at this roster/model, not evidence that 30 is universal. A scene-regen fidelity bug in the offline
+  probe (found in PR #55 review after the read) under-reported scarcity; corrected, the same
+  pre-registered rule selects **T\*=26**, so the live `T=30` is a conservative dose and the verdict
+  is unaffected (the bug over-drained, which cannot manufacture a pass). See the runbook's "Post-read
+  correction" addendum.
 - **Single model, three seeds, unseeded sampling.** The in-sweep `bal@22` control is one paired
   comparator per seed, not many repeated live runs.
 - **Tightest attribution margin:** condition 2 clears narrowly at s42/s38 (−0.102 / −0.103 vs the

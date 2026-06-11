@@ -33,6 +33,11 @@ read and Phase 2 unblocks.
 - **T\* = 30 was selected offline** from a pre-registered mechanical rule (`replay_economy.py`,
   smallest grid target with contribute-out/study-ok ≥ 0.55 at all three seeds, rest-only ≤ 0.05),
   with zero knowledge of the live jsd it would produce. See the runbook for the selection table.
+- **Instrument correction (PR #55 review, post-read).** The offline probe had a scene-regen
+  fidelity bug (regen per scene *turn* vs the live per-*scene* regen, run.py:1127) that
+  **under-reported** scarcity. Corrected, the same rule selects **T\*=26**, so the live `T=30` is a
+  *conservative* (more-than-sufficient) dose and the verdict is unaffected. See the runbook's
+  "Post-read correction" addendum; the bug's direction (over-drain) cannot manufacture a pass.
 
 ## Pre-registered pass rule (locked before reading)
 

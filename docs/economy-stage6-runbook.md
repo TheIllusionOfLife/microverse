@@ -142,3 +142,32 @@ After the read, write `docs/economy-stage6-findings.md` + the ADR 0012 follow-up
 per-seed table and the PASS/HALT decision. **If `bal@30` clears all four conditions, Gate 9
 PASSes and Phase 2 unblocks. If it misses, the economy lever's two-resident ceiling stands and
 the arc is parked** for a different mechanism (e.g. a larger heterogeneous roster).
+
+---
+
+## Post-read correction (2026-06-11, PR #55 review) — does NOT alter the verdict
+
+The locked offline selection table above (and its `T*=30`) was computed with a **scene-regen
+fidelity bug** in `replay_economy.py`, found in Codex's PR review *after* the live read completed.
+The replay regenerated the whole roster once per scene *turn*; the live loop regenerates once per
+*scene* (run.py:1127). The bug **over-regenerated** during scenes, so the offline probe
+**under-reported** scarcity. It is recorded here rather than edited into the locked table above, to
+keep the original pre-registration intact as a historical record.
+
+Corrected `contribute-out / study-ok` rate (faithful scene-grouped regen, same economy-OFF traces):
+
+| target T | s42 / s38 / s7 | ≥0.55 all seeds |
+|---------:|:---------------|:---------------:|
+| 24 | 0.492 / 0.506 / 0.504 | no |
+| **26** | **0.556 / 0.567 / 0.567** | **yes (smallest)** |
+| 28 | 0.604 / 0.630 / 0.623 | yes |
+| 30 | 0.657 / 0.681 / 0.659 | yes |
+
+(rest-only 0.000 at every target — starvation still pre-excluded.)
+
+**The correction strengthens the result.** Applied to the corrected table, the same pre-registered
+rule (smallest target with rate ≥ 0.55 at all three seeds) would select **`T*=26`**, not 30. The
+live sweep ran at **T=30 ≥ 26** — a *more-than-sufficient* dose by the corrected rule. So `T=30`
+is conservative w.r.t. the faithful instrument, and the Gate 9 PASS (jsd 0.307 / 0.344 / 0.376) is
+unaffected. The direction matters: the bug made us drain *harder* than needed, never the reverse, so
+it cannot have manufactured the pass. Code fix + tests: PR #55 commits `d8e5c2e` / `5f272cb`.
