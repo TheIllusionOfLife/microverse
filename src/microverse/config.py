@@ -6,6 +6,7 @@ caps. Importable from anywhere — keep this module dependency-free.
 
 from __future__ import annotations
 
+import math
 import os
 
 # Single-model invariant. Every LLM call goes here. No router, no fallback.
@@ -256,13 +257,15 @@ def _parse_bal_contribute(raw: str | None) -> float | None:
     """Parse MICROVERSE_BAL_CONTRIBUTE (Stage 6 R2 tune knob). Unset/empty -> None
     (mode ``bal`` uses the table's natural dearest contribute, 22 — the original
     behaviour). A set value raises the balanced contribute target so the
-    lower-weight scholar drains further; it must be a positive number (a
-    non-positive target is never a valid cost and would break the ledger)."""
+    lower-weight scholar drains further; it must be a positive, finite number (a
+    non-positive or non-finite target is never a valid cost and would break the
+    ledger: ``float("nan")``/``inf`` pass ``<= 0`` yet make every affordability
+    comparison degenerate, so reject them explicitly)."""
     if raw is None or raw.strip() == "":
         return None
     value = float(raw)
-    if value <= 0:
-        raise ValueError(f"MICROVERSE_BAL_CONTRIBUTE must be > 0, got {value}")
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError(f"MICROVERSE_BAL_CONTRIBUTE must be a positive finite number, got {value}")
     return value
 
 

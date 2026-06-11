@@ -14,9 +14,10 @@ ZERO new LLM compute. Two stages that gate the expensive A/B runs (Codex review)
     mechanically diversify and to read the theoretical entropy ceiling.
 
 Both reuse ``EnergyLedger.resolve_executed_verb`` so the offline estimate
-matches the live lever exactly. The per-tick whole-roster regen is
-approximated as per-actor regen (the trace only records the acting agent),
-so these are estimates, not the live measurement — run
+matches the live lever exactly. Regen mirrors the live loop: the whole roster
+regenerates once per tick, with a scene's three forced contributes collapsed
+into a single regen tick (run.py:1127). These remain estimates (the trace
+records only the acting agent's chosen verb), not the live measurement — run
 ``spike_workshop_measure.py`` on a real run for the gate read.
 
 Usage:
@@ -35,6 +36,7 @@ import random
 import sqlite3
 import sys
 from collections import Counter
+from collections.abc import Sequence
 from pathlib import Path
 
 from microverse.config import ENERGY_MAX, ENERGY_REGEN_PER_TICK
@@ -67,15 +69,17 @@ def _classify_scarcity(ledger: EnergyLedger, actor: str, role: str) -> tuple[boo
 
 
 def replay_executor(
-    events: list[tuple[str, str, str]] | list[tuple[str, str, str, bool]],
+    events: Sequence[
+        tuple[str, str, str] | tuple[str, str, str, bool] | tuple[str, str, str, bool, str | None]
+    ],
     *,
     ledger: EnergyLedger,
 ) -> dict:
-    """Run a chronological ``(actor, role, chosen_verb[, forced])`` trace
-    through the executor. Per event: resolve (afford-or-substitute) at the
-    current pool, deduct the executed verb, then regen the actor (per-actor
-    approximation of the live whole-roster per-tick regen). Returns
-    chosen/executed counts, the substitution rate, and a per-actor scarcity probe.
+    """Run a chronological ``(actor, role, chosen_verb[, forced[, scene_id]])``
+    trace through the executor. Per event: resolve (afford-or-substitute) at the
+    current pool, deduct the executed verb, then regen the whole roster once per
+    live tick. Returns chosen/executed counts, the substitution rate, and a
+    per-actor scarcity probe.
 
     ``forced`` (4th element, default False) marks a scene turn (ADR 0006). Live
     scene contributes are NEVER substituted (the lever skips scene turns), so a
@@ -83,7 +87,14 @@ def replay_executor(
     the offline estimate would predict substitutions that cannot happen live and
     inflate the substitution rate (review). Forced turns are also excluded from
     the scarcity denominator: they cannot trigger the hint, so they are not
-    "free turns" the lever could act on (Stage 6)."""
+    "free turns" the lever could act on (Stage 6).
+
+    ``scene_id`` (5th element, default None) groups a scene's three forced
+    contributes into ONE regen tick. The live loop deducts each scene turn but
+    regenerates the whole roster only once after ``SceneRunner.run`` completes
+    (run.py:1127); regenerating per forced turn would add two phantom regens per
+    scene, inflating later affordability and under-reporting scarcity (Codex
+    review P1). A free (non-scene) turn is always its own tick."""
     chosen: Counter = Counter()
     executed: Counter = Counter()
     subs = 0
@@ -91,9 +102,11 @@ def replay_executor(
     free_turns: Counter = Counter()
     contribute_out_study_ok: Counter = Counter()
     rest_only: Counter = Counter()
-    for event in events:
+    ev_list = list(events)
+    for idx, event in enumerate(ev_list):
         actor, role, verb, *rest = event
         forced = bool(rest[0]) if rest else False
+        scene_id = rest[1] if len(rest) > 1 else None
         if not forced:
             contribute_ok, study_ok, productive_ok = _classify_scarcity(ledger, actor, role)
             free_turns[actor] += 1
@@ -103,10 +116,15 @@ def replay_executor(
                 rest_only[actor] += 1
         ex = verb if forced else ledger.resolve_executed_verb(actor, role, verb)
         ledger.deduct(actor, role, ex)
-        # Whole-roster regen per event (each event ~= one live tick): a
-        # lightly-scheduled actor still regenerates on others' turns, so it is
-        # not under-regenerated as per-actor regen would (Stage 6 R2 fidelity).
-        ledger.regen_all()
+        # Whole-roster regen once per live tick (a lightly-scheduled actor still
+        # regenerates on others' turns, so it is not under-regenerated — Stage 6
+        # R2 fidelity). A scene is one tick: collapse consecutive same-scene
+        # forced turns so the regen fires only on the scene's last turn, matching
+        # the live single post-scene regen (Codex review P1).
+        nxt = ev_list[idx + 1] if idx + 1 < len(ev_list) else None
+        next_scene = nxt[4] if nxt is not None and len(nxt) > 4 else None
+        if scene_id is None or scene_id != next_scene:
+            ledger.regen_all()
         chosen[verb] += 1
         executed[ex] += 1
         if ex != verb:
@@ -143,12 +161,14 @@ def replay_executor(
     }
 
 
-def _trace_from_episodic(path: Path) -> list[tuple[str, str, str, bool]]:
-    """Chronological ``(actor, role, chosen_verb, forced)`` from a committed
-    run. The chosen verb is ``payload.parsed_verb`` when present (an economy-on
-    run), else the executed action (an economy-off run — the model's own
-    choice). ``forced`` is True for scene turns (``payload.scene_id``), which the
-    executor must deduct without substituting (review)."""
+def _trace_from_episodic(path: Path) -> list[tuple[str, str, str, bool, str | None]]:
+    """Chronological ``(actor, role, chosen_verb, forced, scene_id)`` from a
+    committed run. The chosen verb is ``payload.parsed_verb`` when present (an
+    economy-on run), else the executed action (an economy-off run — the model's
+    own choice). ``forced`` is True for scene turns (``payload.scene_id``), which
+    the executor must deduct without substituting (review). ``scene_id`` lets the
+    replay group a scene's three forced contributes into one regen tick, matching
+    the live loop's single whole-roster regen per scene (run.py:1127)."""
     conn = sqlite3.connect(str(path))
     try:
         rows = conn.execute(
@@ -157,16 +177,17 @@ def _trace_from_episodic(path: Path) -> list[tuple[str, str, str, bool]]:
         ).fetchall()
     finally:
         conn.close()
-    out: list[tuple[str, str, str, bool]] = []
+    out: list[tuple[str, str, str, bool, str | None]] = []
     for actor, action, payload_json in rows:
         if action not in _VERBS:
             continue
         payload = json.loads(payload_json) if payload_json else {}
         role = str(payload.get("role", ""))
         chosen = payload.get("parsed_verb") or action
-        forced = bool(payload.get("scene_id"))
+        scene_id = payload.get("scene_id")
+        forced = bool(scene_id)
         if role and chosen in _VERBS:
-            out.append((actor, role, chosen, forced))
+            out.append((actor, role, chosen, forced, scene_id))
     return out
 
 
@@ -278,8 +299,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         p.error("--energy-max must be > 0")
     if args.regen < 0:
         p.error("--regen must be >= 0")
-    if args.bal_contribute is not None and args.bal_contribute <= 0:
-        p.error("--bal-contribute must be > 0")
+    if args.bal_contribute is not None and (
+        not math.isfinite(args.bal_contribute) or args.bal_contribute <= 0
+    ):
+        # nan/inf pass float() and the <= 0 guard yet make every affordability
+        # comparison degenerate (contribute reads as permanently unavailable),
+        # silently corrupting the sweep (Codex review).
+        p.error("--bal-contribute must be a positive finite number")
     return args
 
 
@@ -292,6 +318,14 @@ def main(argv: list[str]) -> int:
         "regen": args.regen,
         "bal_contribute": args.bal_contribute,
     }
+    if args.mode == "bal":
+        # Record the EFFECTIVE dear contribute actually applied — even when it
+        # came from the live env (config.ECONOMY_BALANCED_CONTRIBUTE) rather than
+        # --bal-contribute. Otherwise a stale exported 30 silently relabels an
+        # intended bal@22 replay as bal@30 while metadata reads null (Codex review).
+        report["effective_bal_contribute"] = max(
+            costs.get("contribute", 0.0) for costs in cost_table.values()
+        )
 
     if args.data:
         ep = Path(args.data) / "episodic.sqlite"
