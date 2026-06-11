@@ -8,6 +8,7 @@ throttled. Zero LLM compute.
 from __future__ import annotations
 
 import importlib.util
+import json
 import sqlite3
 import sys
 from pathlib import Path
@@ -268,6 +269,113 @@ def test_main_threads_bal_contribute_into_cost_table(monkeypatch):
 def test_cli_rejects_nonpositive_bal_contribute():
     with pytest.raises(SystemExit):
         replay_economy.parse_args(["--synthetic", "--mode", "bal", "--bal-contribute", "0"])
+
+
+@pytest.mark.parametrize("value", ["nan", "inf", "-inf"])
+def test_cli_rejects_non_finite_bal_contribute(value: str):
+    # A non-finite cost makes every affordability comparison degenerate (the
+    # ledger treats contribute as permanently unavailable) and silently corrupts
+    # the sweep instead of failing fast (Codex review).
+    with pytest.raises(SystemExit):
+        replay_economy.parse_args(["--synthetic", "--mode", "bal", "--bal-contribute", value])
+
+
+def test_replay_regens_once_per_scene_not_per_scene_turn():
+    # Live regenerates the whole roster ONCE after a 3-turn scene completes
+    # (run.py:1127), not once per forced contribute. The replay must match: a
+    # scene is a single tick. Over-regenerating +2 per scene inflates later
+    # affordability and under-reports scarcity, mis-pinning the tune target
+    # (Codex review P1).
+    trace = [
+        ("Aki", "artisan", "contribute", True, "scene-1"),
+        ("Aki", "artisan", "contribute", True, "scene-1"),
+        ("Aki", "artisan", "contribute", True, "scene-1"),
+    ]
+    led = EnergyLedger.fresh(
+        ["Aki", "Cy"], max_energy=100.0, regen_per_tick=8.0, cost_table=VERB_COST_BY_ROLE
+    )
+    led._pool["Cy"] = 10.0
+    replay_economy.replay_executor(trace, ledger=led)
+    assert led.current("Cy") == pytest.approx(18.0)  # +8 once for the whole scene, not +24
+
+
+def test_replay_free_turn_after_scene_is_its_own_tick():
+    # A non-scene turn following a scene is its own tick and regenerates again.
+    trace = [
+        ("Aki", "artisan", "contribute", True, "scene-1"),
+        ("Aki", "artisan", "contribute", True, "scene-1"),
+        ("Cy", "scholar", "study", False, None),
+    ]
+    led = EnergyLedger.fresh(
+        ["Aki", "Cy"], max_energy=100.0, regen_per_tick=8.0, cost_table=VERB_COST_BY_ROLE
+    )
+    led._pool["Cy"] = 10.0
+    replay_economy.replay_executor(trace, ledger=led)
+    # scene block regen once (+8 -> 18); Cy free turn deduct study 6 (-> 12) then regen +8 (-> 20)
+    assert led.current("Cy") == pytest.approx(20.0)
+
+
+def test_replay_two_adjacent_scenes_regen_once_each():
+    # Distinct scene_ids are distinct ticks even back-to-back.
+    trace = [
+        ("Aki", "artisan", "contribute", True, "scene-1"),
+        ("Aki", "artisan", "contribute", True, "scene-1"),
+        ("Aki", "artisan", "contribute", True, "scene-2"),
+        ("Aki", "artisan", "contribute", True, "scene-2"),
+    ]
+    led = EnergyLedger.fresh(
+        ["Aki", "Cy"], max_energy=100.0, regen_per_tick=8.0, cost_table=VERB_COST_BY_ROLE
+    )
+    led._pool["Cy"] = 10.0
+    replay_economy.replay_executor(trace, ledger=led)
+    assert led.current("Cy") == pytest.approx(26.0)  # +8 per scene, two scenes
+
+
+def test_trace_from_episodic_carries_scene_id(tmp_path):
+    # The episodic trace must expose scene_id as the 5th tuple element so the
+    # replay can group a scene's three forced contributes into one regen tick.
+    run = tmp_path / "run"
+    run.mkdir()
+    conn = sqlite3.connect(run / "episodic.sqlite")
+    conn.execute(
+        "CREATE TABLE events (id INTEGER PRIMARY KEY, actor TEXT, action TEXT, payload_json TEXT)"
+    )
+    conn.executemany(
+        "INSERT INTO events (actor, action, payload_json) VALUES (?,?,?)",
+        [
+            ("Cy", "study", '{"role": "scholar", "parsed_verb": "study"}'),
+            ("Aki", "contribute", '{"role": "artisan", "scene_id": "scene-9"}'),
+        ],
+    )
+    conn.commit()
+    conn.close()
+    trace = replay_economy._trace_from_episodic(run / "episodic.sqlite")
+    assert trace[0] == ("Cy", "scholar", "study", False, None)
+    assert trace[1] == ("Aki", "artisan", "contribute", True, "scene-9")
+
+
+def test_main_reports_effective_bal_contribute_from_env(monkeypatch, capsys):
+    # When --mode bal runs without --bal-contribute but the live env exported
+    # ECONOMY_BALANCED_CONTRIBUTE, the report must record the EFFECTIVE target so a
+    # stale value cannot silently relabel a bal@22 replay as bal@30 (Codex review P2).
+    from microverse import config
+
+    monkeypatch.setattr(config, "ECONOMY_BALANCED_CONTRIBUTE", 30.0)
+    rc = replay_economy.main(["--mode", "bal", "--synthetic", "--ticks", "1"])
+    assert rc == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["bal_contribute"] is None  # raw CLI flag was not passed
+    assert report["effective_bal_contribute"] == 30.0  # but the applied target is honest
+
+
+def test_main_effective_bal_contribute_is_natural_dearest_without_env(monkeypatch, capsys):
+    from microverse import config
+
+    monkeypatch.setattr(config, "ECONOMY_BALANCED_CONTRIBUTE", None)
+    rc = replay_economy.main(["--mode", "bal", "--synthetic", "--ticks", "1"])
+    assert rc == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["effective_bal_contribute"] == 22.0  # the table's natural dearest
 
 
 def test_synthetic_role_biased_diversifies():

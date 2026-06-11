@@ -209,6 +209,26 @@ def test_derive_balanced_table_target_below_dearest_fails_loud():
         derive_balanced_table(VERB_COST_BY_ROLE, target=10.0)
 
 
+@pytest.mark.parametrize("raw", ["nan", "inf", "-inf"])
+def test_parse_bal_contribute_rejects_non_finite(raw: str):
+    # float() accepts "nan"/"inf"; the <= 0 guard does not reject them (nan
+    # comparisons are False, inf > 0). A non-finite contribute cost makes
+    # affordability comparisons degenerate and silently corrupts the experiment
+    # instead of failing fast (Codex review).
+    from microverse.config import _parse_bal_contribute
+
+    with pytest.raises(ValueError, match="finite"):
+        _parse_bal_contribute(raw)
+
+
+def test_parse_bal_contribute_accepts_normal_values():
+    from microverse.config import _parse_bal_contribute
+
+    assert _parse_bal_contribute(None) is None
+    assert _parse_bal_contribute("") is None
+    assert _parse_bal_contribute("30") == 30.0
+
+
 def test_build_cost_table_bal_honours_balanced_contribute_knob():
     # build_cost_table reads config.ECONOMY_BALANCED_CONTRIBUTE for bal; None
     # keeps the natural dearest (22), a set value raises the contribute target.
