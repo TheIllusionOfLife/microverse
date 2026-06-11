@@ -312,6 +312,85 @@ def test_audit_substitution_agreement_counts_mismatches():
     assert fid["rate"] == pytest.approx(0.75)
 
 
+# --- logged ground-truth hint fidelity (Phase 2 item 3) -----------------------
+# Replication runs stamp energy_hint_fired/energy_hint_verb into the payload
+# (ADR 0013 Decision 3). The audit must compare its reconstruction against that
+# ground truth where present, and report zero coverage (not fabricated
+# agreement) for pre-replication runs like the Stage 6 dirs.
+
+
+def test_audit_trace_carries_logged_hint_state(tmp_path):
+    ep = _write_episodic(
+        tmp_path / "episodic.sqlite",
+        [
+            (
+                "Cy",
+                "study",
+                '{"role": "scholar", "parsed_verb": "study", '
+                '"energy_hint_fired": true, "energy_hint_verb": "study"}',
+            ),
+            (
+                "Cy",
+                "rest",
+                '{"role": "scholar", "parsed_verb": "rest", '
+                '"energy_hint_fired": false, "energy_hint_verb": null}',
+            ),
+            ("Cy", "rest", '{"role": "scholar", "parsed_verb": "rest"}'),  # pre-replication
+        ],
+    )
+    trace = replay_economy._audit_trace_from_episodic(ep)
+    assert trace[0].hint_fired_logged is True
+    assert trace[0].hint_verb_logged == "study"
+    assert trace[1].hint_fired_logged is False
+    assert trace[1].hint_verb_logged is None
+    assert trace[2].hint_fired_logged is None  # unlogged run: no ground truth
+    assert trace[2].hint_verb_logged is None
+
+
+def test_audit_hint_logged_fidelity_agreement():
+    # Pool pinned at 10 (regen 0, rest costs 0): the reconstruction says
+    # fired=True / easy=study every turn; the logged ground truth agrees.
+    led = _ledger({"Cy": 10.0}, regen=0.0)
+    events = [
+        _ev(chosen="study", executed="rest", hint_fired_logged=True, hint_verb_logged="study")
+        for _ in range(4)
+    ]
+    report = replay_economy.audit_run(events, ledger=led, mode="bal")
+    hl = report["fidelity"]["hint_logged"]
+    assert hl["events"] == 4
+    assert hl["agreements"] == 4
+    assert hl["rate"] == 1.0
+
+
+def test_audit_hint_logged_fidelity_counts_mismatches():
+    # A fired-flag mismatch and a named-verb mismatch both count as
+    # disagreements: the replication's instrument gate reads this rate.
+    led = _ledger({"Cy": 10.0}, regen=0.0)
+    events = [
+        _ev(chosen="study", executed="rest", hint_fired_logged=True, hint_verb_logged="study"),
+        _ev(chosen="study", executed="rest", hint_fired_logged=False, hint_verb_logged=None),
+        _ev(chosen="study", executed="rest", hint_fired_logged=True, hint_verb_logged="speak"),
+        _ev(chosen="study", executed="rest", hint_fired_logged=True, hint_verb_logged="study"),
+    ]
+    report = replay_economy.audit_run(events, ledger=led, mode="bal")
+    hl = report["fidelity"]["hint_logged"]
+    assert hl["events"] == 4
+    assert hl["agreements"] == 2
+    assert hl["rate"] == pytest.approx(0.5)
+
+
+def test_audit_hint_logged_null_for_unlogged_runs():
+    # Stage 6 dirs predate hint logging: zero coverage, null rate — the
+    # existing reconstruction-only read stays valid and unchanged.
+    led = _ledger({"Cy": 10.0}, regen=0.0)
+    events = [_ev(chosen="study", executed="rest") for _ in range(3)]
+    report = replay_economy.audit_run(events, ledger=led, mode="bal")
+    hl = report["fidelity"]["hint_logged"]
+    assert hl["events"] == 0
+    assert hl["agreements"] == 0
+    assert hl["rate"] is None
+
+
 def test_audit_deterministic():
     led1 = _ledger({"Cy": 40.0})
     led2 = _ledger({"Cy": 40.0})

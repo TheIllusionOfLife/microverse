@@ -474,6 +474,62 @@ def test_bal_contribute_knob_parses_from_env_cold_import():
     assert json.loads(result.stdout.strip().splitlines()[-1]) is None
 
 
+# --- ground-truth hint logging (ADR 0013 Decision 3, Phase 2 item 3) ---
+# The replication runs stamp the live hint state into the per-event payload so
+# the mechanism read no longer depends on offline reconstruction. Observation-
+# only: same gating as the existing verb-trace telemetry (substitution modes),
+# so a flag-off run stays byte-identical, and gate9 is inert to the new keys
+# (it filters only parsed_verb/scene_id/parse_fallback/economy_substituted).
+
+
+def test_hint_payload_stamped_when_drained(tmp_path: Path):
+    """Mirror of test_economy_on_substitutes_when_drained: a draining solo
+    artisan writes payloads carrying the hint ground truth, with at least one
+    fired=True turn once the pool falls below a productive cost, and fired
+    turns are the only ones that may name an easy verb."""
+    data_dir = tmp_path / "data"
+    with (
+        _economy("1", energy_max=30.0),
+        patch("microverse.agents.artisan.DIVERSITY_SUBSTITUTE_PROB", 0.0),
+        patch("microverse.agents.artisan.chat", return_value=_study_only()),
+    ):
+        run(ticks=40, seed=1, tempo=0, data_dir=data_dir, harvest_dir=tmp_path / "h", solo=True)
+    payloads = [p for p in _payloads(data_dir) if "parsed_verb" in p]
+    assert payloads, "no telemetry payloads written"
+    assert all("energy_hint_fired" in p and "energy_hint_verb" in p for p in payloads)
+    assert any(p["energy_hint_fired"] is True for p in payloads), "hint never fired while drained"
+    for p in payloads:
+        if p["energy_hint_fired"] is False:
+            assert p["energy_hint_verb"] is None  # no hint -> no named verb
+
+
+def test_hint_payload_false_when_ample(tmp_path: Path):
+    """With full reserves every productive verb is affordable, so the stamped
+    ground truth must say the hint did not fire and named nothing."""
+    data_dir = tmp_path / "data"
+    with (
+        _economy("adv"),
+        patch("microverse.agents.artisan.DIVERSITY_SUBSTITUTE_PROB", 0.0),
+        patch("microverse.agents.artisan.chat", return_value=_study_only()),
+    ):
+        run(ticks=6, seed=1, tempo=0, data_dir=data_dir, harvest_dir=tmp_path / "h", solo=True)
+    payloads = [p for p in _payloads(data_dir) if "parsed_verb" in p]
+    assert payloads, "no telemetry payloads written"
+    assert all(p.get("energy_hint_fired") is False for p in payloads)
+    assert all(p.get("energy_hint_verb") is None for p in payloads)
+
+
+def test_hint_payload_absent_when_economy_off(tmp_path: Path):
+    """Economy off must stay byte-identical to pre-spike payloads: no hint
+    keys, exactly like the parsed_verb gating (Stage 6 comparability)."""
+    data_dir = tmp_path / "data"
+    with patch("microverse.agents.artisan.chat", return_value=_study_only()):
+        run(ticks=6, seed=1, tempo=0, data_dir=data_dir, harvest_dir=tmp_path / "h", solo=True)
+    assert all(
+        "energy_hint_fired" not in p and "energy_hint_verb" not in p for p in _payloads(data_dir)
+    )
+
+
 def test_invalid_economy_mode_fails_fast(tmp_path: Path):
     """A typo'd MICROVERSE_ECONOMY must raise, not silently run an unlabeled
     no-op arm (ECONOMY_ENABLED but neither gate nor substitution)."""
