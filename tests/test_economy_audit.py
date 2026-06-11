@@ -226,15 +226,16 @@ def test_audit_low_energy_stratum_splits_hint_absent_turns():
     # Deconfound stratum (audit review): hint-absent turns split into
     # "low" (contribute affordable but within one regen of the threshold:
     # energy < cost + regen) vs "comfortable". Pool 31 at bal@30/regen 8 is
-    # affordable-but-low (31 < 38); pool 100 is comfortable.
+    # affordable-but-low (31 < 38); pool 100 is comfortable. Single-event
+    # traces: the snapshot is pre-deduct, so the regen never lands.
     low = replay_economy.audit_run(
         [_ev(chosen="contribute", executed="rest")],
-        ledger=_ledger({"Cy": 31.0}, regen=0.0),
+        ledger=_ledger({"Cy": 31.0}),
         mode="bal",
     )
     comfy = replay_economy.audit_run(
         [_ev(chosen="contribute", executed="rest")],
-        ledger=_ledger({"Cy": 100.0}, regen=0.0),
+        ledger=_ledger({"Cy": 100.0}),
         mode="bal",
     )
     assert low["agents"]["Cy"]["chosen"]["absent_low"] == {"contribute": 1}
@@ -295,12 +296,14 @@ def test_audit_substitution_agreement_counts_mismatches():
     # An event the reconstruction predicts substituted but the log says was not
     # (or vice versa) must lower the agreement rate — this is the C5 gate that
     # decides whether the reconstruction can carry the audit at all.
+    # Pool pinned at 10 (regen 0, executed rest costs 0) so every event sees
+    # the same affordability state: study (6) affordable, contribute (30) not.
     led = _ledger({"Cy": 10.0}, regen=0.0)
     events = [
-        _ev(chosen="contribute", executed="study", economy_substituted=True),
-        _ev(chosen="contribute", executed="study", economy_substituted=True),
-        _ev(chosen="contribute", executed="contribute", economy_substituted=False),  # mismatch
-        _ev(chosen="study", executed="study", economy_substituted=False),  # affordable: agree
+        _ev(chosen="study", executed="rest", economy_substituted=False),  # affordable: agree
+        _ev(chosen="contribute", executed="rest", economy_substituted=True),  # agree
+        _ev(chosen="contribute", executed="rest", economy_substituted=False),  # mismatch
+        _ev(chosen="study", executed="rest", economy_substituted=False),  # agree
     ]
     report = replay_economy.audit_run(events, ledger=led, mode="bal")
     fid = report["fidelity"]
