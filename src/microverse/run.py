@@ -969,6 +969,11 @@ def run(
             # does not see all weather/world events since process
             # start on their first tick.
             agent_last_ts = last_tick_ts.setdefault(agent.name, time.time())
+            # Compute the scarcity hint ONCE and thread the same values into the
+            # prompt (via world_base), the R4 conflict counter, and the payload
+            # ground truth (Phase 2 item 3) so the three can never diverge.
+            energy_hint = _compute_energy_hint(energy, agent)
+            energy_hint_verb = _energy_hint_verb(energy, agent)
             world_base = _build_per_tick_world_base(
                 episodic=episodic,
                 agent=agent,
@@ -980,7 +985,7 @@ def run(
                 novelty_hint=novelty_hint,
                 novelty_dominant_verb=novelty_dominant_verb,
                 novelty_suggested_verb=novelty_suggested_verb,
-                energy_hint=_compute_energy_hint(energy, agent),
+                energy_hint=energy_hint,
                 self_view=_build_self_view(
                     episodic,
                     agent,
@@ -1197,7 +1202,7 @@ def run(
             # never sees the energy hint in a scene, so the two levers cannot fight
             # there (CodeRabbit review). High counts mean the levers fight on the
             # ticks that matter, capping specialization; the Stage-4 read inspects it.
-            if _hints_conflict(_energy_hint_verb(energy, agent), novelty_dominant_verb):
+            if _hints_conflict(energy_hint_verb, novelty_dominant_verb):
                 metrics.bump("novelty_energy_hint_conflict", agent=agent.name)
             try:
                 action = agent.think(world)
@@ -1212,8 +1217,15 @@ def run(
             # ADR 0008 spike: stamp the model's pre-economy verb so Gate 9 can
             # compare CHOSEN vs EXECUTED. Stamped ONLY in substitution-enabled
             # modes, so a flag-off run writes a byte-identical payload.
+            # Phase 2 item 3 (ADR 0013 Decision 3): also stamp the hint ground
+            # truth the prompt carried this turn — observation-only, so the
+            # mechanism audit can drop the reconstruction caveat.
             extra_payload = (
-                dict(agent._verb_trace)
+                {
+                    **agent._verb_trace,
+                    "energy_hint_fired": bool(energy_hint),
+                    "energy_hint_verb": energy_hint_verb,
+                }
                 if (energy is not None and config._ECONOMY_SUBSTITUTE)
                 else None
             )

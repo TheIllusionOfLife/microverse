@@ -218,7 +218,12 @@ _SUBSTITUTE_MODES = frozenset({"1", "flat", "sub", "adv", "bal"})
 
 @dataclass(frozen=True)
 class AuditEvent:
-    """One committed agent action with both verb streams + telemetry flags."""
+    """One committed agent action with both verb streams + telemetry flags.
+
+    ``hint_fired_logged`` / ``hint_verb_logged`` carry the ground-truth hint
+    state stamped live by replication runs (Phase 2 item 3, ADR 0013 D3);
+    ``None`` (fired) means the run predates hint logging and there is no
+    ground truth to check against."""
 
     actor: str
     role: str
@@ -228,6 +233,8 @@ class AuditEvent:
     scene_id: str | None = None
     parse_fallback: bool = False
     economy_substituted: bool = False
+    hint_fired_logged: bool | None = None
+    hint_verb_logged: str | None = None
 
 
 @dataclass(frozen=True)
@@ -317,6 +324,8 @@ def _audit_trace_from_episodic(path: Path) -> list[AuditEvent]:
         if chosen not in _VERBS:
             chosen = action
         scene_id = payload.get("scene_id")
+        hint_fired = payload.get("energy_hint_fired")
+        hint_verb = payload.get("energy_hint_verb")
         out.append(
             AuditEvent(
                 actor=actor,
@@ -327,6 +336,8 @@ def _audit_trace_from_episodic(path: Path) -> list[AuditEvent]:
                 scene_id=scene_id,
                 parse_fallback=bool(payload.get("parse_fallback")),
                 economy_substituted=bool(payload.get("economy_substituted")),
+                hint_fired_logged=None if hint_fired is None else bool(hint_fired),
+                hint_verb_logged=str(hint_verb) if hint_verb is not None else None,
             )
         )
     return out
@@ -375,12 +386,21 @@ def audit_run(events: Sequence[AuditEvent], *, ledger: EnergyLedger, mode: str) 
 
     acc: dict[str, dict] = {}
     fid = {"hint_on": [0, 0], "hint_off": [0, 0]}  # [events, agreements]
+    hint_logged = [0, 0]  # [events with ground truth, full (fired, verb) agreements]
     ev_list = list(events)
     for idx, ev in enumerate(ev_list):
         st = acc.setdefault(ev.actor, _new_acc(ev.role))
         if not ev.forced:
             energy = ledger.current(ev.actor)
             fired, easy = _hint_state(ledger, ev.actor, ev.role, mode=mode)
+            # Ground-truth check (Phase 2 item 3): live stamps the hint state on
+            # every free commit in substitution modes, parse_fallback included
+            # (the hint preceded think()), so this comparison sits OUTSIDE the
+            # parse-fallback guard below — unlike the chosen-stream conditionals.
+            if ev.hint_fired_logged is not None:
+                hint_logged[0] += 1
+                if fired == ev.hint_fired_logged and easy == ev.hint_verb_logged:
+                    hint_logged[1] += 1
             contribute_cost = ledger.cost(ev.role, "contribute")
             st["free"] += 1
             st["energies"].append(energy)
@@ -464,6 +484,7 @@ def audit_run(events: Sequence[AuditEvent], *, ledger: EnergyLedger, mode: str) 
             **_fid_block(on_n + off_n, on_a + off_a),
             "hint_on": _fid_block(on_n, on_a),
             "hint_off": _fid_block(off_n, off_a),
+            "hint_logged": _fid_block(hint_logged[0], hint_logged[1]),
         },
     }
 
