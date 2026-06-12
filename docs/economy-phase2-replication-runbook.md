@@ -64,9 +64,11 @@ Model `gemma4:26b`, energy knobs at the live defaults (max 100, regen 8). State 
 nohup ./scripts/run_rep30_sweep.sh > econ-rep30-sweep.log 2>&1 &
 ```
 
-(The script writes each run's Gate 1–9 report to `data/econ-rep30-<tag>/gate-report.json` and
-refuses to append to a partial run dir — a crashed run is re-run fresh, never restarted, because a
-mid-run restart would both weaken the audit reconstruction and make the run non-comparable.)
+(The script writes each run's Gate 1–9 report to `data/econ-rep30-<arm>-s<seed>/gate-report.json`
+and refuses to append to a partial run dir — a crashed run is re-run fresh, never restarted,
+because a mid-run restart would both weaken the audit reconstruction and make the run
+non-comparable. Path template corrected post-launch — a doubled-prefix typo flagged in review;
+no criterion touched.)
 
 ### Instrument gate (checked before any behavioral verdict is read)
 

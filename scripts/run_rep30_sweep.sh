@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 for SEED in 101 202 303; do
   for ARM in bal22 bal30; do
     case "$ARM" in
-      bal22) BAL="" ;; # unset target -> natural dearest contribute (22)
+      bal22) BAL="" ;; # no target -> natural dearest contribute (22)
       bal30) BAL=30 ;;
     esac
     TAG="econ-rep30-${ARM}-s${SEED}"
@@ -28,13 +28,25 @@ for SEED in 101 202 303; do
       exit 1
     fi
     echo "=== $(date '+%F %T') start ${TAG} ==="
-    MICROVERSE_ECONOMY=bal MICROVERSE_BAL_CONTRIBUTE="$BAL" \
-    MICROVERSE_DATA="data/${TAG}" \
-    MICROVERSE_HARVEST="harvest/${TAG}" \
+    # Truly omit MICROVERSE_BAL_CONTRIBUTE for the control arm rather than
+    # exporting "" (the parser treats both as unset, but the env should state
+    # the intent exactly — Gemini/CodeRabbit review).
+    ENV_ARGS=(
+      MICROVERSE_ECONOMY=bal
+      MICROVERSE_DATA="data/${TAG}"
+      MICROVERSE_HARVEST="harvest/${TAG}"
+    )
+    if [ -n "$BAL" ]; then
+      ENV_ARGS+=(MICROVERSE_BAL_CONTRIBUTE="$BAL")
+    fi
+    env "${ENV_ARGS[@]}" \
       uv run python -m microverse.run --ticks 3000 --tempo 0 --seed "$SEED"
+    # Atomic gate-report write: a crash mid-measure must not leave a partial
+    # file that the skip guard above would mistake for a completed run.
     uv run python scripts/spike_workshop_measure.py \
       --data "data/${TAG}" --harvest "harvest/${TAG}" \
-      > "data/${TAG}/gate-report.json"
+      > "data/${TAG}/gate-report.json.tmp"
+    mv "data/${TAG}/gate-report.json.tmp" "data/${TAG}/gate-report.json"
     echo "=== $(date '+%F %T') done ${TAG} ==="
   done
 done
