@@ -48,6 +48,7 @@ from microverse.agents.base import Action, ActionKind, Agent, RelationFact, Self
 from microverse.agents.belief import BeliefSummarizer
 from microverse.agents.harvester import ArtifactCandidate, Harvester
 from microverse.agents.scholar import Scholar
+from microverse.agents.stranger import Stranger
 from microverse.agents.trader import Trader
 from microverse.memory import _build_peer_inbox, _build_world_events, build_context
 from microverse.memory.episodic import EpisodicMemory, Event
@@ -84,8 +85,65 @@ WATCHDOG_EVERY = 25  # ticks between watchdog sweeps
 WORLD_CLOCK_MEAN_INTERVAL = 100  # mean ticks between weather events
 
 
-def _build_roster(metrics: Metrics, *, solo: bool = False) -> list[Agent]:
-    """Build the default tick-loop roster.
+# Scheduler-registrable roles for the MICROVERSE_ROSTER spec (ADR 0015 / item 4
+# roster-generality experiments). Elder (lore-only, returns REST every tick) and
+# Trader (ranks at flush, never scheduled) are deliberately excluded: registering
+# either would break the single-model think() roster invariant. Factories rather
+# than bare classes so the (name, soul_tokens, metrics) call shape is typed (the
+# base Agent.__init__ takes no metrics; only the concrete roles do).
+_ROSTER_ROLE_REGISTRY: dict[str, Callable[[str, int, Metrics], Agent]] = {
+    "artisan": lambda name, tokens, m: Artisan(name=name, soul_tokens=tokens, metrics=m),
+    "scholar": lambda name, tokens, m: Scholar(name=name, soul_tokens=tokens, metrics=m),
+    "stranger": lambda name, tokens, m: Stranger(name=name, soul_tokens=tokens, metrics=m),
+}
+
+
+def _parse_roster_spec(spec: str, metrics: Metrics) -> list[Agent]:
+    """Parse a ``MICROVERSE_ROSTER`` spec into a list of residents.
+
+    Format: comma-separated ``role:name:tokens`` entries, e.g.
+    ``"artisan:Aki:100,scholar:Cy:70,stranger:Vesna:70"``. Fails fast (no
+    silent fallback) on an unknown role, a malformed entry, non-integer or
+    non-positive ``tokens``, a duplicate name, or zero residents — a typo in
+    the sweep env must not silently run an unintended roster.
+    """
+    agents: list[Agent] = []
+    names_seen: set[str] = set()
+    entries = [e.strip() for e in spec.split(",") if e.strip()]
+    if not entries:
+        raise ValueError(f"MICROVERSE_ROSTER={spec!r} parsed to zero residents")
+    for entry in entries:
+        parts = [p.strip() for p in entry.split(":")]
+        if len(parts) != 3:
+            raise ValueError(f"roster entry {entry!r} must be 'role:name:tokens'")
+        role, name, tokens_s = parts
+        cls = _ROSTER_ROLE_REGISTRY.get(role)
+        if cls is None:
+            raise ValueError(
+                f"unknown role {role!r} in roster entry {entry!r}; "
+                f"known roles: {sorted(_ROSTER_ROLE_REGISTRY)}"
+            )
+        if not name:
+            raise ValueError(f"empty resident name in roster entry {entry!r}")
+        if name in names_seen:
+            raise ValueError(f"duplicate resident name {name!r} in MICROVERSE_ROSTER")
+        try:
+            tokens = int(tokens_s)
+        except ValueError:
+            raise ValueError(
+                f"soul_tokens {tokens_s!r} in roster entry {entry!r} must be an integer"
+            ) from None
+        if tokens <= 0:
+            raise ValueError(f"soul_tokens must be positive, got {tokens} in entry {entry!r}")
+        names_seen.add(name)
+        agents.append(cls(name, tokens, metrics))
+    return agents
+
+
+def _build_roster(
+    metrics: Metrics, *, solo: bool = False, spec: str | None = None
+) -> list[Agent]:
+    """Build the tick-loop roster.
 
     Layer-G slice 4 (R2.c): default = Aki (Artisan, soul_tokens=100) +
     a Scholar resident (soul_tokens=70). The Scholar's lower weight
@@ -93,7 +151,19 @@ def _build_roster(metrics: Metrics, *, solo: bool = False) -> list[Agent]:
     and observational output so the engagement gate (slice 3) has a
     real partner. ``solo=True`` reproduces the legacy single-Artisan
     regime for regression soaks.
+
+    ADR 0015 / item 4: when ``spec`` (or, if ``spec is None``, the
+    ``MICROVERSE_ROSTER`` env var) is non-empty, the roster is built from
+    that spec instead — for the roster-generality sweeps. ``--solo`` and a
+    roster spec are mutually exclusive. An unset/empty spec preserves the
+    default roster byte-for-byte.
     """
+    if spec is None:
+        spec = os.environ.get("MICROVERSE_ROSTER")
+    if spec:
+        if solo:
+            raise ValueError("--solo and MICROVERSE_ROSTER are mutually exclusive")
+        return _parse_roster_spec(spec, metrics)
     aki = Artisan(name="Aki", metrics=metrics, soul_tokens=100)
     if solo:
         return [aki]
