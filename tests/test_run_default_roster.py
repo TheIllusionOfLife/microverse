@@ -48,9 +48,7 @@ def test_empty_roster_spec_falls_back_to_default(monkeypatch: pytest.MonkeyPatch
 
 def test_roster_spec_builds_three_residents() -> None:
     metrics = Metrics(":memory:")
-    roster = _build_roster(
-        metrics, spec="artisan:Aki:100,scholar:Cy:70,stranger:Vesna:70"
-    )
+    roster = _build_roster(metrics, spec="artisan:Aki:100,scholar:Cy:70,stranger:Vesna:70")
     assert [a.name for a in roster] == ["Aki", "Cy", "Vesna"]
     assert [a.role for a in roster] == ["artisan", "scholar", "stranger"]
     assert [a.soul_tokens for a in roster] == [100, 70, 70]

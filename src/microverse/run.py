@@ -140,9 +140,7 @@ def _parse_roster_spec(spec: str, metrics: Metrics) -> list[Agent]:
     return agents
 
 
-def _build_roster(
-    metrics: Metrics, *, solo: bool = False, spec: str | None = None
-) -> list[Agent]:
+def _build_roster(metrics: Metrics, *, solo: bool = False, spec: str | None = None) -> list[Agent]:
     """Build the tick-loop roster.
 
     Layer-G slice 4 (R2.c): default = Aki (Artisan, soul_tokens=100) +
