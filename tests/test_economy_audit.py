@@ -222,6 +222,32 @@ def test_audit_conditional_split_and_obedience():
     assert cy["obedience_rate"] == 1.0
 
 
+def test_audit_generalizes_to_three_agent_roster_with_stranger():
+    # Item 4 (roster generality): audit_run is keyed by per-event actor/role,
+    # so a 3-resident roster incl. a Stranger (specialty travel) audits with no
+    # 2-agent hardcoding. Each agent pinned drained (pool 10, regen 0):
+    # contribute(30 under bal) is unaffordable so the hint fires every turn and
+    # names each role's cheapest perceived verb — craft (artisan), study
+    # (scholar), travel (stranger); all three specialties cost 6.
+    led = _ledger(
+        {"Aki": 10.0, "Cy": 10.0, "Vesna": 10.0},
+        regen=0.0,
+        names=("Aki", "Cy", "Vesna"),
+    )
+    events = (
+        [_ev(actor="Aki", role="artisan", chosen="craft", executed="rest") for _ in range(4)]
+        + [_ev(actor="Cy", role="scholar", chosen="study", executed="rest") for _ in range(4)]
+        + [_ev(actor="Vesna", role="stranger", chosen="travel", executed="rest") for _ in range(4)]
+    )
+    report = replay_economy.audit_run(events, ledger=led, mode="bal")
+    assert set(report["agents"]) == {"Aki", "Cy", "Vesna"}
+    assert report["agents"]["Vesna"]["role"] == "stranger"
+    assert report["agents"]["Aki"]["hint"]["easy_verbs"] == {"craft": 4}
+    assert report["agents"]["Cy"]["hint"]["easy_verbs"] == {"study": 4}
+    assert report["agents"]["Vesna"]["hint"]["easy_verbs"] == {"travel": 4}
+    assert report["agents"]["Vesna"]["p_chosen"]["hint"]["travel"] == 1.0
+
+
 def test_audit_low_energy_stratum_splits_hint_absent_turns():
     # Deconfound stratum (audit review): hint-absent turns split into
     # "low" (contribute affordable but within one regen of the threshold:

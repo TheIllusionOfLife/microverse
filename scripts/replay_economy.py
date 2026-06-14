@@ -806,8 +806,20 @@ def main(argv: list[str]) -> int:
             if not ep.exists():
                 print(f"FATAL: {ep} not found", file=sys.stderr)
                 return 2
+            # Seed the ledger from the run's ACTUAL residents (item 4: roster
+            # generality). Deriving the roster from the trace rather than the
+            # hardcoded 2-agent default keeps the per-tick whole-roster
+            # regen_all() faithful for N>2 / non-default rosters (a Stranger
+            # resident would otherwise be under-regenerated until its first
+            # event lazily added it to the pool). For the default dyad the
+            # derived names are exactly {Aki, Cy}, so 2-agent reads are
+            # byte-identical.
+            trace = _audit_trace_from_episodic(ep)
+            roster_names = list(dict.fromkeys(ev.actor for ev in trace)) or [
+                n for n, _ in _DEFAULT_ROSTER
+            ]
             ledger = EnergyLedger.fresh(
-                [n for n, _ in _DEFAULT_ROSTER],
+                roster_names,
                 max_energy=args.energy_max,
                 regen_per_tick=args.regen,
                 cost_table=build_cost_table(spec.mode, balanced_contribute=spec.target),
@@ -816,9 +828,7 @@ def main(argv: list[str]) -> int:
                 {
                     "arm": spec.arm,
                     "run": spec.path.name,
-                    "report": audit_run(
-                        _audit_trace_from_episodic(ep), ledger=ledger, mode=spec.mode
-                    ),
+                    "report": audit_run(trace, ledger=ledger, mode=spec.mode),
                 }
             )
         report["mechanism_audit"] = {
