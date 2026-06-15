@@ -139,6 +139,90 @@ def _multi_jsd(dists: list[dict[str, float]]) -> float:
     return jsd / math.log2(n)
 
 
+def _mean_pairwise_jsd(dists: list[dict[str, float]]) -> float:
+    """Mean pairwise Jensen-Shannon divergence across agents (ADR 0016).
+
+    Unlike ``_multi_jsd`` this does NOT divide by ``log2(n)``: each pairwise JSD
+    is already in ``[0, 1]`` and the mean of values in ``[0, 1]`` stays in
+    ``[0, 1]`` at every N, so the scale (and the inherited 0.25 floor) is
+    roster-size invariant by construction. At ``n == 2`` it equals ``_multi_jsd``
+    exactly (both return the single ``_jsd_bits``), preserving the entire locked
+    2-agent calibration.
+    """
+    n = len(dists)
+    if n < 2:
+        return 0.0
+    total = 0.0
+    pairs = 0
+    for i in range(n):
+        for j in range(i + 1, n):
+            total += _jsd_bits(dists[i], dists[j])
+            pairs += 1
+    return total / pairs
+
+
+def _entropy_ceiling_norm(n: int, *, k: int) -> float:
+    """Normalized society entropy a perfectly-specialized n-agent roster could
+    reach: ``log2(min(n, k)) / log2(k)`` (each agent on a distinct verb)."""
+    if k <= 1:
+        return 0.0
+    span = min(n, k)
+    if span <= 1:
+        return 0.0
+    return math.log2(span) / math.log2(k)
+
+
+def _specialization_ratio(society_entropy_norm: float, *, n: int, k: int = 6) -> float:
+    """Society entropy as a fraction of the perfect-specialist ceiling for N
+    agents (ADR 0016, REPORTED not gated). ~1.0 means the society reached the
+    diversity a fully-specialized roster of this size would — which can be true
+    even when agents are not differentiated from each other, so it must never
+    gate."""
+    ceiling = _entropy_ceiling_norm(n, k=k)
+    if ceiling <= 0:
+        return 0.0
+    return society_entropy_norm / ceiling
+
+
+def _identity_verb_nmi(by_agent: dict[str, Counter]) -> float:
+    """Normalized mutual information ``I(agent; verb) / sqrt(H(A) * H(V))``
+    (ADR 0016, REPORTED not gated). 0 iff verb is independent of identity
+    (no specialization); 1 iff agent and verb are perfectly mutually
+    predictive (a bijection between residents and verbs)."""
+    total = sum(sum(c.values()) for c in by_agent.values())
+    if total <= 0:
+        return 0.0
+    agent_marg: dict[str, float] = {}
+    verb_marg: dict[str, float] = defaultdict(float)
+    mutual = 0.0
+    for agent, counts in by_agent.items():
+        a_total = sum(counts.values())
+        if a_total <= 0:
+            continue
+        agent_marg[agent] = a_total / total
+        for verb, c in counts.items():
+            if c > 0:
+                verb_marg[verb] += c / total
+    for agent, counts in by_agent.items():
+        pa = agent_marg.get(agent, 0.0)
+        if pa <= 0:
+            continue
+        for verb, c in counts.items():
+            if c <= 0:
+                continue
+            pav = c / total
+            pv = verb_marg[verb]
+            if pv > 0:
+                mutual += pav * math.log2(pav / (pa * pv))
+    h_a = -sum(p * math.log2(p) for p in agent_marg.values() if p > 0)
+    h_v = -sum(p * math.log2(p) for p in verb_marg.values() if p > 0)
+    if h_a <= 0 or h_v <= 0:
+        return 0.0
+    # Clamp: the ratio is in [0, 1] analytically but floating-point can overshoot
+    # 1.0 by an ULP at the bijection ceiling.
+    return min(1.0, max(0.0, mutual / math.sqrt(h_a * h_v)))
+
+
 def _diversity_block(by_agent: dict[str, Counter]) -> dict:
     society: Counter = Counter()
     for c in by_agent.values():
@@ -154,12 +238,23 @@ def _diversity_block(by_agent: dict[str, Counter]) -> dict:
         )
         for a in agents
     }
+    n = len(agents)
+    society_entropy_norm = _entropy_norm(society_counts, k=len(_VERBS))
+    entropy_ceiling_norm = _entropy_ceiling_norm(n, k=len(_VERBS))
     return {
         "society_counts": society_counts,
         "society_entropy_bits": round(_shannon_entropy_bits(society_counts), 4),
-        "society_entropy_norm": round(_entropy_norm(society_counts, k=len(_VERBS)), 4),
+        "society_entropy_norm": round(society_entropy_norm, 4),
         "jsd_norm": round(_multi_jsd(dists), 4),
-        "n_agents": len(agents),
+        # ADR 0016 N>2 diagnostics: mean_pairwise_jsd is the size-invariant
+        # divergence; the rest are REPORTED only (never gated).
+        "mean_pairwise_jsd": round(_mean_pairwise_jsd(dists), 4),
+        "entropy_ceiling_norm": round(entropy_ceiling_norm, 4),
+        "specialization_ratio": round(
+            _specialization_ratio(society_entropy_norm, n=n, k=len(_VERBS)), 4
+        ),
+        "identity_verb_nmi": round(_identity_verb_nmi(by_agent), 4),
+        "n_agents": n,
         "per_agent_top_share": per_agent_top,
     }
 
@@ -169,6 +264,8 @@ def gate9_verb_diversity(
     *,
     entropy_norm_floor: float = 0.35,
     jsd_norm_floor: float = 0.25,
+    divergence_metric: str = "jsd_norm",
+    mean_pairwise_floor: float = 0.25,
 ) -> dict:
     """ADR 0008 re-diagnosis metric. Reports society verb entropy and
     cross-agent JSD on BOTH the executed-verb stream and the model's CHOSEN
@@ -247,7 +344,18 @@ def gate9_verb_diversity(
     cxe = _jsd_bits(_normalize(exec_soc, _VERBS), _normalize(chosen_soc, _VERBS))
 
     pass_entropy = chosen_block["society_entropy_norm"] >= entropy_norm_floor
-    pass_divergence = chosen_block["jsd_norm"] >= jsd_norm_floor
+    # Both per-metric verdicts are always reported; ``divergence_metric`` selects
+    # which one gates ``pass``. The default (``jsd_norm``) preserves the
+    # pre-ADR-0016 behavior exactly. ``mean_pairwise_jsd`` removes the log2(n)
+    # divisor that penalized N>2 rosters (ADR 0016).
+    pass_divergence_jsd = chosen_block["jsd_norm"] >= jsd_norm_floor
+    pass_divergence_mpjsd = chosen_block["mean_pairwise_jsd"] >= mean_pairwise_floor
+    if divergence_metric == "mean_pairwise_jsd":
+        pass_divergence = pass_divergence_mpjsd
+    elif divergence_metric == "jsd_norm":
+        pass_divergence = pass_divergence_jsd
+    else:
+        raise ValueError(f"unknown divergence_metric {divergence_metric!r}")
     return {
         "executed": executed_block,
         "chosen": chosen_block,
@@ -257,7 +365,11 @@ def gate9_verb_diversity(
         "scene_excluded": n_scene_excluded,
         "entropy_norm_floor": entropy_norm_floor,
         "jsd_norm_floor": jsd_norm_floor,
+        "mean_pairwise_floor": mean_pairwise_floor,
+        "divergence_metric": divergence_metric,
         "pass_entropy": pass_entropy,
+        "pass_divergence_jsd": pass_divergence_jsd,
+        "pass_divergence_mpjsd": pass_divergence_mpjsd,
         "pass_divergence": pass_divergence,
         "pass": pass_entropy and pass_divergence,
     }

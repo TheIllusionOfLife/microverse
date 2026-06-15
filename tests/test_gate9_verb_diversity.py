@@ -281,3 +281,159 @@ def test_gate9_partial_specialization_with_shared_contribute_passes():
     assert g["chosen"]["society_entropy_norm"] == pytest.approx(0.6077, abs=1e-3)
     assert g["chosen"]["jsd_norm"] == pytest.approx(0.6, abs=1e-3)
     assert g["pass"] is True
+
+
+# --- N>2 divergence criterion (ADR 0016) ------------------------------------
+#
+# ADR 0015 read R3 (Artisan+Scholar+Stranger, N=3) as FAIL on the chosen-stream
+# `jsd_norm` < 0.25 even though society entropy sat near the N=3 ceiling. The
+# headline metric `_multi_jsd` divides the centroid-radius by log2(n), folding a
+# roster-size penalty into a quantity sold as size-invariant. `_mean_pairwise_jsd`
+# removes that divisor: it is the mean of pairwise JSDs, each already in [0, 1],
+# so the [0, 1] scale (and the inherited 0.25 floor) holds at every N. The
+# crucial property is that it is IDENTICAL to `_multi_jsd` at N=2, so the entire
+# locked 2-agent calibration is preserved byte-for-byte.
+
+# Real chosen-stream distribution of the frozen R3-s101 run (data/econ-roster-
+# r3-s101). Reproduced here so the "R3 still fails under the new metric" claim is
+# testable offline without the run dir. jsd_norm read 0.1964 live (gate-report).
+_R3_S101 = {
+    "Aki": {"contribute": 595, "craft": 386, "speak": 30, "study": 63, "rest": 3},
+    "Cy": {"contribute": 443, "study": 193, "speak": 31, "craft": 21, "rest": 9},
+    "Vesna": {"contribute": 552, "speak": 48, "travel": 120, "study": 23, "rest": 21, "craft": 3},
+}
+
+
+def _dists(by_agent: dict[str, dict[str, int]]) -> list[dict[str, float]]:
+    """Normalize {agent: {verb: count}} into the list of per-agent distributions
+    that the divergence helpers consume."""
+    return [swm._normalize(d, swm._VERBS) for d in by_agent.values()]
+
+
+@pytest.mark.parametrize(
+    "by_agent",
+    [
+        {"Aki": {"craft": 1}, "Cy": {"study": 1}},  # disjoint specialists
+        {"Aki": {"contribute": 600, "craft": 400}, "Cy": {"contribute": 600, "study": 400}},
+        {
+            "Aki": {"craft": 500, "contribute": 300, "speak": 200},
+            "Cy": {"contribute": 800, "speak": 200},
+        },
+        {"Aki": {"contribute": 50}, "Cy": {"contribute": 50}},  # monoculture
+    ],
+)
+def test_mean_pairwise_equals_multi_jsd_at_n2(by_agent):
+    # The load-bearing equivalence: at N=2 the new metric reproduces the current
+    # one exactly, so the 0.25 floor is inherited (not re-derived) on every locked
+    # 2-agent anchor. `_multi_jsd` already returns `_jsd_bits` at n=2.
+    dists = _dists(by_agent)
+    assert swm._mean_pairwise_jsd(dists) == pytest.approx(swm._multi_jsd(dists), abs=1e-12)
+
+
+def test_mean_pairwise_disjoint_three_specialists_is_one():
+    dists = _dists({"Aki": {"craft": 1}, "Cy": {"study": 1}, "Vesna": {"travel": 1}})
+    assert swm._mean_pairwise_jsd(dists) == pytest.approx(1.0, abs=1e-9)
+
+
+def test_mean_pairwise_three_agent_monoculture_is_zero():
+    dists = _dists({"a": {"contribute": 9}, "b": {"contribute": 9}, "c": {"contribute": 9}})
+    assert swm._mean_pairwise_jsd(dists) == pytest.approx(0.0, abs=1e-9)
+
+
+def test_mean_pairwise_real_r3_still_below_floor():
+    # The integrity row: the reframe does NOT rescue R3. Mean-pairwise reads
+    # ~0.207 (vs the log2(n)-normalized 0.196) — still under 0.25. The criterion
+    # change cannot flip the verdict, which is what makes it a refinement and not
+    # a post-hoc rescue.
+    mpjsd = swm._mean_pairwise_jsd(_dists(_R3_S101))
+    assert mpjsd == pytest.approx(0.2073, abs=1e-3)
+    assert mpjsd < 0.25
+
+
+def test_specialization_ratio_near_one_for_ceiling_diverse_society():
+    # R3-s101 society entropy 0.6507 vs the N=3 perfect-specialist ceiling
+    # log2(3)/log2(6) = 0.6131 -> ratio ~1.06. High society diversity; this is
+    # exactly why it is REPORTED, not gated (it is ~1.0 while agents stay
+    # undifferentiated). Gating on it would manufacture an R3 pass.
+    assert swm._specialization_ratio(0.6507, n=3) == pytest.approx(1.061, abs=1e-2)
+    assert swm._specialization_ratio(0.0, n=3) == pytest.approx(0.0)
+
+
+def test_identity_verb_nmi_bounds():
+    # 0 when verb is independent of identity (monoculture), 1 when verb perfectly
+    # predicts identity (disjoint specialists, equal mass).
+    mono = {"a": {"contribute": 10}, "b": {"contribute": 10}, "c": {"contribute": 10}}
+    assert swm._identity_verb_nmi(mono) == pytest.approx(0.0, abs=1e-9)
+    disjoint = {"a": {"craft": 10}, "b": {"study": 10}, "c": {"travel": 10}}
+    assert swm._identity_verb_nmi(disjoint) == pytest.approx(1.0, abs=1e-9)
+
+
+def test_diversity_block_reports_new_diagnostics_without_dropping_jsd_norm():
+    rows = _dist_rows(_R3_S101)
+    g = swm.gate9_verb_diversity(_events_db(rows))
+    ch = g["chosen"]
+    # The legacy metric is untouched.
+    assert ch["jsd_norm"] == pytest.approx(0.1964, abs=1e-3)
+    # The new diagnostics are additive.
+    assert ch["mean_pairwise_jsd"] == pytest.approx(0.2073, abs=1e-3)
+    assert ch["entropy_ceiling_norm"] == pytest.approx(math.log2(3) / math.log2(6), abs=1e-4)
+    expected_ratio = ch["society_entropy_norm"] / ch["entropy_ceiling_norm"]
+    assert ch["specialization_ratio"] == pytest.approx(expected_ratio, abs=1e-4)
+    assert 0.0 <= ch["identity_verb_nmi"] <= 1.0
+
+
+def test_gate9_divergence_metric_defaults_to_jsd_norm():
+    # The default call must be byte-identical to the pre-ADR-0016 behavior: the
+    # gate reads jsd_norm. The new metric is opt-in via the param.
+    rows = _dist_rows(_R3_S101)
+    default = swm.gate9_verb_diversity(_events_db(rows))
+    explicit = swm.gate9_verb_diversity(_events_db(rows), divergence_metric="jsd_norm")
+    assert default["divergence_metric"] == "jsd_norm"
+    assert default["pass_divergence"] == explicit["pass_divergence"]
+    # Both per-metric verdicts are always reported, regardless of which gates.
+    assert default["pass_divergence_jsd"] is False
+    assert default["pass_divergence_mpjsd"] is False
+
+
+def test_gate9_mean_pairwise_metric_r3_fails():
+    # Selecting the new metric re-reads R3 and it STILL fails (0.207 < 0.25).
+    rows = _dist_rows(_R3_S101)
+    g = swm.gate9_verb_diversity(_events_db(rows), divergence_metric="mean_pairwise_jsd")
+    assert g["divergence_metric"] == "mean_pairwise_jsd"
+    assert g["chosen"]["mean_pairwise_jsd"] == pytest.approx(0.2073, abs=1e-3)
+    assert g["pass_divergence"] is False
+    assert g["pass"] is False
+
+
+def test_gate9_mean_pairwise_metric_passes_disjoint_three_specialists():
+    rows = _dist_rows({"Aki": {"craft": 50}, "Cy": {"study": 50}, "Vesna": {"travel": 50}})
+    g = swm.gate9_verb_diversity(_events_db(rows), divergence_metric="mean_pairwise_jsd")
+    assert g["chosen"]["mean_pairwise_jsd"] == pytest.approx(1.0, abs=1e-9)
+    assert g["pass_divergence"] is True
+
+
+def test_gate9_divergence_metric_actually_selects_the_gating_metric():
+    # Regression guard: prove `pass_divergence` is driven by the SELECTED metric,
+    # not a hard-coded one. Make the jsd floor unreachable (1.1) and the
+    # mean-pairwise floor reachable (0.25) on the disjoint-3 fixture (both raw
+    # metrics = 1.0). The jsd path must FAIL (1.0 < 1.1) while the mean-pairwise
+    # path PASSES (1.0 >= 0.25) — only possible if the param truly switches which
+    # metric gates.
+    rows = _dist_rows({"Aki": {"craft": 50}, "Cy": {"study": 50}, "Vesna": {"travel": 50}})
+    jsd = swm.gate9_verb_diversity(
+        _events_db(rows), jsd_norm_floor=1.1, mean_pairwise_floor=0.25, divergence_metric="jsd_norm"
+    )
+    mpj = swm.gate9_verb_diversity(
+        _events_db(rows),
+        jsd_norm_floor=1.1,
+        mean_pairwise_floor=0.25,
+        divergence_metric="mean_pairwise_jsd",
+    )
+    assert jsd["pass_divergence"] is False  # gated on the unreachable jsd floor
+    assert mpj["pass_divergence"] is True  # gated on the reachable mean-pairwise floor
+
+
+def test_gate9_unknown_divergence_metric_raises():
+    rows = _dist_rows({"Aki": {"craft": 10}, "Cy": {"study": 10}})
+    with pytest.raises(ValueError, match="unknown divergence_metric"):
+        swm.gate9_verb_diversity(_events_db(rows), divergence_metric="bogus")
