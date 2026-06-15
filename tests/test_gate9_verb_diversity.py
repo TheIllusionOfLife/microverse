@@ -315,7 +315,10 @@ def _dists(by_agent: dict[str, dict[str, int]]) -> list[dict[str, float]]:
     [
         {"Aki": {"craft": 1}, "Cy": {"study": 1}},  # disjoint specialists
         {"Aki": {"contribute": 600, "craft": 400}, "Cy": {"contribute": 600, "study": 400}},
-        {"Aki": {"craft": 500, "contribute": 300, "speak": 200}, "Cy": {"contribute": 800, "speak": 200}},
+        {
+            "Aki": {"craft": 500, "contribute": 300, "speak": 200},
+            "Cy": {"contribute": 800, "speak": 200},
+        },
         {"Aki": {"contribute": 50}, "Cy": {"contribute": 50}},  # monoculture
     ],
 )
@@ -374,7 +377,8 @@ def test_diversity_block_reports_new_diagnostics_without_dropping_jsd_norm():
     # The new diagnostics are additive.
     assert ch["mean_pairwise_jsd"] == pytest.approx(0.2073, abs=1e-3)
     assert ch["entropy_ceiling_norm"] == pytest.approx(math.log2(3) / math.log2(6), abs=1e-4)
-    assert ch["specialization_ratio"] == pytest.approx(ch["society_entropy_norm"] / ch["entropy_ceiling_norm"], abs=1e-4)
+    expected_ratio = ch["society_entropy_norm"] / ch["entropy_ceiling_norm"]
+    assert ch["specialization_ratio"] == pytest.approx(expected_ratio, abs=1e-4)
     assert 0.0 <= ch["identity_verb_nmi"] <= 1.0
 
 
