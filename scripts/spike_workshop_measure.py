@@ -187,7 +187,8 @@ def _specialization_ratio(society_entropy_norm: float, *, n: int, k: int = 6) ->
 def _identity_verb_nmi(by_agent: dict[str, Counter]) -> float:
     """Normalized mutual information ``I(agent; verb) / sqrt(H(A) * H(V))``
     (ADR 0016, REPORTED not gated). 0 iff verb is independent of identity
-    (no specialization); 1 iff verb perfectly predicts identity."""
+    (no specialization); 1 iff agent and verb are perfectly mutually
+    predictive (a bijection between residents and verbs)."""
     total = sum(sum(c.values()) for c in by_agent.values())
     if total <= 0:
         return 0.0
@@ -217,7 +218,9 @@ def _identity_verb_nmi(by_agent: dict[str, Counter]) -> float:
     h_v = -sum(p * math.log2(p) for p in verb_marg.values() if p > 0)
     if h_a <= 0 or h_v <= 0:
         return 0.0
-    return mutual / math.sqrt(h_a * h_v)
+    # Clamp: the ratio is in [0, 1] analytically but floating-point can overshoot
+    # 1.0 by an ULP at the bijection ceiling.
+    return min(1.0, max(0.0, mutual / math.sqrt(h_a * h_v)))
 
 
 def _diversity_block(by_agent: dict[str, Counter]) -> dict:
@@ -247,7 +250,9 @@ def _diversity_block(by_agent: dict[str, Counter]) -> dict:
         # divergence; the rest are REPORTED only (never gated).
         "mean_pairwise_jsd": round(_mean_pairwise_jsd(dists), 4),
         "entropy_ceiling_norm": round(entropy_ceiling_norm, 4),
-        "specialization_ratio": round(_specialization_ratio(society_entropy_norm, n=n), 4),
+        "specialization_ratio": round(
+            _specialization_ratio(society_entropy_norm, n=n, k=len(_VERBS)), 4
+        ),
         "identity_verb_nmi": round(_identity_verb_nmi(by_agent), 4),
         "n_agents": n,
         "per_agent_top_share": per_agent_top,

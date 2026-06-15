@@ -410,3 +410,30 @@ def test_gate9_mean_pairwise_metric_passes_disjoint_three_specialists():
     g = swm.gate9_verb_diversity(_events_db(rows), divergence_metric="mean_pairwise_jsd")
     assert g["chosen"]["mean_pairwise_jsd"] == pytest.approx(1.0, abs=1e-9)
     assert g["pass_divergence"] is True
+
+
+def test_gate9_divergence_metric_actually_selects_the_gating_metric():
+    # Regression guard: prove `pass_divergence` is driven by the SELECTED metric,
+    # not a hard-coded one. Make the jsd floor unreachable (1.1) and the
+    # mean-pairwise floor reachable (0.25) on the disjoint-3 fixture (both raw
+    # metrics = 1.0). The jsd path must FAIL (1.0 < 1.1) while the mean-pairwise
+    # path PASSES (1.0 >= 0.25) — only possible if the param truly switches which
+    # metric gates.
+    rows = _dist_rows({"Aki": {"craft": 50}, "Cy": {"study": 50}, "Vesna": {"travel": 50}})
+    jsd = swm.gate9_verb_diversity(
+        _events_db(rows), jsd_norm_floor=1.1, mean_pairwise_floor=0.25, divergence_metric="jsd_norm"
+    )
+    mpj = swm.gate9_verb_diversity(
+        _events_db(rows),
+        jsd_norm_floor=1.1,
+        mean_pairwise_floor=0.25,
+        divergence_metric="mean_pairwise_jsd",
+    )
+    assert jsd["pass_divergence"] is False  # gated on the unreachable jsd floor
+    assert mpj["pass_divergence"] is True  # gated on the reachable mean-pairwise floor
+
+
+def test_gate9_unknown_divergence_metric_raises():
+    rows = _dist_rows({"Aki": {"craft": 10}, "Cy": {"study": 10}})
+    with pytest.raises(ValueError, match="unknown divergence_metric"):
+        swm.gate9_verb_diversity(_events_db(rows), divergence_metric="bogus")

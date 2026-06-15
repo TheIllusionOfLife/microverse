@@ -17,7 +17,9 @@ uv run python scripts/spike_workshop_measure.py --data data/econ-roster-r3-s101 
 The metric and diagnostics are in `scripts/spike_workshop_measure.py`
 (`_mean_pairwise_jsd`, `_specialization_ratio`, `_identity_verb_nmi`); the gate reads them via
 `gate9_verb_diversity(..., divergence_metric="mean_pairwise_jsd")`. The default
-(`divergence_metric="jsd_norm"`) is unchanged, so `main()` and prior reads are byte-stable.
+(`divergence_metric="jsd_norm"`) is unchanged, so the gate verdict and `jsd_norm` value are
+preserved for every prior read; `main()` now reports the new diagnostics as **additive** JSON fields
+(the report gains keys but no existing key changes), and old run dirs remain fully readable.
 
 ## Old vs new metric — all 15 runs (chosen stream)
 
