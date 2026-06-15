@@ -109,10 +109,13 @@ def _parse_roster_spec(spec: str, metrics: Metrics) -> list[Agent]:
     """
     agents: list[Agent] = []
     names_seen: set[str] = set()
-    entries = [e.strip() for e in spec.split(",") if e.strip()]
-    if not entries:
-        raise ValueError(f"MICROVERSE_ROSTER={spec!r} parsed to zero residents")
-    for entry in entries:
+    # Do NOT silently drop blank entries (a ``,,`` or trailing-comma typo): the
+    # fail-fast contract means a malformed sweep env must error, not run a
+    # quietly-shortened roster.
+    entries = [e.strip() for e in spec.split(",")]
+    for pos, entry in enumerate(entries, start=1):
+        if not entry:
+            raise ValueError(f"empty roster entry #{pos} in MICROVERSE_ROSTER={spec!r}")
         parts = [p.strip() for p in entry.split(":")]
         if len(parts) != 3:
             raise ValueError(f"roster entry {entry!r} must be 'role:name:tokens'")

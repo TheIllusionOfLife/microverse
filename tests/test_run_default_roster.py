@@ -101,10 +101,23 @@ def test_roster_spec_duplicate_names_fails_fast() -> None:
         _build_roster(metrics, spec="artisan:Aki:100,scholar:Aki:70")
 
 
-def test_roster_spec_empty_after_parse_fails_fast() -> None:
+def test_roster_spec_blank_entry_fails_fast() -> None:
     metrics = Metrics(":memory:")
-    with pytest.raises(ValueError, match="zero residents"):
+    with pytest.raises(ValueError, match="empty roster entry"):
         _build_roster(metrics, spec=",  ,")
+
+
+def test_roster_spec_double_comma_fails_fast() -> None:
+    # A double comma (typo) must NOT be silently dropped — fail-fast contract.
+    metrics = Metrics(":memory:")
+    with pytest.raises(ValueError, match="empty roster entry"):
+        _build_roster(metrics, spec="artisan:Aki:100,,scholar:Cy:70")
+
+
+def test_roster_spec_trailing_comma_fails_fast() -> None:
+    metrics = Metrics(":memory:")
+    with pytest.raises(ValueError, match="empty roster entry"):
+        _build_roster(metrics, spec="artisan:Aki:100,")
 
 
 def test_solo_and_roster_spec_mutually_exclusive() -> None:

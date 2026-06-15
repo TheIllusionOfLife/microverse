@@ -25,11 +25,12 @@ for ROSTER in r2 r3; do
       echo "=== skip ${TAG}: gate-report.json already present ==="
       continue
     fi
-    if [ -d "data/${TAG}" ]; then
-      # A data dir without a gate report is a partial (crashed/killed) run.
-      # Appending to it would violate the runbook's no-restart fidelity caveat;
-      # move it aside and relaunch the sweep instead.
-      echo "ERROR ${TAG}: partial run dir exists — move data/${TAG} aside first" >&2
+    if [ -d "data/${TAG}" ] || [ -d "harvest/${TAG}" ]; then
+      # A data/ or harvest/ dir without a gate report is a partial (crashed/
+      # killed) run. Reusing it would violate the runbook's no-restart fidelity
+      # caveat — and harvest/ is append-only, so a stale manifest would mix old
+      # records into the fresh run's gate report. Move both aside and relaunch.
+      echo "ERROR ${TAG}: partial run dir exists — move data/${TAG} and harvest/${TAG} aside first" >&2
       exit 1
     fi
     echo "=== $(date '+%F %T') start ${TAG} (roster=${SPEC}) ==="

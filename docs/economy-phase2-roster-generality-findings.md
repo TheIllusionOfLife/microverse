@@ -155,6 +155,13 @@ dose hypothesis is recorded as refuted rather than quietly replaced.
 - This sweep does not decompose the R3 failure between the two drivers (weak Stranger specialization
   vs the N=3 JSD normalization). The follow-ups below target each.
 - No mid-run restarts; the instrument gate passed on logged ground truth.
+- **Roster preserved end-to-end (checked).** The Watchdog can register extra Stranger immigrants
+  mid-run (echo-chamber rehab, `max_strangers=3`), which would silently change the roster under
+  test. This was not suppressed during the sweep, but it **did not fire**: the distinct actor set in
+  every run is exactly its registered roster (R2 = {Aki, Vesna}, R3 = {Aki, Cy, Vesna}), and gate9
+  `n_agents` is 2 / 3 accordingly. So the measured roster equals the registered roster in all six
+  runs. Future roster sweeps should pass an explicit Watchdog suppression to make this a guarantee
+  rather than a post-hoc check.
 
 ## Follow-ups (re-scoped by this result)
 
