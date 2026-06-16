@@ -276,6 +276,30 @@ ECONOMY_BALANCED_CONTRIBUTE: float | None = _parse_bal_contribute(
     os.environ.get("MICROVERSE_BAL_CONTRIBUTE")
 )
 
+# ADR 0017 (R3 strong-specializer sweep): which Stranger persona to render.
+# ``default`` keeps the outsider-framed persona (Watchdog rehab immigrants and the
+# frozen R2 condition are byte-identical when unset). ``travel`` selects a variant
+# that frames the Stranger's identity around movement so its ``travel`` specialty
+# is obeyed like the Scholar's ``study`` — the independent variable for the N=3
+# generality retest. Prose only; the cost table is unchanged.
+VALID_STRANGER_PERSONAS: frozenset[str] = frozenset({"default", "travel"})
+
+
+def _parse_stranger_persona(raw: str | None) -> str:
+    """Parse MICROVERSE_STRANGER_PERSONA. Unset/empty -> ``default``. Validate at
+    import (like ``_parse_bal_contribute``) so a typo fails fast instead of
+    silently running the default persona under an experiment tag."""
+    value = (raw or "default").strip() or "default"
+    if value not in VALID_STRANGER_PERSONAS:
+        raise ValueError(
+            f"MICROVERSE_STRANGER_PERSONA={value!r} is not valid; "
+            f"expected one of {sorted(VALID_STRANGER_PERSONAS)}"
+        )
+    return value
+
+
+STRANGER_PERSONA: str = _parse_stranger_persona(os.environ.get("MICROVERSE_STRANGER_PERSONA"))
+
 # Finite stamina pool. Regen sits between the cheap specialty (~6) and the
 # dear contribute (~22) so a role can sustain its specialty indefinitely but
 # must save up across cheaper/idle ticks to afford an off-specialty verb or
