@@ -16,9 +16,18 @@ from __future__ import annotations
 import time
 import uuid
 
+from microverse import config
 from microverse.agents.artisan import Artisan
 from microverse.config import SAMPLING_CREATIVE
 from microverse.ops.metrics import Metrics
+
+# ADR 0017: persona template per MICROVERSE_STRANGER_PERSONA. ``travel`` frames
+# the Stranger's identity around movement so its travel specialty is obeyed like
+# the Scholar's study; ``default`` keeps the outsider-framed persona.
+_STRANGER_PERSONA_TEMPLATES = {
+    "default": "persona_stranger.j2",
+    "travel": "persona_stranger_travel.j2",
+}
 
 
 class Stranger(Artisan):
@@ -39,3 +48,7 @@ class Stranger(Artisan):
             ms = int(time.time() * 1000) % 1_000_000
             name = f"stranger-{ms}-{uuid.uuid4().hex[:6]}"
         super().__init__(name, soul_tokens=soul_tokens, metrics=metrics)
+        # Per-instance override of the class default; honors the experiment flag
+        # at construction so Watchdog-spawned immigrants pick it up too. The flag
+        # is validated at config import, so this lookup cannot miss.
+        self.persona_template = _STRANGER_PERSONA_TEMPLATES[config.STRANGER_PERSONA]

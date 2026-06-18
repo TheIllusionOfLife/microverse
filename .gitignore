@@ -23,7 +23,7 @@ soak-*.log
 soak-*.pid
 soak-status*/
 smoke-*.log
-econ-*-sweep.log
+econ-*.log
 
 # OS noise
 .DS_Store

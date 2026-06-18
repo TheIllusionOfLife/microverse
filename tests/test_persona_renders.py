@@ -24,7 +24,12 @@ from microverse.prompts import render
 
 @pytest.mark.parametrize(
     "template",
-    ["persona_artisan.j2", "persona_scholar.j2", "persona_stranger.j2"],
+    [
+        "persona_artisan.j2",
+        "persona_scholar.j2",
+        "persona_stranger.j2",
+        "persona_stranger_travel.j2",
+    ],
 )
 def test_persona_renders_with_empty_world_omits_inbox_and_events(template: str) -> None:
     """Cold-start view: no inbox, no world events, no autobiographical
@@ -49,7 +54,12 @@ def test_persona_renders_with_empty_world_omits_inbox_and_events(template: str) 
 
 @pytest.mark.parametrize(
     "template",
-    ["persona_artisan.j2", "persona_scholar.j2", "persona_stranger.j2"],
+    [
+        "persona_artisan.j2",
+        "persona_scholar.j2",
+        "persona_stranger.j2",
+        "persona_stranger_travel.j2",
+    ],
 )
 def test_persona_renders_peer_inbox_when_present(template: str) -> None:
     """A non-empty peer_inbox produces a headline + per-speaker lines
@@ -71,7 +81,12 @@ def test_persona_renders_peer_inbox_when_present(template: str) -> None:
 
 @pytest.mark.parametrize(
     "template",
-    ["persona_artisan.j2", "persona_scholar.j2", "persona_stranger.j2"],
+    [
+        "persona_artisan.j2",
+        "persona_scholar.j2",
+        "persona_stranger.j2",
+        "persona_stranger_travel.j2",
+    ],
 )
 def test_persona_renders_world_events_when_present(template: str) -> None:
     """A non-empty world_events tuple produces a headline + each

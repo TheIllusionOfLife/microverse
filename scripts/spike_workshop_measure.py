@@ -831,6 +831,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--data", required=True, help="data dir with episodic.sqlite + metrics.sqlite")
     p.add_argument("--harvest", required=True, help="harvest dir with manifest.jsonl")
+    p.add_argument(
+        "--divergence-metric",
+        choices=["jsd_norm", "mean_pairwise_jsd"],
+        default="jsd_norm",
+        help="metric gating Gate 9's top-line pass (default jsd_norm; "
+        "mean_pairwise_jsd is the size-invariant N>2 bar, ADR 0016)",
+    )
     return p.parse_args(argv)
 
 
@@ -859,7 +866,7 @@ def main(argv: list[str]) -> int:
     g6 = gate6_acceptance_throughput(manifest, metrics)
     g7 = gate7_capacity_invariant(ep)
     g8 = gate8_scene_semantic_dependence(ep)
-    g9 = gate9_verb_diversity(ep)
+    g9 = gate9_verb_diversity(ep, divergence_metric=args.divergence_metric)
 
     total_contributes = summarize_contribute_total(ep)
     g4_pass = (g4["fold_count"] / max(1, total_contributes)) < 0.01
