@@ -51,15 +51,20 @@ for SEED in "${SEEDS[@]}"; do
     exit 1
   fi
   echo "=== $(date '+%F %T') start ${TAG} (lever=${LEVER}, roster=${SPEC}, bal=${BAL}, persona=default) ==="
+  # MICROVERSE_STRANGER_PERSONA=default is set explicitly (not merely unset) so an
+  # inherited `=travel` from a prior ADR 0017 shell cannot silently poison these
+  # default-persona baseline runs (the log line above asserts persona=default).
   env \
     MICROVERSE_ECONOMY=bal \
     MICROVERSE_BAL_CONTRIBUTE="$BAL" \
     MICROVERSE_ROSTER="$SPEC" \
+    MICROVERSE_STRANGER_PERSONA=default \
     MICROVERSE_DATA="data/${TAG}" \
     MICROVERSE_HARVEST="harvest/${TAG}" \
     uv run python -m microverse.run --ticks 3000 --tempo 0 --seed "$SEED"
   uv run python scripts/spike_workshop_measure.py \
     --data "data/${TAG}" --harvest "harvest/${TAG}" \
+    --divergence-metric mean_pairwise_jsd \
     > "data/${TAG}/gate-report.json.tmp"
   mv "data/${TAG}/gate-report.json.tmp" "data/${TAG}/gate-report.json"
   echo "=== $(date '+%F %T') done ${TAG} ==="

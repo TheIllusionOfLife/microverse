@@ -50,6 +50,7 @@ for SEED in "${SEEDS[@]}"; do
   # that the skip guard above would mistake for a completed run.
   uv run python scripts/spike_workshop_measure.py \
     --data "data/${TAG}" --harvest "harvest/${TAG}" \
+    --divergence-metric mean_pairwise_jsd \
     > "data/${TAG}/gate-report.json.tmp"
   mv "data/${TAG}/gate-report.json.tmp" "data/${TAG}/gate-report.json"
   echo "=== $(date '+%F %T') done ${TAG} ==="

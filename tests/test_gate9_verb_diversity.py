@@ -437,3 +437,23 @@ def test_gate9_unknown_divergence_metric_raises():
     rows = _dist_rows({"Aki": {"craft": 10}, "Cy": {"study": 10}})
     with pytest.raises(ValueError, match="unknown divergence_metric"):
         swm.gate9_verb_diversity(_events_db(rows), divergence_metric="bogus")
+
+
+# The CLI must expose the metric so N>2 sweeps (ADR 0016/0018) can gate the
+# gate-report's top-line `pass` on the registered mean_pairwise_jsd instead of
+# the jsd_norm default. Without this, the report contradicted the locked runbook.
+def test_parse_args_divergence_metric_defaults_to_jsd_norm():
+    args = swm.parse_args(["--data", "d", "--harvest", "h"])
+    assert args.divergence_metric == "jsd_norm"
+
+
+def test_parse_args_divergence_metric_accepts_mean_pairwise():
+    args = swm.parse_args(
+        ["--data", "d", "--harvest", "h", "--divergence-metric", "mean_pairwise_jsd"]
+    )
+    assert args.divergence_metric == "mean_pairwise_jsd"
+
+
+def test_parse_args_divergence_metric_rejects_unknown():
+    with pytest.raises(SystemExit):
+        swm.parse_args(["--data", "d", "--harvest", "h", "--divergence-metric", "bogus"])
