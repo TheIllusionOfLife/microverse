@@ -238,6 +238,11 @@ def _diversity_block(by_agent: dict[str, Counter]) -> dict:
         )
         for a in agents
     }
+    # Full per-agent verb distribution over _VERBS (Layer 2 role-stability /
+    # cross-bleed in sweep_report.py needs every verb's share, not just the top).
+    per_agent_share = {
+        a: {v: round(s, 4) for v, s in _normalize(by_agent[a], _VERBS).items()} for a in agents
+    }
     n = len(agents)
     society_entropy_norm = _entropy_norm(society_counts, k=len(_VERBS))
     entropy_ceiling_norm = _entropy_ceiling_norm(n, k=len(_VERBS))
@@ -256,6 +261,7 @@ def _diversity_block(by_agent: dict[str, Counter]) -> dict:
         "identity_verb_nmi": round(_identity_verb_nmi(by_agent), 4),
         "n_agents": n,
         "per_agent_top_share": per_agent_top,
+        "per_agent_verb_share": per_agent_share,
     }
 
 
