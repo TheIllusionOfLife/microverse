@@ -89,13 +89,13 @@ def check_dose_mean(entry: dict) -> list[str]:
 
 def _check_agent_shares(repo: Path, spec: dict, label: str) -> list[str]:
     errs: list[str] = []
-    val, err = read_seed_metric(repo, _dir(spec["dir"]), "mean_pairwise_jsd", spec["mpj"])
+    val, err = read_seed_metric(repo, spec["dir"], "mean_pairwise_jsd", spec["mpj"])
     if err:
         errs.append(f"{label} mpj:{err}")
         if val is None:
             return errs  # missing dir: skip per-agent (already reported)
     try:
-        shares = _chosen(repo, _dir(spec["dir"]))["per_agent_verb_share"]
+        shares = _chosen(repo, spec["dir"])["per_agent_verb_share"]
     except FileNotFoundError:
         return errs
     for agent, verbs in spec["agents"].items():
@@ -104,11 +104,6 @@ def _check_agent_shares(repo: Path, spec: dict, label: str) -> list[str]:
             if actual is None or abs(float(actual) - page_val) > TOL:
                 errs.append(f"  - {label} {agent}.{verb}: page {page_val} vs source {actual}")
     return errs
-
-
-def _dir(name: str) -> str:
-    """Strip a leading ``data/`` so dir names resolve under the repo root."""
-    return name[len("data/") :] if name.startswith("data/") else name
 
 
 def _doc_has(repo: Path, doc: str, value: float) -> bool:
@@ -125,7 +120,7 @@ def check_sources(data: dict, repo: Path) -> list[str]:
     for entry in data["dose"]:
         errs.extend(check_dose_mean(entry))
         for dir_name, seed_val in zip(entry["dirs"], entry["seeds"], strict=True):
-            _, err = read_seed_metric(repo, _dir(dir_name), entry["metric"], seed_val)
+            _, err = read_seed_metric(repo, dir_name, entry["metric"], seed_val)
             if err:
                 errs.append(f"dose {entry['dose']} ({entry['label']}):\n{err}")
 
@@ -137,13 +132,13 @@ def check_sources(data: dict, repo: Path) -> list[str]:
         if "seeds" in lever and "dirs" in lever:
             errs.extend(check_dose_mean({**lever, "dose": lever["key"], "label": lever["name"]}))
             for dir_name, seed_val in zip(lever["dirs"], lever["seeds"], strict=True):
-                _, err = read_seed_metric(repo, _dir(dir_name), lever["metric"], seed_val)
+                _, err = read_seed_metric(repo, dir_name, lever["metric"], seed_val)
                 if err:
                     errs.append(f"lever {lever['name']}:\n{err}")
         elif "dir" in lever:
             # single-dir levers report the after / wash value under their metric
             target = lever.get("after", lever.get("value"))
-            _, err = read_seed_metric(repo, _dir(lever["dir"]), lever["metric"], target)
+            _, err = read_seed_metric(repo, lever["dir"], lever["metric"], target)
             if err:
                 errs.append(f"lever {lever['name']}:\n{err}")
 
