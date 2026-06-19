@@ -66,6 +66,7 @@ ignore = []
 "scripts/verify_kill_drill.py" = ["T20"]
 "scripts/replay_economy.py" = ["T20"]
 "scripts/sweep_report.py" = ["T20"]
+"scripts/check_results_data.py" = ["T20"]
 
 [tool.mypy]
 python_version = "3.12"
