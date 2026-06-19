@@ -21,11 +21,13 @@ crd = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(crd)
 
 
-def _html_with(data: dict) -> str:
+def _html_with(data: dict, strings: dict | None = None) -> str:
     block = json.dumps(data)
+    sblock = json.dumps(strings if strings is not None else {"cmp": {"before": "Before"}})
     return (
         "<!doctype html><html><body>"
         f'<script id="microverse-data" type="application/json">{block}</script>'
+        f'<script id="microverse-strings" type="application/json">{sblock}</script>'
         '<section id="dose"></section><section id="specialization"></section>'
         "</body></html>"
     )
@@ -124,13 +126,40 @@ def test_parity_diverging_data_flagged():
     assert "data block" in errs[0].lower()
 
 
+def _html_full(data: dict, strings: dict) -> str:
+    return (
+        "<!doctype html><html><body>"
+        f'<script id="microverse-data" type="application/json">{json.dumps(data)}</script>'
+        f'<script id="microverse-strings" type="application/json">{json.dumps(strings)}</script>'
+        '<section id="dose"></section><section id="specialization"></section>'
+        "</body></html>"
+    )
+
+
+def test_parity_strings_same_shape_different_text_passes():
+    data = {"meta": {"floor": 0.25}}
+    en = _html_full(data, {"cmp": {"before": "Before", "after": "After"}})
+    ja = _html_full(data, {"cmp": {"before": "変更前", "after": "変更後"}})
+    assert crd.check_parity(en, ja) == []
+
+
+def test_parity_strings_key_drift_flagged():
+    data = {"meta": {"floor": 0.25}}
+    en = _html_full(data, {"cmp": {"before": "Before", "after": "After"}})
+    ja = _html_full(data, {"cmp": {"before": "変更前"}})  # missing 'after'
+    errs = crd.check_parity(en, ja)
+    assert any("strings block" in e.lower() for e in errs)
+
+
 def test_parity_missing_anchor_flagged():
     data = {"meta": {}}
-    en = _html_with(data)
+    strings = {"cmp": {"before": "Before"}}
+    en = _html_with(data, strings)
     # JA missing the #dose anchor
     ja = (
         "<!doctype html><html><body>"
         f'<script id="microverse-data" type="application/json">{json.dumps(data)}</script>'
+        f'<script id="microverse-strings" type="application/json">{json.dumps(strings)}</script>'
         '<section id="specialization"></section></body></html>'
     )
     errs = crd.check_parity(en, ja)

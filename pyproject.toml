@@ -29,6 +29,10 @@ dev = [
     # reserved for the unfixable ollama-server false-positives).
     "pip>=26.1.2",
     "pip-audit>=2.10.0",
+    # Pin patched msgpack: GHSA-6v7p-g79w-8964 affects msgpack <1.2.1 (a
+    # transitive dep via pip-audit -> cachecontrol). Same rationale as the pip
+    # pin above: constrain the *fixable* advisory here rather than ignore it.
+    "msgpack>=1.2.1",
     "pytest>=9.0.3",
     "pytest-asyncio>=1.3.0",
     "ruff>=0.15.12",

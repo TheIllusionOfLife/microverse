@@ -39,6 +39,10 @@ _DATA_RE = re.compile(
     r'<script id="microverse-data" type="application/json">(.*?)</script>',
     re.DOTALL,
 )
+_STRINGS_RE = re.compile(
+    r'<script id="microverse-strings" type="application/json">(.*?)</script>',
+    re.DOTALL,
+)
 # Section anchors the page JS and in-page nav depend on; both languages must carry them.
 _REQUIRED_ANCHORS = ("dose", "specialization")
 
@@ -49,6 +53,23 @@ def extract_data(html: str) -> dict:
     if not m:
         raise ValueError("microverse-data script block not found")
     return json.loads(m.group(1))
+
+
+def extract_strings(html: str) -> dict:
+    """Parse the embedded ``microverse-strings`` (localized prose) JSON block."""
+    m = _STRINGS_RE.search(html)
+    if not m:
+        raise ValueError("microverse-strings script block not found")
+    return json.loads(m.group(1))
+
+
+def _shape(obj: object) -> object:
+    """A value's key/structure skeleton, ignoring leaf text (so prose may differ)."""
+    if isinstance(obj, dict):
+        return {k: _shape(v) for k, v in sorted(obj.items())}
+    if isinstance(obj, list):
+        return [_shape(v) for v in obj]
+    return None
 
 
 def _chosen(repo: Path, dir_name: str) -> dict:
@@ -81,9 +102,8 @@ def check_dose_mean(entry: dict) -> list[str]:
     seeds = entry["seeds"]
     mean = round(sum(seeds) / len(seeds), 4)
     if abs(mean - entry["mean"]) > TOL:
-        return [
-            f"  - dose {entry['dose']} ({entry['label']}): mean {entry['mean']} vs computed {mean}"
-        ]
+        label = entry.get("dose") or entry.get("key") or "?"
+        return [f"  - dose {label}: mean {entry['mean']} vs computed {mean}"]
     return []
 
 
@@ -122,7 +142,7 @@ def check_sources(data: dict, repo: Path) -> list[str]:
         for dir_name, seed_val in zip(entry["dirs"], entry["seeds"], strict=True):
             _, err = read_seed_metric(repo, dir_name, entry["metric"], seed_val)
             if err:
-                errs.append(f"dose {entry['dose']} ({entry['label']}):\n{err}")
+                errs.append(f"dose {entry['size']}res {entry['dose']}:\n{err}")
 
     spec = data["specialization"]
     errs.extend(_check_agent_shares(repo, spec["before"], "specialization.before"))
@@ -130,17 +150,17 @@ def check_sources(data: dict, repo: Path) -> list[str]:
 
     for lever in data["levers"]:
         if "seeds" in lever and "dirs" in lever:
-            errs.extend(check_dose_mean({**lever, "dose": lever["key"], "label": lever["name"]}))
+            errs.extend(check_dose_mean({**lever, "dose": lever["key"]}))
             for dir_name, seed_val in zip(lever["dirs"], lever["seeds"], strict=True):
                 _, err = read_seed_metric(repo, dir_name, lever["metric"], seed_val)
                 if err:
-                    errs.append(f"lever {lever['name']}:\n{err}")
+                    errs.append(f"lever {lever['key']}:\n{err}")
         elif "dir" in lever:
             # single-dir levers report the after / wash value under their metric
             target = lever.get("after", lever.get("value"))
             _, err = read_seed_metric(repo, lever["dir"], lever["metric"], target)
             if err:
-                errs.append(f"lever {lever['name']}:\n{err}")
+                errs.append(f"lever {lever['key']}:\n{err}")
 
     # Doc-only values: assert they appear verbatim in the cited findings doc.
     mono = data["monoculture"]
@@ -157,10 +177,22 @@ def check_sources(data: dict, repo: Path) -> list[str]:
 
 
 def check_parity(en_html: str, ja_html: str) -> list[str]:
-    """Assert the EN and JA pages share an identical data block and section anchors."""
+    """Assert the EN and JA pages share identical data, string shape, and anchors.
+
+    Numbers (the data block) must be byte-for-byte identical; the localized strings
+    block may differ in text but must share the exact same key structure (so a missing
+    or renamed key can't break one language); section anchors must match.
+    """
     errs: list[str] = []
     if extract_data(en_html) != extract_data(ja_html):
         errs.append("EN/JA data block diverged (the embedded numbers must be identical)")
+    try:
+        if _shape(extract_strings(en_html)) != _shape(extract_strings(ja_html)):
+            errs.append(
+                "EN/JA strings block key structure diverged (localized prose must share keys)"
+            )
+    except ValueError as exc:
+        errs.append(f"strings block: {exc}")
     for anchor in _REQUIRED_ANCHORS:
         token = f'id="{anchor}"'
         if (token in en_html) != (token in ja_html):

@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#070a12">
-<title>Microverse Results — Can AI Agents Learn to Divide Labor?</title>
-<meta name="description" content="A plain-language walkthrough of a result from the Microverse project: a tiny village of local AI agents stops doing the same thing and starts dividing labor once the economics are right — reported honestly, every number sourced.">
+<title>Microverse の結果 — AI エージェントは分業を学べるか?</title>
+<meta name="description" content="Microverse プロジェクトの成果をやさしく解説します。一台のノートPCで動く小さな AI エージェントの村が、経済の調整しだいで「同じ行動の繰り返し」から「分業」へと変わる様子を、すべての数値の出典つきで誠実に報告します。">
 <style>
   :root{
     --ink:#070a12; --ink2:#0b1020;
@@ -278,7 +278,7 @@
   <symbol id="flask" viewBox="0 0 24 24"><path d="M9 3h6"/><path d="M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/><path d="M7.5 15h9"/></symbol>
 </defs></svg>
 
-<div class="lang"><svg class="ic" aria-hidden="true" focusable="false"><use href="#globe"/></svg><a href="results.ja.html" hreflang="ja">日本語</a></div>
+<div class="lang"><svg class="ic" aria-hidden="true" focusable="false"><use href="#globe"/></svg><a href="results.html" hreflang="en">English</a></div>
 
 <header class="hero">
   <div class="wrap">
@@ -289,14 +289,14 @@
       <span class="sat3"></span>
       <div class="core"></div>
     </div>
-    <p class="kicker">A result from the Microverse · reported honestly</p>
-    <h1>Can AI agents learn to divide labor?</h1>
-    <p class="tag"><b>Yes — but only once we got the economics right.</b> A tiny village of AI minds on one laptop kept doing the same thing, over and over. Then we changed one rule, and they started specializing.</p>
+    <p class="kicker">Microverse の成果 · 誠実な報告</p>
+    <h1>AI エージェントは分業を学べるか?</h1>
+    <p class="tag"><b>学べます。ただし経済を正しく設計できたときだけ。</b> 一台のノートPCに暮らす小さな AI たちは、最初はひたすら同じ行動を繰り返していました。ところがルールを一つ変えると、役割を分担し始めたのです。</p>
     <div class="badges">
-      <span class="pill">runs on&nbsp;<b>one laptop</b></span>
-      <span class="pill"><b>$0</b>&nbsp;cloud cost</span>
-      <span class="pill">same move&nbsp;<b>~90%</b>&nbsp;→ divided labor</span>
-      <span class="pill">every number&nbsp;<b>sourced</b></span>
+      <span class="pill">ノートPC&nbsp;<b>一台</b>で動作</span>
+      <span class="pill">クラウド費用&nbsp;<b>$0</b></span>
+      <span class="pill">同じ行動&nbsp;<b>約90%</b>&nbsp;→ 分業へ</span>
+      <span class="pill">すべての数値に&nbsp;<b>出典</b></span>
     </div>
   </div>
 </header>
@@ -306,62 +306,62 @@
 <!-- 02 setup -->
 <section class="reveal">
   <div class="wrap">
-    <div class="shead"><span class="snum">01 / 10</span><span class="skick">The setup</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#users"/></svg></span>A tiny village of AI minds</h2>
-    <p class="lead">The <strong>Microverse</strong> is a small simulated world that runs entirely on one laptop. A handful of AI agents live inside it. Each one, on its turn, picks <em>one action</em> from a short menu of six things to do. There is no cloud, no API bill: every decision is a local call to one small open model (<span class="mono">gemma4:26b</span>), and every choice is written to a local log you can audit.</p>
-    <div class="verbset" id="verbset" aria-label="The six actions an agent can choose"></div>
+    <div class="shead"><span class="snum">01 / 10</span><span class="skick">舞台設定</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#users"/></svg></span>小さな AI の村</h2>
+    <p class="lead"><strong>Microverse</strong> は、一台のノートPCだけで動く小さな仮想世界です。その中で数体の AI エージェントが暮らしています。各エージェントは自分の番が来ると、6つの選択肢から<em>たった一つの行動</em>を選びます。クラウドも API 料金もありません。あらゆる判断はローカルの小さなオープンモデル(<span class="mono">gemma4:26b</span>)の呼び出しで、すべての選択はあとから検証できるローカルのログに記録されます。</p>
+    <div class="verbset" id="verbset" aria-label="エージェントが選べる6つの行動"></div>
     <div class="cast">
-      <div class="who"><div class="mono-av">A</div><b>Aki</b><span>Artisan — makes things (<b class="mono">craft</b>)</span></div>
-      <div class="who"><div class="mono-av">C</div><b>Cy</b><span>Scholar — studies (<b class="mono">study</b>)</span></div>
-      <div class="who"><div class="mono-av">V</div><b>Vesna</b><span>Newcomer — wanders (<b class="mono">travel</b>)</span></div>
+      <div class="who"><div class="mono-av">A</div><b>Aki</b><span>職人 — ものを作る (<b class="mono">craft</b>)</span></div>
+      <div class="who"><div class="mono-av">C</div><b>Cy</b><span>学者 — 学ぶ (<b class="mono">study</b>)</span></div>
+      <div class="who"><div class="mono-av">V</div><b>Vesna</b><span>新参者 — 歩き回る (<b class="mono">travel</b>)</span></div>
     </div>
-    <p class="note">Run conditions, in plain terms: one model (<span class="mono">gemma4:26b</span>), 3,000 turns per run, and each result repeated on three independent random starts (we call them <em>seeds</em>) so a single lucky run can't carry the story. "Dividing labor" just means different residents reliably pick different actions.</p>
+    <p class="note">実行条件をやさしく言うと: モデルは一つ(<span class="mono">gemma4:26b</span>)、1回の実行は3,000ターン、そして各結果は独立した3つの乱数の初期値(<em>シード</em>と呼びます)で再現します。一度の幸運な実行が話を作ってしまわないようにするためです。「分業」とは、違う住人が違う行動を確実に選ぶこと、ただそれだけを指します。</p>
   </div>
 </section>
 
 <!-- 02 monoculture -->
 <section class="reveal">
   <div class="wrap">
-    <div class="shead"><span class="snum">02 / 10</span><span class="skick">The problem</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#bars"/></svg></span>Left alone, everyone does the same thing</h2>
-    <p class="lead">With no pressure to do otherwise, the agents pile onto one safe, generic action — <span class="mono">contribute</span> (add a bit to a shared work-in-progress). In the two-resident village, <strong>roughly 9 out of every 10 actions were the same verb.</strong> That is a <em>monoculture</em>: a society where everyone behaves identically and nobody specializes.<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/economy-phase2-mechanism-audit.md" target="_blank" rel="noopener">audit · ADR&nbsp;0013</a></p>
+    <div class="shead"><span class="snum">02 / 10</span><span class="skick">問題</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#bars"/></svg></span>放っておくと、全員が同じことをする</h2>
+    <p class="lead">他に動機がなければ、エージェントたちは安全で無難な一つの行動 — <span class="mono">contribute</span>(共有中の作品に少し手を加える)に群がります。二人の村では、<strong>10回の行動のうちおよそ9回が同じ動詞でした。</strong>これが<em>モノカルチャー</em>です。全員が同じように振る舞い、誰も専門化しない社会のことです。<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/economy-phase2-mechanism-audit.md" target="_blank" rel="noopener">監査 · ADR&nbsp;0013</a></p>
     <div class="mono2" id="monoBars"></div>
     <div class="legend" id="monoLegend" aria-hidden="true"></div>
-    <p class="note">Why does this happen? The generic action is always "good enough." With nothing making it costly, the smart move for every agent, every turn, is the same default — so the village collapses into sameness.</p>
+    <p class="note">なぜこうなるのでしょう? 無難な行動はいつでも「とりあえず十分」だからです。それを高くつくものにしなければ、どのエージェントも毎ターン同じ既定の行動を選ぶのが賢い手になり、村は単調さに沈みます。</p>
   </div>
 </section>
 
 <!-- 03 specialization seen -->
 <section class="reveal" id="specialization">
   <div class="wrap">
-    <div class="shead"><span class="snum">03 / 10</span><span class="skick">The change, seen</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#compare"/></svg></span>Watch the village divide its labor</h2>
-    <p class="lead">Here is the heart of it. The idea is simple: <strong>make the easy default action cost more energy.</strong> When <span class="mono">contribute</span> gets expensive, each agent drifts to the one action that's cheap <em>for them</em> — the artisan to <span class="mono">craft</span>, the scholar to <span class="mono">study</span>, the newcomer to <span class="mono">travel</span>. Below is a real three-resident village before and after we raised that cost. Watch each resident's own specialty grow.</p>
-    <div class="cmp-toggle" role="group" aria-label="Show before or after">
-      <button type="button" data-state="before" aria-pressed="true">Before</button>
-      <button type="button" data-state="after" aria-pressed="false">After</button>
+    <div class="shead"><span class="snum">03 / 10</span><span class="skick">変化を見る</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#compare"/></svg></span>村が分業していく様子</h2>
+    <p class="lead">ここが核心です。考え方は単純で、<strong>簡単な既定の行動のエネルギーコストを上げる</strong>だけ。<span class="mono">contribute</span> が高くつくようになると、各エージェントは<em>自分にとって</em>安い行動へ流れます。職人は <span class="mono">craft</span> へ、学者は <span class="mono">study</span> へ、新参者は <span class="mono">travel</span> へ。下は、コストを上げる前と後の、実際の三人の村です。各住人の得意な行動が伸びていくのを見てください。</p>
+    <div class="cmp-toggle" role="group" aria-label="変更前・変更後を切り替え">
+      <button type="button" data-state="before" aria-pressed="true">変更前</button>
+      <button type="button" data-state="after" aria-pressed="false">変更後</button>
     </div>
     <div class="compare">
       <div class="panels show-before" id="cmpPanels"></div>
       <div class="legend" id="cmpLegend"></div>
     </div>
-    <p class="note">Each bar is one resident's mix of actions across a full run, normalized to 100%. "Before" is the village at the two-resident dose; "After" is the same village once the dose is raised to match three residents. Numbers are the agents' chosen actions in <span class="mono">data/econ-roster-r3-s101</span> and <span class="mono">data/econ-r3bal42-s101</span>.<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/economy-phase2-r3-levers2-findings.md" target="_blank" rel="noopener">ADR&nbsp;0018</a></p>
+    <p class="note">各バーは1回の実行を通した一人の住人の行動の割合で、100%に正規化しています。「変更前」は二人用の用量での村、「変更後」は三人に合わせて用量を上げた同じ村です。数値はエージェントが選んだ行動で、<span class="mono">data/econ-roster-r3-s101</span> と <span class="mono">data/econ-r3bal42-s101</span> より。<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/economy-phase2-r3-levers2-findings.md" target="_blank" rel="noopener">ADR&nbsp;0018</a></p>
   </div>
 </section>
 
 <!-- 04 measuring -->
 <section class="reveal" id="dose">
   <div class="wrap">
-    <div class="shead"><span class="snum">04 / 10</span><span class="skick">Measuring it</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#ruler"/></svg></span>Putting a number on "divided labor"</h2>
-    <p class="lead">To judge this fairly we need one number for "how differently are the residents behaving?" Higher means more divided labor. We drew a <strong>pass line at 0.25</strong> and — this matters — <em>locked it in writing before</em> looking at any of these results.<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/adr/0016-action-economy-divergence-criterion.md" target="_blank" rel="noopener">ADR&nbsp;0016</a> The chart shows what raising the dose does, for two-resident and three-resident villages alike.</p>
+    <div class="shead"><span class="snum">04 / 10</span><span class="skick">数値で測る</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#ruler"/></svg></span>「分業」を数値にする</h2>
+    <p class="lead">公平に判断するには「住人たちはどれだけ違う行動をしているか?」を表す一つの数値が要ります。大きいほど分業が進んでいます。私たちは<strong>合格ラインを 0.25</strong> に定め — ここが大切ですが — どの結果も見る<em>前に</em>それを文書に固定しました。<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/adr/0016-action-economy-divergence-criterion.md" target="_blank" rel="noopener">ADR&nbsp;0016</a> このグラフは、二人の村でも三人の村でも、用量を上げると何が起きるかを示します。</p>
     <div class="chartcard">
       <div id="doseChart"></div>
       <div class="statline" id="doseStat"></div>
     </div>
     <details class="note" style="margin-top:18px">
-      <summary style="cursor:pointer;color:var(--teal)">What is this number, exactly?</summary>
-      <p class="note" style="margin-top:10px">It's the average <em>pairwise Jensen–Shannon divergence</em> between residents' action mixes (<span class="mono">mean_pairwise_jsd</span>): 0 means everyone behaves identically, 1 means completely separate roles. The 0.25 line was calibrated on the two-resident case and then <em>inherited</em> unchanged for larger villages, so a bigger roster can't quietly lower the bar. Each bar is the average of three fresh-seed runs; the dots are the individual seeds, so you can see the spread, not just the average. The two-resident doses (<span class="mono">bal@22 / bal@30</span>) come from the held-out replication;<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/economy-phase2-replication-findings.md" target="_blank" rel="noopener">ADR&nbsp;0014</a> the three-resident doses from the roster and dose-rescue studies.<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/economy-phase2-roster-generality-findings.md" target="_blank" rel="noopener">ADR&nbsp;0015</a></p>
+      <summary style="cursor:pointer;color:var(--teal)">この数値は正確には何?</summary>
+      <p class="note" style="margin-top:10px">住人どうしの行動分布の平均<em>ペアワイズ Jensen–Shannon ダイバージェンス</em>(<span class="mono">mean_pairwise_jsd</span>)です。0 なら全員が同一、1 なら完全に別々の役割。0.25 のラインは二人の場合で較正し、より大きな村にもそのまま<em>引き継ぎ</em>ました。村が大きいからとこっそり基準を下げられないようにするためです。各バーは新しいシード3回の平均で、点は個々のシードなので、平均だけでなくばらつきも見えます。二人用量(<span class="mono">bal@22 / bal@30</span>)はホールドアウト再現実験から、<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/economy-phase2-replication-findings.md" target="_blank" rel="noopener">ADR&nbsp;0014</a> 三人用量はロスター研究と用量レスキュー研究から。<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/economy-phase2-roster-generality-findings.md" target="_blank" rel="noopener">ADR&nbsp;0015</a></p>
     </details>
   </div>
 </section>
@@ -369,34 +369,34 @@
 <!-- 05 generalize / stress tests -->
 <section class="reveal">
   <div class="wrap">
-    <div class="shead"><span class="snum">05 / 10</span><span class="skick">Stress tests</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#search"/></svg></span>Does it survive scrutiny?</h2>
-    <p class="lead">A result is only worth reporting if you try hard to break it. So we did. <strong>The first three-resident test failed. Persona prompting didn't fix it. Re-weighting the costs alone didn't fix it. Changing the economic pressure did.</strong> Here is that trail, wins and dead-ends alike — click any row for detail.</p>
+    <div class="shead"><span class="snum">05 / 10</span><span class="skick">ストレステスト</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#search"/></svg></span>検証に耐えるか?</h2>
+    <p class="lead">結果は、必死に壊そうとして初めて報告に値します。だから私たちはそうしました。<strong>最初の三人テストは失敗。ペルソナ指示でも直らず。コストの重みづけだけでも直らず。経済的な圧力を変えたら直りました。</strong>その道のり、成功も行き止まりも含めてここに。どの行もクリックで詳細が開きます。</p>
     <div class="verdicts" id="leverList"></div>
-    <p class="note">Each verdict is a real sweep with its own pre-registered rule. "Backfired" and "wash" are genuine negative results — kept on the record, not quietly dropped.</p>
+    <p class="note">各判定はそれぞれ事前登録したルールを持つ本物のスイープです。「逆効果」と「無駄」は本物の否定的結果で、こっそり捨てずに記録に残しています。</p>
   </div>
 </section>
 
 <!-- 06 resolution -->
 <section class="reveal">
   <div class="wrap">
-    <div class="shead"><span class="snum">06 / 10</span><span class="skick">The resolution</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#trend"/></svg></span>The failure wasn't the design — it was the dose</h2>
-    <p class="lead">When a third resident joins, each agent gets the spotlight less often, so the same cost spread over more residents pushes each one less. The fix wasn't a cleverer design; it was simply <strong>matching the dose to the bigger village</strong> (raising the contribute cost from 30 to 42). Do that, and the three-resident village clears the line: divergence rises from <strong>0.21 to 0.31</strong>, passing on all three fresh seeds.<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/adr/0018-action-economy-r3-levers2.md" target="_blank" rel="noopener">ADR&nbsp;0018</a></p>
-    <div class="callout win"><b>An honest bound:</b> this is <em>one rescued three-resident village</em>, not a proven law. It's good evidence for a simple "dilution" explanation — bigger village needs a bigger dose — and it cleared the differentiation bar on all three seeds and the stricter role-stability check on two of three. It is <em>not</em> yet shown to hold for much larger populations, other action menus, or other models.</p></div>
+    <div class="shead"><span class="snum">06 / 10</span><span class="skick">解決</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#trend"/></svg></span>失敗は設計ではなく用量だった</h2>
+    <p class="lead">三人目が加わると、各エージェントに番が回る頻度が下がり、同じコストでも住人が増えるぶん一人への圧力は弱まります。直したのは賢い設計ではなく、ただ<strong>用量を大きな村に合わせた</strong>こと(contribute コストを 30 から 42 へ)。そうすると三人の村はラインを越えます。ダイバージェンスは <strong>0.21 から 0.31</strong> へ上がり、新しいシード3つすべてで合格しました。<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/adr/0018-action-economy-r3-levers2.md" target="_blank" rel="noopener">ADR&nbsp;0018</a></p>
+    <div class="callout win"><b>誠実な但し書き:</b> これは<em>救済された三人の村が一つ</em>であって、証明された法則ではありません。単純な「希釈」の説明 — 大きな村には大きな用量 — の良い証拠で、3シードすべてで分業の基準を、さらに厳しい役割安定性チェックも3つ中2つで越えました。ただし、はるかに大きな集団・別の行動メニュー・別のモデルでも成り立つことは、<em>まだ</em>示せていません。</p></div>
   </div>
 </section>
 
 <!-- 07 how we know -->
 <section class="reveal">
   <div class="wrap">
-    <div class="shead"><span class="snum">07 / 10</span><span class="skick">Why trust it</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#lock"/></svg></span>How we know it's real</h2>
-    <p class="lead">The discipline behind the result matters as much as the result: <strong>we predicted, locked it in, and checked on runs we'd never seen.</strong></p>
+    <div class="shead"><span class="snum">07 / 10</span><span class="skick">なぜ信頼できるか</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#lock"/></svg></span>本物だと分かる理由</h2>
+    <p class="lead">結果そのものと同じくらい、その背後の規律が大切です。<strong>予測し、固定し、見たことのない実行で確かめました。</strong></p>
     <div class="grid g3">
-      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#lock"/></svg></span><h3>Decided in advance</h3><p>The pass line and the rules were written to the repository <em>before</em> each sweep ran, so nothing could be tuned after seeing the answer.</p></div>
-      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#check"/></svg></span><h3>Held-out seeds</h3><p>The two-resident pass was re-tested on three fresh random starts it had never seen, and held — divergence 0.34 / 0.37 / 0.39.<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/economy-phase2-replication-findings.md" target="_blank" rel="noopener">ADR&nbsp;0014</a></p></div>
-      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#shield"/></svg></span><h3>Mechanism, not luck</h3><p>An offline audit confirms the cost signal is what moves the agents — when the scarcity hint names a verb, the model obeys it, run after run.<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/economy-phase2-mechanism-audit.md" target="_blank" rel="noopener">ADR&nbsp;0013</a></p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#lock"/></svg></span><h3>先に決める</h3><p>合格ラインとルールは各スイープの実行<em>前</em>にリポジトリへ書き込まれ、答えを見てから調整できないようにしました。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#check"/></svg></span><h3>ホールドアウトのシード</h3><p>二人の合格は、見たことのない新しい3つの初期値で再テストし、保たれました — ダイバージェンス 0.34 / 0.37 / 0.39。<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/economy-phase2-replication-findings.md" target="_blank" rel="noopener">ADR&nbsp;0014</a></p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#shield"/></svg></span><h3>偶然ではなく機構</h3><p>オフライン監査が、エージェントを動かすのはコスト信号だと裏づけます。希少性ヒントがある動詞を名指しすると、モデルは毎回それに従います。<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/economy-phase2-mechanism-audit.md" target="_blank" rel="noopener">ADR&nbsp;0013</a></p></div>
     </div>
   </div>
 </section>
@@ -404,21 +404,21 @@
 <!-- 08 honest scope -->
 <section class="reveal">
   <div class="wrap">
-    <div class="shead"><span class="snum">08 / 10</span><span class="skick">What it means</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#scale"/></svg></span>What this is — and what it isn't</h2>
-    <p class="lead">This is a real, if bounded, finding about <em>how small AI societies behave</em>: left to themselves they collapse into sameness, and a simple economic pressure — properly dosed — pushes them apart into roles. It's fully local, costs nothing to run, and every number is logged and auditable.</p>
-    <div class="callout warn"><b>Being clear about scope:</b> this is a discovery about agent <em>behavior</em>, not energy or cures for the real world. We've shown the agents <em>divide labor</em>. The open question is whether that specialization produces work that's actually <em>good</em> — and to measure that, we'd need an outside judge. That's exactly where this points next.</div>
+    <div class="shead"><span class="snum">08 / 10</span><span class="skick">意味するもの</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#scale"/></svg></span>これは何で、何ではないか</h2>
+    <p class="lead">これは<em>小さな AI 社会がどう振る舞うか</em>についての、限定的だが本物の発見です。放っておけば単調さに崩れ、適切に用量調整した単純な経済圧力が役割へと押し分けます。完全にローカルで、動かすのに費用はかからず、すべての数値が記録され検証できます。</p>
+    <div class="callout warn"><b>範囲を明確に:</b> これはエージェントの<em>振る舞い</em>についての発見で、現実世界のエネルギーや治療ではありません。エージェントが<em>分業する</em>ことは示しました。残る問いは、その専門化が実際に<em>良い</em>仕事を生むかどうか。それを測るには外部の審判が要ります。次に向かう先はまさにそこです。</div>
   </div>
 </section>
 
 <!-- 09 future -->
 <section class="reveal future">
   <div class="wrap">
-    <div class="shead"><span class="snum">09 / 10</span><span class="skick">What's next</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#rocket"/></svg></span>Future directions</h2>
+    <div class="shead"><span class="snum">09 / 10</span><span class="skick">次の一手</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#rocket"/></svg></span>今後の方向</h2>
     <div class="grid g2">
-      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#crosshair"/></svg></span><h3>The real-output path</h3><p class="kpi">from "different" to "good"</p><p>Today the village's own Trader decides what's valuable — a judge from inside the world. The next leap is an <b>external oracle</b>: let agents produce things the outside world can score on its own — <em>code that passes tests, a proof a checker verifies, a forecast graded against held-out data.</em> Then "discovery" stops being a vibe and becomes a measurable, externally-verifiable output.</p></div>
-      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#users"/></svg></span><h3>Test the dilution idea</h3><p class="kpi">does the dose really scale?</p><p>The dose-rescue is one datapoint. The clean test: add a fourth resident with a fourth specialty and see whether a still-larger dose keeps the labor divided — the direct prediction of the dilution explanation. Honest caveat: the fourth available action (<span class="mono">speak</span>) is the weakest specialty, and four is the practical ceiling of this action menu.</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#crosshair"/></svg></span><h3>本物の成果への道</h3><p class="kpi">「違う」から「良い」へ</p><p>今は村の Trader が価値を決めています。世界の内側の審判です。次の飛躍は<b>外部のオラクル</b>。エージェントに、外の世界が自力で採点できるものを作らせます — <em>テストに通るコード、検証器が確かめる証明、ホールドアウトデータで採点される予測。</em>そうすれば「発見」は気分ではなく、測定でき外部検証できる成果になります。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#users"/></svg></span><h3>希釈仮説を試す</h3><p class="kpi">用量は本当にスケールするか?</p><p>用量レスキューは一点だけ。きれいな検証は、4つ目の専門を持つ4人目を加え、さらに大きな用量で分業が保たれるか見ることです。希釈の説明が直接予測することです。誠実な但し書き: 4つ目の行動(<span class="mono">speak</span>)は最も弱い専門で、4人がこの行動メニューの実用的な上限です。</p></div>
     </div>
   </div>
 </section>
@@ -426,15 +426,15 @@
 <!-- 10 recap -->
 <section class="reveal">
   <div class="wrap">
-    <div class="shead"><span class="snum">10 / 10</span><span class="skick">In one breath</span><span class="bar"></span></div>
-    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#star"/></svg></span>The whole story, in four numbers</h2>
+    <div class="shead"><span class="snum">10 / 10</span><span class="skick">ひと息で</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#star"/></svg></span>物語の全体を、4つの数字で</h2>
     <div class="scoreline">
-      <div class="score"><div class="big">~90%</div><div class="rule"></div><small>of actions were the same verb, left alone (monoculture)</small></div>
-      <div class="score"><div class="big">0.25</div><div class="rule"></div><small>the "divided labor" pass line, locked in advance</small></div>
-      <div class="score"><div class="big">0.21→0.31</div><div class="rule"></div><small>three residents, once the dose was matched to the village</small></div>
-      <div class="score"><div class="big">3 / 3</div><div class="rule"></div><small>fresh seeds cleared the line after the fix</small></div>
+      <div class="score"><div class="big">約90%</div><div class="rule"></div><small>放っておくと同じ動詞だった行動の割合(モノカルチャー)</small></div>
+      <div class="score"><div class="big">0.25</div><div class="rule"></div><small>事前に固定した「分業」の合格ライン</small></div>
+      <div class="score"><div class="big">0.21→0.31</div><div class="rule"></div><small>用量を村に合わせたあとの三人の村</small></div>
+      <div class="score"><div class="big">3 / 3</div><div class="rule"></div><small>修正後にラインを越えた新シード</small></div>
     </div>
-    <div class="callout"><b>The thesis, restated:</b> a small society of local AI agents doesn't specialize on its own — but the right economic pressure, dosed to the size of the village, reliably pushes it from a monoculture into divided labor. Small, honest, and entirely reproducible on one laptop.</div>
+    <div class="callout"><b>主張をもう一度:</b> 小さなローカル AI の社会は、ひとりでには専門化しません。けれど村の規模に合わせて用量調整した適切な経済圧力は、モノカルチャーから分業へと確実に押し進めます。小さく、誠実で、ノートPC一台で完全に再現できます。</div>
   </div>
 </section>
 
@@ -442,10 +442,10 @@
 
 <footer>
   <div class="wrap">
-    <p class="fline"><svg class="ic" aria-hidden="true" focusable="false"><use href="#cpu"/></svg> Microverse · the action-economy result · one local model · one laptop · zero cloud.</p>
-    <p class="fline">Method &amp; data: <a href="https://github.com/TheIllusionOfLife/microverse" target="_blank" rel="noopener">github.com/TheIllusionOfLife/microverse</a> · decisions in <a href="https://github.com/TheIllusionOfLife/microverse/tree/main/docs/adr" target="_blank" rel="noopener">docs/adr</a> (ADRs 0008–0018).</p>
-    <p class="fline">See the bigger dream → <a href="vision.html">the Microverse vision</a> <svg class="ic" aria-hidden="true" focusable="false"><use href="#star"/></svg></p>
-    <p class="fline"><svg class="ic" aria-hidden="true" focusable="false"><use href="#globe"/></svg> <a href="results.ja.html" hreflang="ja">日本語版はこちら</a></p>
+    <p class="fline"><svg class="ic" aria-hidden="true" focusable="false"><use href="#cpu"/></svg> Microverse · 行動経済の成果 · ローカルモデル一つ · ノートPC一台 · クラウドなし。</p>
+    <p class="fline">手法とデータ: <a href="https://github.com/TheIllusionOfLife/microverse" target="_blank" rel="noopener">github.com/TheIllusionOfLife/microverse</a> · 意思決定は <a href="https://github.com/TheIllusionOfLife/microverse/tree/main/docs/adr" target="_blank" rel="noopener">docs/adr</a>(ADR 0008–0018)。</p>
+    <p class="fline">より大きな夢を見る → <a href="vision.ja.html">Microverse のビジョン</a> <svg class="ic" aria-hidden="true" focusable="false"><use href="#star"/></svg></p>
+    <p class="fline"><svg class="ic" aria-hidden="true" focusable="false"><use href="#globe"/></svg> <a href="results.html" hreflang="en">View in English</a></p>
   </div>
 </footer>
 
@@ -490,19 +490,19 @@
      byte-identical across languages, so numbers can never drift. -->
 <script id="microverse-strings" type="application/json">
 {
-  "verbHints": {"contribute":"add to shared work","craft":"make things","study":"learn & reflect","travel":"explore","speak":"talk","rest":"recover energy"},
-  "mono": {"noEcon":"Without the economy","noEconSub":"~88–92% of all actions are the same verb","withEcon":"With the economy (two residents)","withEconSub":"contribute falls to ~26–31% as agents specialize","everythingElse":"everything else"},
-  "cmp": {"before":"Before","after":"After","dividedLabor":"divided labor","tooAlike":"too alike","divergence":"divergence","clears":"· clears 0.25","under":"· under 0.25","beforeLabel":"Two-agent dose","afterLabel":"Raised dose (bal@42)"},
-  "roles": {"Aki":"Artisan","Cy":"Scholar","Vesna":"Newcomer"},
-  "dose": {"title":"Divided-labor score by village size and dose","desc":"Bar chart of mean pairwise divergence. Two residents read 0.26 at natural cost and 0.37 at the raised dose. Three residents read 0.21 at the two-resident dose and 0.31 at the raised dose. The pass line is 0.25.","passLine":"pass line · 0.25","groups":{"2":"2 residents","3":"3 residents"},"labels":["natural cost","raised dose","two-agent dose","raised dose"]},
+  "verbHints": {"contribute":"共有作業に加える","craft":"ものを作る","study":"学び考える","travel":"探索する","speak":"話す","rest":"エネルギー回復"},
+  "mono": {"noEcon":"経済なし","noEconSub":"全行動の約88〜92%が同じ動詞","withEcon":"経済あり(二人)","withEconSub":"contribute は約26〜31%へ下がり専門化","everythingElse":"その他すべて"},
+  "cmp": {"before":"変更前","after":"変更後","dividedLabor":"分業","tooAlike":"似すぎ","divergence":"ダイバージェンス","clears":"· 0.25 を超える","under":"· 0.25 未満","beforeLabel":"二人用量","afterLabel":"用量を上げた (bal@42)"},
+  "roles": {"Aki":"職人","Cy":"学者","Vesna":"新参者"},
+  "dose": {"title":"村の規模と用量ごとの分業スコア","desc":"平均ペアワイズ・ダイバージェンスの棒グラフ。二人: 自然コストで0.26、用量を上げて0.37。三人: 二人用量で0.21、用量を上げて0.31。合格ラインは0.25。","passLine":"合格ライン · 0.25","groups":{"2":"二人","3":"三人"},"labels":["自然コスト","用量を上げる","二人用量","用量を上げる"]},
   "levers": {
-    "r2":{"name":"A second pairing of residents","note":"Swap the cast to an artisan and a newcomer, and the divided labor still appears (divergence 0.35, clear of the line on all three seeds)."},
-    "r3":{"name":"A third resident, same dose","note":"Add a third resident at the two-resident dose and the village stays too alike to count (0.21, under the 0.25 line on every seed)."},
-    "persona":{"name":"Persona prompting","note":"Ordering the newcomer to “be a traveler” actually shrank her travel from 0.156 to 0.054 — the prompt pushed, the behavior went the other way."},
-    "weights":{"name":"Tuning the cost weights","note":"Re-weighting the costs alone just reshuffled the mix: 0.21, no better than the start."},
-    "dose":{"name":"Raising the dose to fit the village","note":"Match the dose to the bigger schedule (raise contribute cost 30→42) and divided labor returns: 0.31, clearing the line on all three seeds."}
+    "r2":{"name":"住人の別の組み合わせ","note":"配役を職人と新参者に替えても、分業は現れます(ダイバージェンス0.35、3シードすべてでライン超え)。"},
+    "r3":{"name":"三人目、同じ用量","note":"二人用量のまま三人目を加えると、村は似すぎて数えられません(0.21、全シードで0.25未満)。"},
+    "persona":{"name":"ペルソナ指示","note":"新参者に「旅人になれ」と命じると、travel はかえって0.156から0.054へ縮みました。指示は押したのに、振る舞いは逆へ。"},
+    "weights":{"name":"コストの重み調整","note":"コストの重みづけだけでは混ぜ直しただけ。0.21で、最初と変わりません。"},
+    "dose":{"name":"村に合わせて用量を上げる","note":"用量を大きなスケジュールに合わせる(contribute コストを30→42)と分業が戻ります。0.31で、3シードすべてでライン超え。"}
   },
-  "doseBody": "Differentiation passed on {l1} seeds; the stricter role-stability check on {l2}. "
+  "doseBody": "分業は {l1} シードで合格、より厳しい役割安定性チェックは {l2} で合格。"
 }
 </script>
 <script>
