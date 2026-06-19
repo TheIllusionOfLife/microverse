@@ -457,3 +457,32 @@ def test_parse_args_divergence_metric_accepts_mean_pairwise():
 def test_parse_args_divergence_metric_rejects_unknown():
     with pytest.raises(SystemExit):
         swm.parse_args(["--data", "d", "--harvest", "h", "--divergence-metric", "bogus"])
+
+
+# Layer 2 role-stability (sweep_report.py) needs the FULL per-agent verb
+# distribution, not just the top share, to compute cross-bleed. Export it.
+def test_gate9_per_agent_verb_share_full_distribution_sums_to_one():
+    rows = _dist_rows({"Aki": {"craft": 30, "contribute": 10}, "Cy": {"study": 40}})
+    g = swm.gate9_verb_diversity(_events_db(rows))
+    shares = g["chosen"]["per_agent_verb_share"]
+    assert set(shares) == {"Aki", "Cy"}
+    for dist in shares.values():
+        assert set(dist) == set(swm._VERBS)
+        assert sum(dist.values()) == pytest.approx(1.0, abs=1e-6)
+    assert shares["Aki"]["craft"] == pytest.approx(0.75, abs=1e-4)
+    assert shares["Aki"]["contribute"] == pytest.approx(0.25, abs=1e-4)
+    assert shares["Cy"]["study"] == pytest.approx(1.0, abs=1e-4)
+
+
+def test_gate9_per_agent_verb_share_max_matches_top_share():
+    rows = _dist_rows({"Aki": {"craft": 30, "contribute": 10}, "Cy": {"study": 40}})
+    chosen = swm.gate9_verb_diversity(_events_db(rows))["chosen"]
+    for agent, top in chosen["per_agent_top_share"].items():
+        assert max(chosen["per_agent_verb_share"][agent].values()) == pytest.approx(top, abs=1e-4)
+
+
+def test_diversity_block_per_agent_verb_share_zero_count_agent_is_all_zero():
+    from collections import Counter
+
+    block = swm._diversity_block({"Ghost": Counter()})
+    assert block["per_agent_verb_share"]["Ghost"] == dict.fromkeys(swm._VERBS, 0.0)
