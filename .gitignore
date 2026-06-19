@@ -40,3 +40,7 @@ econ-*.log
 .claude/*.local.md
 .claude/*.lock
 .claude/settings.local.json
+
+# Local QA / scratch artifacts
+.playwright-cli/
+.dead-runs/
