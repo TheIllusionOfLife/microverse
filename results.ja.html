@@ -1,0 +1,740 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#070a12">
+<title>Microverse の結果 — AI エージェントは分業を学べるか?</title>
+<meta name="description" content="Microverse プロジェクトの成果をやさしく解説します。一台のノートPCで動く小さな AI エージェントの村が、経済の調整しだいで「同じ行動の繰り返し」から「分業」へと変わる様子を、すべての数値の出典つきで誠実に報告します。">
+<style>
+  :root{
+    --ink:#070a12; --ink2:#0b1020;
+    --panel:rgba(255,255,255,.035); --panel2:rgba(255,255,255,.055);
+    --line:rgba(255,255,255,.10); --line2:rgba(255,255,255,.18);
+    --fg:#eaeefb; --muted:#9aa3c0; --faint:#868fb2;
+    --amber:#ffc46b; --gold:#ff9e3d; --teal:#5fe3d2; --violet:#a78bff; --coral:#ff7d8c;
+    --green:#63e1a0; --red:#ff7d8c;
+    --serif:"Hoefler Text","Iowan Old Style","Palatino Linotype",Palatino,Georgia,"Times New Roman",serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,sans-serif;
+    --mono:"SF Mono",ui-monospace,"JetBrains Mono","Cascadia Code",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth;color-scheme:dark}
+  body{margin:0;color:var(--fg);font:16.5px/1.7 var(--sans);background:var(--ink);overflow-x:hidden;-webkit-font-smoothing:antialiased}
+  body::before{content:"";position:fixed;inset:0;z-index:-3;
+    background:
+      radial-gradient(820px 560px at 14% -8%, rgba(255,158,61,.13), transparent 60%),
+      radial-gradient(880px 680px at 112% 8%, rgba(95,227,210,.10), transparent 55%),
+      radial-gradient(1100px 820px at 50% 124%, rgba(167,139,255,.08), transparent 58%),
+      linear-gradient(180deg,#070a12,#0a0e1c 42%,#070a12)}
+  body::after{content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
+    background-image:linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);
+    background-size:46px 46px,46px 46px;
+    -webkit-mask-image:radial-gradient(ellipse 90% 70% at 50% 26%,#000 28%,transparent 86%);
+    mask-image:radial-gradient(ellipse 90% 70% at 50% 26%,#000 28%,transparent 86%)}
+  .grain{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>")}
+  a{color:var(--teal);text-underline-offset:3px;touch-action:manipulation}
+  ::selection{background:rgba(255,196,107,.28);color:#fff}
+  body{-webkit-tap-highlight-color:rgba(255,196,107,.25)}
+  :focus-visible{outline:2px solid var(--amber);outline-offset:3px;border-radius:4px}
+  a:focus-visible,.lang a:focus-visible,button:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+  .score .big,.snum,.pill b,.statline b,.dnum{font-variant-numeric:tabular-nums}
+  .lead{text-wrap:pretty}
+  @supports not ((-webkit-background-clip:text) or (background-clip:text)){.hero h1{color:var(--fg)}}
+  .skip{position:fixed;left:12px;top:-60px;z-index:40;background:var(--amber);color:#1a1206;
+    font:600 13px/1 var(--mono);padding:11px 16px;border-radius:9px;text-decoration:none;transition:top .2s ease}
+  .skip:focus{top:12px}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 26px}
+  svg.ic{width:1em;height:1em;display:block;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+  .mono{font-family:var(--mono)}
+
+  .lang{position:fixed;top:16px;right:18px;z-index:30;display:inline-flex;align-items:center;gap:8px;
+    font:600 12px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;
+    background:rgba(8,11,20,.6);border:1px solid var(--line2);border-radius:10px;padding:9px 13px;backdrop-filter:blur(10px)}
+  .lang svg.ic{font-size:15px;color:var(--amber)}
+  .lang a{color:var(--fg);text-decoration:none}
+  .lang a:hover{color:var(--amber)}
+
+  /* ── hero ── */
+  header.hero{position:relative;text-align:center;padding:118px 0 64px}
+  .cosmos{position:relative;width:188px;height:188px;margin:0 auto 34px}
+  .cosmos .core{position:absolute;inset:62px;border-radius:50%;
+    background:radial-gradient(circle at 36% 30%,#fff,var(--amber) 28%,var(--gold) 52%,#b14bff 92%);
+    box-shadow:0 0 38px rgba(255,180,90,.65),0 0 90px rgba(167,139,255,.5),inset 0 0 18px rgba(255,255,255,.5);
+    animation:breathe 5.5s ease-in-out infinite}
+  .cosmos .ring{position:absolute;inset:0;border-radius:50%;border:1px solid rgba(255,255,255,.12)}
+  .cosmos .ring.r2{inset:30px;border-color:rgba(95,227,210,.22)}
+  .cosmos .ring.r3{inset:14px;border:1px dashed rgba(255,196,107,.20)}
+  .cosmos .spin{position:absolute;inset:0;animation:spin 14s linear infinite}
+  .cosmos .spin.b{inset:30px;animation:spin 9s linear infinite reverse}
+  .cosmos .sat{position:absolute;top:-4px;left:50%;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 12px var(--teal)}
+  .cosmos .spin.b .sat{background:var(--amber);box-shadow:0 0 12px var(--amber)}
+  .cosmos .sat3{position:absolute;bottom:2px;left:50%;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;background:var(--violet);box-shadow:0 0 12px var(--violet)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes breathe{0%,100%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.05);filter:brightness(1.16)}}
+  .kicker{font:600 12.5px/1 var(--mono);letter-spacing:.34em;text-transform:uppercase;color:var(--teal);margin:0 0 18px}
+  .hero h1{font-family:var(--serif);font-weight:600;font-size:clamp(38px,7vw,80px);line-height:1;letter-spacing:-.022em;margin:0;text-wrap:balance;
+    background:linear-gradient(96deg,#fff 8%,var(--amber) 40%,var(--teal) 70%,var(--violet));
+    -webkit-background-clip:text;background-clip:text;color:transparent;background-size:220% auto;animation:shine 11s linear infinite}
+  @keyframes shine{to{background-position:220% center}}
+  .hero .tag{font-size:clamp(17px,2.3vw,21px);line-height:1.6;color:var(--muted);max-width:680px;margin:22px auto 0}
+  .hero .tag b{color:var(--fg)}
+  .badges{display:flex;gap:11px;justify-content:center;flex-wrap:wrap;margin-top:34px}
+  .pill{display:inline-flex;align-items:center;gap:8px;font:600 12.5px/1 var(--mono);letter-spacing:.04em;color:var(--muted);
+    border:1px solid var(--line2);background:var(--panel);border-radius:999px;padding:9px 15px}
+  .pill::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber)}
+  .pill b{color:var(--fg)}
+
+  /* ── sections ── */
+  section{padding:62px 0;position:relative}
+  section+section{border-top:1px solid var(--line)}
+  .shead{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+  .snum{font:600 12px/1 var(--mono);letter-spacing:.16em;color:var(--amber)}
+  .skick{font:600 12px/1 var(--mono);letter-spacing:.28em;text-transform:uppercase;color:var(--faint)}
+  .shead .bar{flex:1;height:1px;background:linear-gradient(90deg,var(--line2),transparent)}
+  h2{font-family:var(--serif);font-weight:600;font-size:clamp(27px,4.2vw,44px);line-height:1.06;letter-spacing:-.015em;
+    margin:0 0 .35em;display:flex;align-items:center;gap:18px}
+  .hicon{flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:13px;
+    font-size:26px;color:var(--amber);background:radial-gradient(120% 120% at 30% 20%,rgba(255,196,107,.18),rgba(255,255,255,.02));
+    border:1px solid var(--line2);box-shadow:inset 0 1px 0 rgba(255,255,255,.10)}
+  .lead{color:var(--muted);font-size:18.5px;line-height:1.62;max-width:840px}
+  .lead em{color:var(--fg);font-style:italic}
+  .lead.sm{font-size:16.5px}
+  strong{color:var(--fg)}
+  p.note{color:var(--faint);font-size:14px;max-width:840px;margin-top:14px}
+
+  .grid{display:grid;gap:18px;margin-top:30px}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:760px){.g2,.g3{grid-template-columns:1fr}}
+  .card{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px 22px;overflow:hidden;
+    transition:transform .3s cubic-bezier(.2,.7,.2,1),border-color .3s,background .3s}
+  .card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:currentColor;color:var(--teal);opacity:.5;transform:scaleX(0);transform-origin:left;transition:transform .35s ease}
+  .card:hover{transform:translateY(-5px);border-color:var(--line2);background:var(--panel2)}
+  .card:hover::before{transform:scaleX(1)}
+  .grid .card:nth-child(3n+1){color:var(--amber)} .grid .card:nth-child(3n+2){color:var(--teal)} .grid .card:nth-child(3n+3){color:var(--violet)}
+  .cic{display:inline-flex;font-size:27px;margin-bottom:13px}
+  .card h3{font-family:var(--sans);font-weight:650;margin:.1em 0 .45em;font-size:18px;color:var(--fg);letter-spacing:-.01em}
+  .card p{margin:.3em 0;color:var(--muted);font-size:14.8px;line-height:1.65}
+  .card p.kpi{font:600 11.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:inherit;opacity:.85;margin-bottom:8px}
+
+  .callout{position:relative;background:linear-gradient(110deg,rgba(95,227,210,.10),rgba(167,139,255,.06));
+    border:1px solid var(--line);border-left:3px solid var(--teal);border-radius:14px;padding:20px 22px;margin-top:26px;font-size:16px;line-height:1.66}
+  .callout.warn{border-left-color:var(--amber);background:linear-gradient(110deg,rgba(255,196,107,.12),rgba(255,125,140,.06))}
+  .callout.win{border-left-color:var(--green);background:linear-gradient(110deg,rgba(99,225,160,.12),rgba(95,227,210,.05))}
+  .callout b{color:var(--fg)}
+
+  /* cast */
+  .cast{display:flex;gap:14px;flex-wrap:wrap;margin-top:26px}
+  .cast .who{flex:1 1 156px;background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:18px 14px;text-align:center}
+  .cast .who .mono-av{width:54px;height:54px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;
+    font:800 22px/1 var(--serif);background:radial-gradient(circle at 34% 26%,rgba(255,255,255,.16),transparent 70%),rgba(255,255,255,.03);border:1.5px solid var(--violet);color:var(--violet)}
+  .cast .who:nth-child(1) .mono-av{border-color:var(--amber);color:var(--amber)}
+  .cast .who:nth-child(2) .mono-av{border-color:var(--teal);color:var(--teal)}
+  .cast .who:nth-child(3) .mono-av{border-color:var(--violet);color:var(--violet)}
+  .cast .who b{display:block;font-size:15px}
+  .cast .who span{font-size:12.5px;color:var(--muted)}
+
+  /* ── verb chips / setup ── */
+  .verbset{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}
+  .verb{display:inline-flex;align-items:center;gap:8px;font:600 13px/1 var(--mono);color:var(--fg);
+    background:var(--panel);border:1px solid var(--line2);border-radius:10px;padding:9px 13px}
+  .verb .dot{width:11px;height:11px;border-radius:3px}
+  .verb small{color:var(--faint);font-weight:400;letter-spacing:.02em}
+
+  /* ── stacked verb bars (HTML, self-contained, accessible) ── */
+  .barblock{margin-top:14px}
+  .barhead{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:0 0 6px}
+  .barhead b{font-size:14.5px}
+  .barhead .who-role{font:600 11px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+  .sbar{display:flex;width:100%;height:34px;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:var(--ink2)}
+  .sbar .seg{display:flex;align-items:center;justify-content:center;min-width:0;overflow:hidden;white-space:nowrap;
+    font:600 11px/1 var(--mono);color:#0a0e1c;letter-spacing:.01em;transition:width .6s cubic-bezier(.2,.7,.2,1)}
+  .barlabel{font:600 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin:0 0 5px}
+  .legend{display:flex;flex-wrap:wrap;gap:9px 16px;margin-top:16px}
+  .legend .lg{display:inline-flex;align-items:center;gap:7px;font:600 12px/1 var(--mono);color:var(--muted)}
+  .legend .sw{width:13px;height:13px;border-radius:3px;flex:0 0 auto}
+
+  /* monoculture two-bar */
+  .mono2{display:grid;gap:18px;margin-top:26px}
+  .mono2 .barlabel span{color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400}
+
+  /* ── before/after comparison ── */
+  .compare{margin-top:26px}
+  .cmp-toggle{display:none;margin:0 0 18px;gap:0;border:1px solid var(--line2);border-radius:10px;overflow:hidden;width:fit-content}
+  .cmp-toggle button{font:600 12.5px/1 var(--mono);letter-spacing:.06em;color:var(--muted);background:var(--panel);border:0;padding:11px 16px;cursor:pointer}
+  .cmp-toggle button[aria-pressed="true"]{background:var(--amber);color:#1a1206}
+  .panels{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 20px}
+  .panel.after{border-color:rgba(99,225,160,.32);background:linear-gradient(165deg,rgba(99,225,160,.06),rgba(255,255,255,.02))}
+  .panel .ptitle{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 4px}
+  .panel .ptitle b{font-size:15px}
+  .panel .pstate{font:600 11px/1 var(--mono);letter-spacing:.08em;padding:5px 9px;border-radius:7px}
+  .pstate.fail{color:#2a0a10;background:var(--coral)} .pstate.pass{color:#062a1c;background:var(--green)}
+  .panel .psub{font-size:12.5px;color:var(--faint);margin:0 0 18px;font-family:var(--mono)}
+  .arow{margin:0 0 16px}
+  .arow:last-child{margin-bottom:0}
+  .delta{display:inline-flex;align-items:center;gap:6px;font:600 12px/1 var(--mono);color:var(--muted)}
+  .delta .up{color:var(--green)} .delta .dn{color:var(--amber)}
+  @media(max-width:760px){
+    .cmp-toggle{display:flex}
+    .panels{grid-template-columns:1fr}
+    .panels.show-before .panel.after{display:none}
+    .panels.show-after .panel.before{display:none}
+  }
+
+  /* ── dose chart (inline SVG) ── */
+  .chartcard{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px 20px 18px;margin-top:26px}
+  .chartcard svg{width:100%;height:auto;display:block;overflow:visible}
+  .dose-axis{stroke:var(--line2);stroke-width:1}
+  .dose-grid{stroke:rgba(255,255,255,.06);stroke-width:1}
+  .dose-floor{stroke:var(--amber);stroke-width:1.5;stroke-dasharray:6 5}
+  .dose-floorlab{fill:var(--amber);font:600 12px var(--mono)}
+  .dose-tick{fill:var(--faint);font:500 11px var(--mono)}
+  .dose-val{font:700 13px var(--mono)}
+  .dose-xlab{fill:var(--fg);font:600 12px var(--mono)}
+  .dose-grp{fill:var(--faint);font:600 11px var(--mono);letter-spacing:.08em}
+  .dose-seed{opacity:.85}
+  .statline{display:flex;flex-wrap:wrap;gap:8px 22px;margin-top:16px;font:500 13px/1.5 var(--mono);color:var(--muted)}
+  .statline b{color:var(--fg)}
+
+  /* ── lever verdict timeline ── */
+  .verdicts{margin-top:30px;display:grid;gap:12px}
+  .vrow{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--faint);border-radius:13px;padding:0}
+  .vrow.pass{border-left-color:var(--green)} .vrow.fail{border-left-color:var(--coral)}
+  .vrow.backfired{border-left-color:var(--gold)} .vrow.wash{border-left-color:var(--faint)} .vrow.rescue{border-left-color:var(--teal)}
+  .vrow summary{display:flex;align-items:center;gap:14px;padding:15px 18px;cursor:pointer;list-style:none}
+  .vrow summary::-webkit-details-marker{display:none}
+  .vrow summary .vstep{font:700 13px/1 var(--mono);color:var(--faint);width:20px;text-align:center;flex:0 0 auto}
+  .vrow summary .vname{font-weight:650;font-size:15.5px;flex:1;min-width:0}
+  .vrow summary .vval{font:700 14px/1 var(--mono);color:var(--fg);flex:0 0 auto}
+  .vtag{font:700 10.5px/1 var(--mono);letter-spacing:.1em;padding:6px 10px;border-radius:7px;white-space:nowrap;flex:0 0 auto}
+  .vtag.pass{color:#062a1c;background:var(--green)} .vtag.fail{color:#2a0a10;background:var(--coral)}
+  .vtag.backfired{color:#2a1a06;background:var(--gold)} .vtag.wash{color:#0a0e1c;background:var(--faint)} .vtag.rescue{color:#062a26;background:var(--teal)}
+  .vrow .vbody{padding:0 18px 16px 52px;color:var(--muted);font-size:14.5px;line-height:1.6}
+  .vrow .vbody .cite{margin-left:6px}
+  .vrow summary .chev{flex:0 0 auto;color:var(--faint);transition:transform .25s}
+  .vrow[open] summary .chev{transform:rotate(90deg)}
+
+  /* ── inline citations ── */
+  .cite{font:600 10.5px/1 var(--mono);letter-spacing:.03em;color:var(--teal);text-decoration:none;
+    border:1px solid var(--line2);border-radius:6px;padding:2px 6px;vertical-align:middle;white-space:nowrap}
+  .cite:hover{border-color:var(--teal);background:rgba(95,227,210,.08)}
+  .lead .cite,.callout .cite{margin-left:4px}
+
+  /* scoreline */
+  .scoreline{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:26px}
+  @media(max-width:680px){.scoreline{grid-template-columns:repeat(2,1fr)}}
+  .score{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px 16px}
+  .score .big{font:700 30px/1 var(--mono);color:var(--amber);letter-spacing:-.02em}
+  .score .rule{height:1px;background:var(--line2);margin:11px 0 9px}
+  .score small{color:var(--muted);font-size:12.5px;line-height:1.45;display:block}
+
+  .future .card{background:linear-gradient(165deg,rgba(255,255,255,.05),rgba(167,139,255,.05))}
+
+  footer{padding:58px 0 80px;text-align:center;color:var(--muted);border-top:1px solid var(--line)}
+  footer .fline{display:inline-flex;align-items:center;gap:8px;justify-content:center;flex-wrap:wrap;font-size:13.5px;font-family:var(--mono);letter-spacing:.02em}
+  footer .fline+.fline{margin-top:12px}
+  footer svg.ic{font-size:15px;color:var(--amber)}
+  footer a{color:var(--teal);text-decoration:none}
+
+  .reveal{opacity:0;transform:translateY(22px);transition:opacity .8s ease,transform .8s cubic-bezier(.2,.7,.2,1)}
+  .reveal.in{opacity:1;transform:none}
+  .hero .cosmos,.hero .kicker,.hero h1,.hero .tag,.hero .badges{opacity:0;animation:rise .9s cubic-bezier(.2,.7,.2,1) forwards}
+  .hero .kicker{animation-delay:.05s}.hero h1{animation-delay:.15s}.hero .tag{animation-delay:.3s}.hero .badges{animation-delay:.45s}
+  @keyframes rise{to{opacity:1;transform:none}}
+  .hero .cosmos{transform:scale(.85)}
+  @media(prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}
+    .reveal{opacity:1;transform:none}
+    .hero .cosmos,.hero .kicker,.hero h1,.hero .tag,.hero .badges{opacity:1;transform:none}
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="grain" aria-hidden="true"></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <symbol id="sprout" viewBox="0 0 24 24"><path d="M7 20h10"/><path d="M12 20c0-5 0-7 0-10"/><path d="M12 10C12 6 9 4 4 4c0 5 3 7 8 7z"/><path d="M12 13c0-3 2-5 6-5 0 4-2 6-6 6z"/></symbol>
+  <symbol id="users" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="compare" viewBox="0 0 24 24"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M11 18H8a2 2 0 0 1-2-2V9"/></symbol>
+  <symbol id="bars" viewBox="0 0 24 24"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></symbol>
+  <symbol id="ruler" viewBox="0 0 24 24"><path d="M16 3l5 5L8 21l-5-5L16 3z"/><path d="M14 5l2 2M11 8l2 2M8 11l2 2M5 14l2 2"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></symbol>
+  <symbol id="trend" viewBox="0 0 24 24"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></symbol>
+  <symbol id="shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+  <symbol id="scale" viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M5 7h14"/><path d="M5 7l-3 6a3 3 0 0 0 6 0z"/><path d="M19 7l-3 6a3 3 0 0 0 6 0z"/><path d="M8 21h8"/></symbol>
+  <symbol id="rocket" viewBox="0 0 24 24"><path d="M5 13c-1.5 1-3 4-3 6 2 0 5-1.5 6-3"/><path d="M12 15l-3-3a12 12 0 0 1 7-8 8 8 0 0 1 4 4 12 12 0 0 1-8 7z"/><circle cx="14.5" cy="9.5" r="1.4"/></symbol>
+  <symbol id="globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z"/></symbol>
+  <symbol id="lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></symbol>
+  <symbol id="star" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></symbol>
+  <symbol id="chev" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></symbol>
+  <symbol id="cpu" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></symbol>
+  <symbol id="crosshair" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="12" y1="3" x2="12" y2="7"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="3" y1="12" x2="7" y2="12"/><line x1="17" y1="12" x2="21" y2="12"/></symbol>
+  <symbol id="flask" viewBox="0 0 24 24"><path d="M9 3h6"/><path d="M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/><path d="M7.5 15h9"/></symbol>
+</defs></svg>
+
+<div class="lang"><svg class="ic" aria-hidden="true" focusable="false"><use href="#globe"/></svg><a href="results.html" hreflang="en">English</a></div>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="cosmos" aria-hidden="true">
+      <div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div>
+      <div class="spin"><span class="sat"></span></div>
+      <div class="spin b"><span class="sat"></span></div>
+      <span class="sat3"></span>
+      <div class="core"></div>
+    </div>
+    <p class="kicker">Microverse の成果 · 誠実な報告</p>
+    <h1>AI エージェントは分業を学べるか?</h1>
+    <p class="tag"><b>学べます。ただし経済を正しく設計できたときだけ。</b> 一台のノートPCに暮らす小さな AI たちは、最初はひたすら同じ行動を繰り返していました。ところがルールを一つ変えると、役割を分担し始めたのです。</p>
+    <div class="badges">
+      <span class="pill">ノートPC&nbsp;<b>一台</b>で動作</span>
+      <span class="pill">クラウド費用&nbsp;<b>$0</b></span>
+      <span class="pill">同じ行動&nbsp;<b>約90%</b>&nbsp;→ 分業へ</span>
+      <span class="pill">すべての数値に&nbsp;<b>出典</b></span>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+
+<!-- 02 setup -->
+<section class="reveal">
+  <div class="wrap">
+    <div class="shead"><span class="snum">01 / 10</span><span class="skick">舞台設定</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#users"/></svg></span>小さな AI の村</h2>
+    <p class="lead"><strong>Microverse</strong> は、一台のノートPCだけで動く小さな仮想世界です。その中で数体の AI エージェントが暮らしています。各エージェントは自分の番が来ると、6つの選択肢から<em>たった一つの行動</em>を選びます。クラウドも API 料金もありません。あらゆる判断はローカルの小さなオープンモデル(<span class="mono">gemma4:26b</span>)の呼び出しで、すべての選択はあとから検証できるローカルのログに記録されます。</p>
+    <div class="verbset" id="verbset" aria-label="エージェントが選べる6つの行動"></div>
+    <div class="cast">
+      <div class="who"><div class="mono-av">A</div><b>Aki</b><span>職人 — ものを作る (<b class="mono">craft</b>)</span></div>
+      <div class="who"><div class="mono-av">C</div><b>Cy</b><span>学者 — 学ぶ (<b class="mono">study</b>)</span></div>
+      <div class="who"><div class="mono-av">V</div><b>Vesna</b><span>新参者 — 歩き回る (<b class="mono">travel</b>)</span></div>
+    </div>
+    <p class="note">実行条件をやさしく言うと: モデルは一つ(<span class="mono">gemma4:26b</span>)、1回の実行は3,000ターン、そして各結果は独立した3つの乱数の初期値(<em>シード</em>と呼びます)で再現します。一度の幸運な実行が話を作ってしまわないようにするためです。「分業」とは、違う住人が違う行動を確実に選ぶこと、ただそれだけを指します。</p>
+  </div>
+</section>
+
+<!-- 02 monoculture -->
+<section class="reveal">
+  <div class="wrap">
+    <div class="shead"><span class="snum">02 / 10</span><span class="skick">問題</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#bars"/></svg></span>放っておくと、全員が同じことをする</h2>
+    <p class="lead">他に動機がなければ、エージェントたちは安全で無難な一つの行動 — <span class="mono">contribute</span>(共有中の作品に少し手を加える)に群がります。二人の村では、<strong>10回の行動のうちおよそ9回が同じ動詞でした。</strong>これが<em>モノカルチャー</em>です。全員が同じように振る舞い、誰も専門化しない社会のことです。<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/economy-phase2-mechanism-audit.md" target="_blank" rel="noopener">監査 · ADR&nbsp;0013</a></p>
+    <div class="mono2" id="monoBars"></div>
+    <div class="legend" id="monoLegend" aria-hidden="true"></div>
+    <p class="note">なぜこうなるのでしょう? 無難な行動はいつでも「とりあえず十分」だからです。それを高くつくものにしなければ、どのエージェントも毎ターン同じ既定の行動を選ぶのが賢い手になり、村は単調さに沈みます。</p>
+  </div>
+</section>
+
+<!-- 03 specialization seen -->
+<section class="reveal" id="specialization">
+  <div class="wrap">
+    <div class="shead"><span class="snum">03 / 10</span><span class="skick">変化を見る</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#compare"/></svg></span>村が分業していく様子</h2>
+    <p class="lead">ここが核心です。考え方は単純で、<strong>簡単な既定の行動のエネルギーコストを上げる</strong>だけ。<span class="mono">contribute</span> が高くつくようになると、各エージェントは<em>自分にとって</em>安い行動へ流れます。職人は <span class="mono">craft</span> へ、学者は <span class="mono">study</span> へ、新参者は <span class="mono">travel</span> へ。下は、コストを上げる前と後の、実際の三人の村です。各住人の得意な行動が伸びていくのを見てください。</p>
+    <div class="cmp-toggle" role="group" aria-label="変更前・変更後を切り替え">
+      <button type="button" data-state="before" aria-pressed="true">変更前</button>
+      <button type="button" data-state="after" aria-pressed="false">変更後</button>
+    </div>
+    <div class="compare">
+      <div class="panels show-before" id="cmpPanels"></div>
+      <div class="legend" id="cmpLegend"></div>
+    </div>
+    <p class="note">各バーは1回の実行を通した一人の住人の行動の割合で、100%に正規化しています。「変更前」は二人用の用量での村、「変更後」は三人に合わせて用量を上げた同じ村です。数値はエージェントが選んだ行動で、<span class="mono">data/econ-roster-r3-s101</span> と <span class="mono">data/econ-r3bal42-s101</span> より。<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/economy-phase2-r3-levers2-findings.md" target="_blank" rel="noopener">ADR&nbsp;0018</a></p>
+  </div>
+</section>
+
+<!-- 04 measuring -->
+<section class="reveal" id="dose">
+  <div class="wrap">
+    <div class="shead"><span class="snum">04 / 10</span><span class="skick">数値で測る</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#ruler"/></svg></span>「分業」を数値にする</h2>
+    <p class="lead">公平に判断するには「住人たちはどれだけ違う行動をしているか?」を表す一つの数値が要ります。大きいほど分業が進んでいます。私たちは<strong>合格ラインを 0.25</strong> に定め — ここが大切ですが — どの結果も見る<em>前に</em>それを文書に固定しました。<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/adr/0016-action-economy-divergence-criterion.md" target="_blank" rel="noopener">ADR&nbsp;0016</a> このグラフは、二人の村でも三人の村でも、用量を上げると何が起きるかを示します。</p>
+    <div class="chartcard">
+      <div id="doseChart"></div>
+      <div class="statline" id="doseStat"></div>
+    </div>
+    <details class="note" style="margin-top:18px">
+      <summary style="cursor:pointer;color:var(--teal)">この数値は正確には何?</summary>
+      <p class="note" style="margin-top:10px">住人どうしの行動分布の平均<em>ペアワイズ Jensen–Shannon ダイバージェンス</em>(<span class="mono">mean_pairwise_jsd</span>)です。0 なら全員が同一、1 なら完全に別々の役割。0.25 のラインは二人の場合で較正し、より大きな村にもそのまま<em>引き継ぎ</em>ました。村が大きいからとこっそり基準を下げられないようにするためです。各バーは新しいシード3回の平均で、点は個々のシードなので、平均だけでなくばらつきも見えます。二人用量(<span class="mono">bal@22 / bal@30</span>)はホールドアウト再現実験から、<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/economy-phase2-replication-findings.md" target="_blank" rel="noopener">ADR&nbsp;0014</a> 三人用量はロスター研究と用量レスキュー研究から。<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/economy-phase2-roster-generality-findings.md" target="_blank" rel="noopener">ADR&nbsp;0015</a></p>
+    </details>
+  </div>
+</section>
+
+<!-- 05 generalize / stress tests -->
+<section class="reveal">
+  <div class="wrap">
+    <div class="shead"><span class="snum">05 / 10</span><span class="skick">ストレステスト</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#search"/></svg></span>検証に耐えるか?</h2>
+    <p class="lead">結果は、必死に壊そうとして初めて報告に値します。だから私たちはそうしました。<strong>最初の三人テストは失敗。ペルソナ指示でも直らず。コストの重みづけだけでも直らず。経済的な圧力を変えたら直りました。</strong>その道のり、成功も行き止まりも含めてここに。どの行もクリックで詳細が開きます。</p>
+    <div class="verdicts" id="leverList"></div>
+    <p class="note">各判定はそれぞれ事前登録したルールを持つ本物のスイープです。「逆効果」と「無駄」は本物の否定的結果で、こっそり捨てずに記録に残しています。</p>
+  </div>
+</section>
+
+<!-- 06 resolution -->
+<section class="reveal">
+  <div class="wrap">
+    <div class="shead"><span class="snum">06 / 10</span><span class="skick">解決</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#trend"/></svg></span>失敗は設計ではなく用量だった</h2>
+    <p class="lead">三人目が加わると、各エージェントに番が回る頻度が下がり、同じコストでも住人が増えるぶん一人への圧力は弱まります。直したのは賢い設計ではなく、ただ<strong>用量を大きな村に合わせた</strong>こと(contribute コストを 30 から 42 へ)。そうすると三人の村はラインを越えます。ダイバージェンスは <strong>0.21 から 0.31</strong> へ上がり、新しいシード3つすべてで合格しました。<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/adr/0018-action-economy-r3-levers2.md" target="_blank" rel="noopener">ADR&nbsp;0018</a></p>
+    <div class="callout win"><b>誠実な但し書き:</b> これは<em>救済された三人の村が一つ</em>であって、証明された法則ではありません。単純な「希釈」の説明 — 大きな村には大きな用量 — の良い証拠で、3シードすべてで分業の基準を、さらに厳しい役割安定性チェックも3つ中2つで越えました。ただし、はるかに大きな集団・別の行動メニュー・別のモデルでも成り立つことは、<em>まだ</em>示せていません。</div>
+  </div>
+</section>
+
+<!-- 07 how we know -->
+<section class="reveal">
+  <div class="wrap">
+    <div class="shead"><span class="snum">07 / 10</span><span class="skick">なぜ信頼できるか</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#lock"/></svg></span>本物だと分かる理由</h2>
+    <p class="lead">結果そのものと同じくらい、その背後の規律が大切です。<strong>予測し、固定し、見たことのない実行で確かめました。</strong></p>
+    <div class="grid g3">
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#lock"/></svg></span><h3>先に決める</h3><p>合格ラインとルールは各スイープの実行<em>前</em>にリポジトリへ書き込まれ、答えを見てから調整できないようにしました。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#check"/></svg></span><h3>ホールドアウトのシード</h3><p>二人の合格は、見たことのない新しい3つの初期値で再テストし、保たれました — ダイバージェンス 0.34 / 0.37 / 0.39。<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/economy-phase2-replication-findings.md" target="_blank" rel="noopener">ADR&nbsp;0014</a></p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#shield"/></svg></span><h3>偶然ではなく機構</h3><p>オフライン監査が、エージェントを動かすのはコスト信号だと裏づけます。希少性ヒントがある動詞を名指しすると、モデルは毎回それに従います。<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/economy-phase2-mechanism-audit.md" target="_blank" rel="noopener">ADR&nbsp;0013</a></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 08 honest scope -->
+<section class="reveal">
+  <div class="wrap">
+    <div class="shead"><span class="snum">08 / 10</span><span class="skick">意味するもの</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#scale"/></svg></span>これは何で、何ではないか</h2>
+    <p class="lead">これは<em>小さな AI 社会がどう振る舞うか</em>についての、限定的だが本物の発見です。放っておけば単調さに崩れ、適切に用量調整した単純な経済圧力が役割へと押し分けます。完全にローカルで、動かすのに費用はかからず、すべての数値が記録され検証できます。</p>
+    <div class="callout warn"><b>範囲を明確に:</b> これはエージェントの<em>振る舞い</em>についての発見で、現実世界のエネルギーや治療ではありません。エージェントが<em>分業する</em>ことは示しました。残る問いは、その専門化が実際に<em>良い</em>仕事を生むかどうか。それを測るには外部の審判が要ります。次に向かう先はまさにそこです。</div>
+  </div>
+</section>
+
+<!-- 09 future -->
+<section class="reveal future">
+  <div class="wrap">
+    <div class="shead"><span class="snum">09 / 10</span><span class="skick">次の一手</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#rocket"/></svg></span>今後の方向</h2>
+    <div class="grid g2">
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#crosshair"/></svg></span><h3>本物の成果への道</h3><p class="kpi">「違う」から「良い」へ</p><p>今は村の Trader が価値を決めています。世界の内側の審判です。次の飛躍は<b>外部のオラクル</b>。エージェントに、外の世界が自力で採点できるものを作らせます — <em>テストに通るコード、検証器が確かめる証明、ホールドアウトデータで採点される予測。</em>そうすれば「発見」は気分ではなく、測定でき外部検証できる成果になります。</p></div>
+      <div class="card"><span class="cic"><svg class="ic" aria-hidden="true" focusable="false"><use href="#users"/></svg></span><h3>希釈仮説を試す</h3><p class="kpi">用量は本当にスケールするか?</p><p>用量レスキューは一点だけ。きれいな検証は、4つ目の専門を持つ4人目を加え、さらに大きな用量で分業が保たれるか見ることです。希釈の説明が直接予測することです。誠実な但し書き: 4つ目の行動(<span class="mono">speak</span>)は最も弱い専門で、4人がこの行動メニューの実用的な上限です。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 recap -->
+<section class="reveal">
+  <div class="wrap">
+    <div class="shead"><span class="snum">10 / 10</span><span class="skick">ひと息で</span><span class="bar"></span></div>
+    <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#star"/></svg></span>物語の全体を、4つの数字で</h2>
+    <div class="scoreline">
+      <div class="score"><div class="big">約90%</div><div class="rule"></div><small>放っておくと同じ動詞だった行動の割合(モノカルチャー)</small></div>
+      <div class="score"><div class="big">0.25</div><div class="rule"></div><small>事前に固定した「分業」の合格ライン</small></div>
+      <div class="score"><div class="big">0.21→0.31</div><div class="rule"></div><small>用量を村に合わせたあとの三人の村</small></div>
+      <div class="score"><div class="big">3 / 3</div><div class="rule"></div><small>修正後にラインを越えた新シード</small></div>
+    </div>
+    <div class="callout"><b>主張をもう一度:</b> 小さなローカル AI の社会は、ひとりでには専門化しません。けれど村の規模に合わせて用量調整した適切な経済圧力は、モノカルチャーから分業へと確実に押し進めます。小さく、誠実で、ノートPC一台で完全に再現できます。</div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p class="fline"><svg class="ic" aria-hidden="true" focusable="false"><use href="#cpu"/></svg> Microverse · 行動経済の成果 · ローカルモデル一つ · ノートPC一台 · クラウドなし。</p>
+    <p class="fline">手法とデータ: <a href="https://github.com/TheIllusionOfLife/microverse" target="_blank" rel="noopener">github.com/TheIllusionOfLife/microverse</a> · 意思決定は <a href="https://github.com/TheIllusionOfLife/microverse/tree/main/docs/adr" target="_blank" rel="noopener">docs/adr</a>(ADR 0008–0018)。</p>
+    <p class="fline">より大きな夢を見る → <a href="vision.ja.html">Microverse のビジョン</a> <svg class="ic" aria-hidden="true" focusable="false"><use href="#star"/></svg></p>
+    <p class="fline"><svg class="ic" aria-hidden="true" focusable="false"><use href="#globe"/></svg> <a href="results.html" hreflang="en">View in English</a></p>
+  </div>
+</footer>
+
+<!-- Pure data: numbers, keys, and source paths only. Byte-identical across results.html
+     and results.ja.html (enforced by scripts/check_results_data.py). All user-facing prose
+     lives in the per-language STRINGS object below, so the two pages cannot drift on numbers
+     while still being fully localized. -->
+<script id="microverse-data" type="application/json">
+{
+  "meta": {"model":"gemma4:26b","ticks":3000,"replication_seeds":[101,202,303],"floor":0.25,"metric":"mean_pairwise_jsd"},
+  "verbs": ["contribute","craft","study","travel","speak","rest"],
+  "monoculture": {"contribute_no_economy":[0.88,0.92],"contribute_with_economy":[0.26,0.31],"doc":"docs/economy-phase2-mechanism-audit.md","adr":"0013"},
+  "specialization": {
+    "specialties": {"Aki":"craft","Cy":"study","Vesna":"travel"},
+    "before": {"dir":"data/econ-roster-r3-s101","mpj":0.2073,"pass":false,"agents":{
+      "Aki":{"contribute":0.5525,"craft":0.3584,"study":0.0585,"travel":0.0,"speak":0.0279,"rest":0.0028},
+      "Cy":{"contribute":0.6356,"craft":0.0301,"study":0.2769,"travel":0.0,"speak":0.0445,"rest":0.0129},
+      "Vesna":{"contribute":0.7197,"craft":0.0039,"study":0.03,"travel":0.1565,"speak":0.0626,"rest":0.0274}}},
+    "after": {"dir":"data/econ-r3bal42-s101","mpj":0.3053,"pass":true,"agents":{
+      "Aki":{"contribute":0.4507,"craft":0.4355,"study":0.0702,"travel":0.0,"speak":0.0247,"rest":0.019},
+      "Cy":{"contribute":0.4236,"craft":0.0125,"study":0.4861,"travel":0.0,"speak":0.0583,"rest":0.0194},
+      "Vesna":{"contribute":0.674,"craft":0.0039,"study":0.0374,"travel":0.1753,"speak":0.0876,"rest":0.0219}}}
+  },
+  "dose": [
+    {"size":2,"dose":"bal@22","metric":"jsd_norm","mean":0.2595,"seeds":[0.2714,0.2488,0.2583],"dirs":["data/econ-rep30-bal22-s101","data/econ-rep30-bal22-s202","data/econ-rep30-bal22-s303"],"pass":false,"adr":"0014"},
+    {"size":2,"dose":"bal@30","metric":"jsd_norm","mean":0.3652,"seeds":[0.3369,0.3715,0.3873],"dirs":["data/econ-rep30-bal30-s101","data/econ-rep30-bal30-s202","data/econ-rep30-bal30-s303"],"pass":true,"adr":"0014"},
+    {"size":3,"dose":"bal@30","metric":"mean_pairwise_jsd","mean":0.2122,"seeds":[0.2073,0.2063,0.2231],"dirs":["data/econ-roster-r3-s101","data/econ-roster-r3-s202","data/econ-roster-r3-s303"],"pass":false,"adr":"0016"},
+    {"size":3,"dose":"bal@42","metric":"mean_pairwise_jsd","mean":0.3101,"seeds":[0.3053,0.299,0.3261],"dirs":["data/econ-r3bal42-s101","data/econ-r3bal42-s202","data/econ-r3bal42-s303"],"pass":true,"adr":"0018"}
+  ],
+  "levers": [
+    {"key":"r2","verdict":"PASS","value":0.3535,"mean":0.3535,"seeds":[0.3322,0.3745,0.3539],"dirs":["data/econ-roster-r2-s101","data/econ-roster-r2-s202","data/econ-roster-r2-s303"],"metric":"jsd_norm","adr":"0015"},
+    {"key":"r3","verdict":"FAIL","value":0.2122,"dir":"data/econ-roster-r3-s101","after":0.2073,"metric":"mean_pairwise_jsd","adr":"0015"},
+    {"key":"persona","verdict":"BACKFIRED","before":0.2073,"after":0.2179,"dir":"data/econ-r3strong-s101","metric":"mean_pairwise_jsd","travel_before":0.156,"travel_after":0.054,"doc":"docs/economy-phase2-r3-strong-specializer-findings.md","adr":"0017"},
+    {"key":"weights","verdict":"WASH","after":0.2087,"value":0.2087,"dir":"data/econ-r3wt130-s101","metric":"mean_pairwise_jsd","baseline":0.207,"adr":"0018"},
+    {"key":"dose","verdict":"RESCUE","value":0.3101,"l1":"3 / 3","l2":"2 / 3","adr":"0018"}
+  ]
+}
+</script>
+
+<!-- Localized prose for everything the JS renders. results.ja.html ships a Japanese strings
+     block with the SAME key structure (checker-enforced); the data block above stays
+     byte-identical across languages, so numbers can never drift. -->
+<script id="microverse-strings" type="application/json">
+{
+  "verbHints": {"contribute":"共有作業に加える","craft":"ものを作る","study":"学び考える","travel":"探索する","speak":"話す","rest":"エネルギー回復"},
+  "mono": {"noEcon":"経済なし","noEconSub":"全行動の約88〜92%が同じ動詞","withEcon":"経済あり(二人)","withEconSub":"contribute は約26〜31%へ下がり専門化","everythingElse":"その他すべて"},
+  "cmp": {"before":"変更前","after":"変更後","dividedLabor":"分業","tooAlike":"似すぎ","divergence":"ダイバージェンス","clears":"· 0.25 を超える","under":"· 0.25 未満","beforeLabel":"二人用量","afterLabel":"用量を上げた (bal@42)"},
+  "roles": {"Aki":"職人","Cy":"学者","Vesna":"新参者"},
+  "dose": {"title":"村の規模と用量ごとの分業スコア","desc":"平均ペアワイズ・ダイバージェンスの棒グラフ。二人: 自然コストで0.26、用量を上げて0.37。三人: 二人用量で0.21、用量を上げて0.31。合格ラインは0.25。","passLine":"合格ライン · 0.25","groups":{"2":"二人","3":"三人"},"labels":["自然コスト","用量を上げる","二人用量","用量を上げる"]},
+  "levers": {
+    "r2":{"name":"住人の別の組み合わせ","note":"配役を職人と新参者に替えても、分業は現れます(ダイバージェンス0.35、3シードすべてでライン超え)。"},
+    "r3":{"name":"三人目、同じ用量","note":"二人用量のまま三人目を加えると、村は似すぎて数えられません(0.21、全シードで0.25未満)。"},
+    "persona":{"name":"ペルソナ指示","note":"新参者に「旅人になれ」と命じると、travel はかえって0.156から0.054へ縮みました。指示は押したのに、振る舞いは逆へ。"},
+    "weights":{"name":"コストの重み調整","note":"コストの重みづけだけでは混ぜ直しただけ。0.21で、最初と変わりません。"},
+    "dose":{"name":"村に合わせて用量を上げる","note":"用量を大きなスケジュールに合わせる(contribute コストを30→42)と分業が戻ります。0.31で、3シードすべてでライン超え。"}
+  },
+  "doseBody": "分業は {l1} シードで合格、より厳しい役割安定性チェックは {l2} で合格。"
+}
+</script>
+<script>
+(function(){
+  "use strict";
+  var DATA = JSON.parse(document.getElementById('microverse-data').textContent);
+  var S = JSON.parse(document.getElementById('microverse-strings').textContent);
+  var VERBS = DATA.verbs;
+  var VC = {contribute:'#8b93b0', craft:'#ffc46b', study:'#5fe3d2', travel:'#a78bff', speak:'#ff8fa0', rest:'#63e1a0'};
+  var pct = function(x){ return Math.round(x*100); };
+
+  // ── setup: verb chips ──
+  (function(){
+    var host = document.getElementById('verbset'); if(!host) return;
+    VERBS.forEach(function(v){
+      var el = document.createElement('span'); el.className='verb';
+      var dot = document.createElement('span'); dot.className='dot'; dot.style.background=VC[v]; dot.setAttribute('aria-hidden','true');
+      el.appendChild(dot);
+      el.appendChild(document.createTextNode(v + ' '));
+      var s = document.createElement('small'); s.textContent='· ' + S.verbHints[v]; el.appendChild(s);
+      host.appendChild(el);
+    });
+  })();
+
+  // ── shared: a stacked bar from a shares object (rounding-guarded to 100%) ──
+  function stackedBar(shares, opts){
+    opts = opts || {};
+    var total = VERBS.reduce(function(s,v){ return s + (shares[v]||0); }, 0) || 1;
+    var bar = document.createElement('div'); bar.className='sbar';
+    bar.setAttribute('role','img');
+    var visible = VERBS.filter(function(v){ return (shares[v]||0) > 0; });
+    var summary = visible.map(function(v){ return v + ' ' + pct((shares[v]||0)/total) + '%'; }).join(', ');
+    bar.setAttribute('aria-label', (opts.label ? opts.label + ': ' : '') + summary);
+    var acc = 0;  // rounding guard: last visible segment absorbs the remainder -> widths sum to 100%
+    visible.forEach(function(v, i){
+      var val = shares[v]||0;
+      var w = (i === visible.length - 1) ? (100 - acc) : (val/total*100);
+      acc += w;
+      var seg = document.createElement('div'); seg.className='seg';
+      seg.style.width = w.toFixed(3) + '%'; seg.style.background = VC[v];
+      seg.title = v + ' ' + pct(val/total) + '%';
+      if(w >= 14){ seg.textContent = v + ' ' + pct(val/total) + '%'; }
+      else if(w >= 7){ seg.textContent = pct(val/total) + '%'; }
+      bar.appendChild(seg);
+    });
+    return bar;
+  }
+  function legendInto(host){
+    if(!host) return;
+    VERBS.forEach(function(v){
+      var lg = document.createElement('span'); lg.className='lg';
+      var sw = document.createElement('span'); sw.className='sw'; sw.style.background=VC[v]; sw.setAttribute('aria-hidden','true');
+      lg.appendChild(sw); lg.appendChild(document.createTextNode(v));
+      host.appendChild(lg);
+    });
+  }
+
+  // ── monoculture: two simple contribute-vs-rest bars ──
+  (function(){
+    var host = document.getElementById('monoBars'); if(!host) return;
+    var mono = DATA.monoculture;
+    var noEcoMid = (mono.contribute_no_economy[0]+mono.contribute_no_economy[1])/2;
+    var ecoMid = (mono.contribute_with_economy[0]+mono.contribute_with_economy[1])/2;
+    function row(title, sub, contribShare){
+      var block = document.createElement('div'); block.className='barblock';
+      var lab = document.createElement('p'); lab.className='barlabel';
+      lab.appendChild(document.createTextNode(title + ' '));
+      var span = document.createElement('span'); span.textContent = sub; lab.appendChild(span);
+      block.appendChild(lab);
+      var bar = document.createElement('div'); bar.className='sbar';
+      bar.setAttribute('role','img'); bar.setAttribute('aria-label', title + ': contribute ' + pct(contribShare) + '%, every other action ' + pct(1-contribShare) + '%');
+      var c = document.createElement('div'); c.className='seg'; c.style.width=(contribShare*100).toFixed(2)+'%'; c.style.background=VC.contribute;
+      c.textContent='contribute ' + pct(contribShare) + '%'; bar.appendChild(c);
+      var o = document.createElement('div'); o.className='seg'; o.style.width=((1-contribShare)*100).toFixed(2)+'%';
+      o.style.background='linear-gradient(90deg,'+VC.craft+','+VC.study+','+VC.travel+')';
+      if((1-contribShare) >= 0.14){ o.textContent=S.mono.everythingElse; }
+      bar.appendChild(o);
+      block.appendChild(bar);
+      return block;
+    }
+    host.appendChild(row(S.mono.noEcon, S.mono.noEconSub, noEcoMid));
+    host.appendChild(row(S.mono.withEcon, S.mono.withEconSub, ecoMid));
+    legendInto(document.getElementById('monoLegend'));
+  })();
+
+  // ── specialization: before/after panels ──
+  (function(){
+    var host = document.getElementById('cmpPanels'); if(!host) return;
+    var spec = DATA.specialization;
+    var agents = Object.keys(spec.specialties);
+    function panel(stateKey){
+      var s = spec[stateKey];
+      var p = document.createElement('div'); p.className='panel ' + stateKey;
+      var t = document.createElement('div'); t.className='ptitle';
+      var label = stateKey==='before' ? S.cmp.beforeLabel : S.cmp.afterLabel;
+      var b = document.createElement('b'); b.textContent = (stateKey==='before'?S.cmp.before:S.cmp.after) + ' — ' + label;
+      var tag = document.createElement('span'); tag.className='pstate ' + (s.pass?'pass':'fail');
+      tag.textContent = s.pass ? S.cmp.dividedLabor : S.cmp.tooAlike;
+      t.appendChild(b); t.appendChild(tag); p.appendChild(t);
+      var sub = document.createElement('p'); sub.className='psub'; sub.textContent=S.cmp.divergence + ' ' + s.mpj.toFixed(3) + ' ' + (s.pass?S.cmp.clears:S.cmp.under); p.appendChild(sub);
+      agents.forEach(function(a){
+        var row = document.createElement('div'); row.className='arow';
+        var head = document.createElement('div'); head.className='barhead';
+        var nm = document.createElement('b'); nm.textContent = a + ' · ' + S.roles[a];
+        var sp = spec.specialties[a];
+        var before = spec.before.agents[a][sp], after = spec.after.agents[a][sp];
+        var d = document.createElement('span'); d.className='delta';
+        var arrow = after>=before ? 'up' : 'dn';
+        var verb = document.createElement('span'); verb.className='mono'; verb.textContent = sp;
+        var to = document.createElement('span'); to.className = arrow; to.textContent = '→ '+pct(after)+'%';
+        d.appendChild(verb); d.appendChild(document.createTextNode(' '+pct(before)+'% ')); d.appendChild(to);
+        head.appendChild(nm); head.appendChild(d); row.appendChild(head);
+        row.appendChild(stackedBar(s.agents[a], {label: a}));
+        p.appendChild(row);
+      });
+      return p;
+    }
+    host.appendChild(panel('before'));
+    host.appendChild(panel('after'));
+    legendInto(document.getElementById('cmpLegend'));
+
+    // mobile toggle
+    var btns = document.querySelectorAll('.cmp-toggle button');
+    btns.forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var st = btn.getAttribute('data-state');
+        host.classList.remove('show-before','show-after'); host.classList.add('show-'+st);
+        btns.forEach(function(b){ b.setAttribute('aria-pressed', b===btn ? 'true':'false'); });
+      });
+    });
+  })();
+
+  // ── dose chart (inline SVG) ──
+  (function(){
+    var host = document.getElementById('doseChart'); if(!host) return;
+    var NS='http://www.w3.org/2000/svg';
+    function E(t,a,kids){ var e=document.createElementNS(NS,t); for(var k in a){ e.setAttribute(k,a[k]); } (kids||[]).forEach(function(c){e.appendChild(c);}); return e; }
+    function T(s){ return document.createTextNode(s); }
+    var W=720, H=360, padL=58, padR=20, padT=28, padB=86;
+    var x0=padL, x1=W-padR, y0=H-padB, yTop=padT;
+    var YMAX=0.45;
+    function yS(v){ return y0 - (v/YMAX)*(y0-yTop); }
+    var svg = E('svg',{viewBox:'0 0 '+W+' '+H, role:'img', 'aria-labelledby':'doseTitle doseDesc'});
+    svg.appendChild(E('title',{id:'doseTitle'},[T(S.dose.title)]));
+    svg.appendChild(E('desc',{id:'doseDesc'},[T(S.dose.desc)]));
+    // gridlines + y ticks
+    [0,0.1,0.2,0.3,0.4].forEach(function(g){
+      var y=yS(g);
+      svg.appendChild(E('line',{class:'dose-grid', x1:x0, y1:y, x2:x1, y2:y}));
+      svg.appendChild(E('text',{class:'dose-tick', x:x0-10, y:y+4, 'text-anchor':'end'},[T(g.toFixed(1))]));
+    });
+    // axis
+    svg.appendChild(E('line',{class:'dose-axis', x1:x0, y1:y0, x2:x1, y2:y0}));
+    // floor line 0.25
+    var yf=yS(DATA.meta.floor);
+    svg.appendChild(E('line',{class:'dose-floor', x1:x0, y1:yf, x2:x1, y2:yf}));
+    svg.appendChild(E('text',{class:'dose-floorlab', x:x1, y:yf-8, 'text-anchor':'end'},[T(S.dose.passLine)]));
+    // bars
+    var bars=DATA.dose, n=bars.length, bw=58;
+    var slot=(x1-x0)/n;
+    bars.forEach(function(d,i){
+      var cx = x0 + slot*(i+0.5);
+      var col = d.pass ? 'var(--green)' : 'var(--gold)';
+      var top = yS(d.mean);
+      svg.appendChild(E('rect',{x:cx-bw/2, y:top, width:bw, height:y0-top, rx:6, fill:col, 'fill-opacity':d.pass?0.85:0.55, stroke:col, 'stroke-width':1.5}));
+      // value label
+      svg.appendChild(E('text',{class:'dose-val', x:cx, y:top-9, 'text-anchor':'middle', fill:col},[T(d.mean.toFixed(2))]));
+      // per-seed dots
+      d.seeds.forEach(function(sv,k){
+        var jx = cx + (k-1)*11;
+        svg.appendChild(E('circle',{class:'dose-seed', cx:jx, cy:yS(sv), r:3.4, fill:'#0b1020', stroke:col, 'stroke-width':1.5}));
+      });
+      // dose label
+      svg.appendChild(E('text',{class:'dose-xlab', x:cx, y:y0+22, 'text-anchor':'middle'},[T(d.dose)]));
+      svg.appendChild(E('text',{class:'dose-tick', x:cx, y:y0+40, 'text-anchor':'middle'},[T(S.dose.labels[i])]));
+    });
+    // group brackets
+    [[S.dose.groups['2'],0,1],[S.dose.groups['3'],2,3]].forEach(function(g){
+      var cxA=x0+slot*(g[1]+0.5), cxB=x0+slot*(g[2]+0.5), mid=(cxA+cxB)/2;
+      svg.appendChild(E('line',{class:'dose-grid', x1:cxA-bw/2, y1:y0+54, x2:cxB+bw/2, y2:y0+54}));
+      svg.appendChild(E('text',{class:'dose-grp', x:mid, y:y0+72, 'text-anchor':'middle'},[T(g[0].toUpperCase())]));
+    });
+    host.appendChild(svg);
+    // stat line summary (no-hover access to the numbers)
+    var stat=document.getElementById('doseStat');
+    if(stat){
+      bars.forEach(function(d){
+        var span=document.createElement('span');
+        var b=document.createElement('b'); b.textContent=S.dose.groups[String(d.size)]+' · '+d.dose;
+        var rest=' '+d.mean.toFixed(3)+' ['+d.seeds.map(function(x){return x.toFixed(3);}).join(', ')+'] '+(d.pass?'✓':'✗');
+        span.appendChild(b); span.appendChild(document.createTextNode(rest));
+        stat.appendChild(span);
+      });
+    }
+  })();
+
+  // ── lever verdict list ──
+  (function(){
+    var host = document.getElementById('leverList'); if(!host) return;
+    var ADR = function(n){ return 'https://github.com/TheIllusionOfLife/microverse/blob/main/docs/adr/'+ {'0013':'0013-action-economy-mechanism-audit','0014':'0014-action-economy-replication','0015':'0015-action-economy-roster-generality','0016':'0016-action-economy-divergence-criterion','0017':'0017-action-economy-r3-strong-specializer','0018':'0018-action-economy-r3-levers2'}[n] + '.md'; };
+    DATA.levers.forEach(function(lv,i){
+      var cls = lv.verdict.toLowerCase();
+      var str = S.levers[lv.key];
+      var row = document.createElement('details'); row.className='vrow '+cls;
+      var sum = document.createElement('summary');
+      var step=document.createElement('span'); step.className='vstep'; step.textContent=(i+1); sum.appendChild(step);
+      var name=document.createElement('span'); name.className='vname'; name.textContent=str.name; sum.appendChild(name);
+      var val=document.createElement('span'); val.className='vval';
+      val.textContent = (lv.key==='persona') ? (lv.before.toFixed(2)+'→'+lv.after.toFixed(2)) : (lv.value!=null?lv.value.toFixed(2):'');
+      sum.appendChild(val);
+      var tag=document.createElement('span'); tag.className='vtag '+cls; tag.textContent=lv.verdict; sum.appendChild(tag);
+      var chev=document.createElementNS('http://www.w3.org/2000/svg','svg'); chev.setAttribute('class','ic chev'); chev.setAttribute('aria-hidden','true');
+      var use=document.createElementNS('http://www.w3.org/2000/svg','use'); use.setAttribute('href','#chev'); chev.appendChild(use); sum.appendChild(chev);
+      row.appendChild(sum);
+      var body=document.createElement('div'); body.className='vbody';
+      body.appendChild(document.createTextNode(str.note + ' '));
+      if(lv.key==='dose'){ body.appendChild(document.createTextNode(S.doseBody.replace('{l1}',lv.l1).replace('{l2}',lv.l2))); }
+      var c=document.createElement('a'); c.className='cite'; c.href=ADR(lv.adr); c.target='_blank'; c.rel='noopener'; c.textContent='ADR '+lv.adr;
+      body.appendChild(c);
+      row.appendChild(body);
+      host.appendChild(row);
+    });
+  })();
+
+  // ── reveal on scroll ──
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){ es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } }); },{threshold:.1});
+    document.querySelectorAll('.reveal').forEach(function(el){ io.observe(el); });
+  } else {
+    document.querySelectorAll('.reveal').forEach(function(el){ el.classList.add('in'); });
+  }
+})();
+</script>
+</body>
+</html>

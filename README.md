@@ -4,6 +4,11 @@
 > https://theillusionoflife.github.io/microverse/ ·
 > Writeup: see `WRITEUP.md` ·
 > Video: linked from the writeup once recorded.
+>
+> **Public-facing pages** (self-contained HTML, English + Japanese):
+> `vision.html` — the project vision; `results.html` — the action-economy
+> result, a plain-language walkthrough of how the agent society learns to
+> divide labor.
 
 Microverse Battery is a long-running local multi-agent simulation inspired by
 *Rick and Morty*'s Microverse Battery. A small fictional society of AI agents
@@ -54,6 +59,21 @@ acceptance criteria for it live in `WRITEUP.md` and ADR 0006. The
 soak event databases under `data/` are gitignored and reproducible
 from a local run. The rendered dashboard for the 26b soak ships at
 `docs/index.html` (live via GitHub Pages).
+
+### Action-economy result (ADRs 0008–0018)
+
+A follow-on line of work asked whether the agent society can be made to
+*specialize* instead of collapsing onto one default action (a
+"monoculture" where ~88–92% of actions are the same verb). The finding:
+an energy "scarcity hint" that raises the cost of the easy default verb
+drives each resident to its cheap specialty (artisan→craft, scholar→study,
+newcomer→travel), measured by cross-agent verb divergence against a
+pre-registered `mean_pairwise_jsd ≥ 0.25` bar (ADR 0016). The mechanism
+held under held-out replication (ADR 0014) and generalized from a
+two-agent to a three-agent village once the dose was rescaled for
+scheduling dilution (ADR 0018). `results.html` is the plain-language
+writeup; `scripts/check_results_data.py` re-validates every reported
+number against the committed run reports.
 
 ## What it does
 
@@ -287,7 +307,9 @@ for handling generated runtime data in `data/` and `harvest/`.
 
 Architecture decisions live in `docs/adr/`. Start with
 `docs/adr/0001-local-first-agent-runtime.md` for the local-first runtime,
-single-model Ollama, SQLite WAL, and FTS5 recall decisions.
+single-model Ollama, SQLite WAL, and FTS5 recall decisions. ADRs 0008–0018
+cover the action-economy arc (verb specialization, the divergence
+criterion, and the dose-rescaling result).
 
 ## Thinking-mode handling
 
