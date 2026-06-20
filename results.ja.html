@@ -383,7 +383,7 @@
     <div class="shead"><span class="snum">06 / 10</span><span class="skick">解決</span><span class="bar"></span></div>
     <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#trend"/></svg></span>失敗は設計ではなく用量だった</h2>
     <p class="lead">三人目が加わると、各エージェントに番が回る頻度が下がり、同じコストでも住人が増えるぶん一人への圧力は弱まります。直したのは賢い設計ではなく、ただ<strong>用量を大きな村に合わせた</strong>こと(contribute コストを 30 から 42 へ)。そうすると三人の村はラインを越えます。ダイバージェンスは <strong>0.21 から 0.31</strong> へ上がり、新しいシード3つすべてで合格しました。<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/adr/0018-action-economy-r3-levers2.md" target="_blank" rel="noopener">ADR&nbsp;0018</a></p>
-    <div class="callout win"><b>誠実な但し書き:</b> これは<em>救済された三人の村が一つ</em>であって、証明された法則ではありません。単純な「希釈」の説明 — 大きな村には大きな用量 — の良い証拠で、3シードすべてで分業の基準を、さらに厳しい役割安定性チェックも3つ中2つで越えました。ただし、はるかに大きな集団・別の行動メニュー・別のモデルでも成り立つことは、<em>まだ</em>示せていません。</p></div>
+    <div class="callout win"><b>誠実な但し書き:</b> これは<em>救済された三人の村が一つ</em>であって、証明された法則ではありません。単純な「希釈」の説明 — 大きな村には大きな用量 — の良い証拠で、3シードすべてで分業の基準を、さらに厳しい役割安定性チェックも3つ中2つで越えました。ただし、はるかに大きな集団・別の行動メニュー・別のモデルでも成り立つことは、<em>まだ</em>示せていません。</div>
   </div>
 </section>
 
@@ -533,12 +533,14 @@
     var total = VERBS.reduce(function(s,v){ return s + (shares[v]||0); }, 0) || 1;
     var bar = document.createElement('div'); bar.className='sbar';
     bar.setAttribute('role','img');
-    var summary = VERBS.filter(function(v){ return (shares[v]||0) > 0; })
-      .map(function(v){ return v + ' ' + pct((shares[v]||0)/total) + '%'; }).join(', ');
+    var visible = VERBS.filter(function(v){ return (shares[v]||0) > 0; });
+    var summary = visible.map(function(v){ return v + ' ' + pct((shares[v]||0)/total) + '%'; }).join(', ');
     bar.setAttribute('aria-label', (opts.label ? opts.label + ': ' : '') + summary);
-    VERBS.forEach(function(v){
-      var val = shares[v]||0; if(val<=0) return;
-      var w = val/total*100;
+    var acc = 0;  // rounding guard: last visible segment absorbs the remainder -> widths sum to 100%
+    visible.forEach(function(v, i){
+      var val = shares[v]||0;
+      var w = (i === visible.length - 1) ? (100 - acc) : (val/total*100);
+      acc += w;
       var seg = document.createElement('div'); seg.className='seg';
       seg.style.width = w.toFixed(3) + '%'; seg.style.background = VC[v];
       seg.title = v + ' ' + pct(val/total) + '%';
@@ -609,7 +611,9 @@
         var before = spec.before.agents[a][sp], after = spec.after.agents[a][sp];
         var d = document.createElement('span'); d.className='delta';
         var arrow = after>=before ? 'up' : 'dn';
-        d.innerHTML = '<span class="mono">'+sp+'</span> '+pct(before)+'% <span class="'+arrow+'">→ '+pct(after)+'%</span>';
+        var verb = document.createElement('span'); verb.className='mono'; verb.textContent = sp;
+        var to = document.createElement('span'); to.className = arrow; to.textContent = '→ '+pct(after)+'%';
+        d.appendChild(verb); d.appendChild(document.createTextNode(' '+pct(before)+'% ')); d.appendChild(to);
         head.appendChild(nm); head.appendChild(d); row.appendChild(head);
         row.appendChild(stackedBar(s.agents[a], {label: a}));
         p.appendChild(row);
@@ -625,7 +629,7 @@
     btns.forEach(function(btn){
       btn.addEventListener('click', function(){
         var st = btn.getAttribute('data-state');
-        host.className = 'panels show-' + st;
+        host.classList.remove('show-before','show-after'); host.classList.add('show-'+st);
         btns.forEach(function(b){ b.setAttribute('aria-pressed', b===btn ? 'true':'false'); });
       });
     });
@@ -687,7 +691,9 @@
     if(stat){
       bars.forEach(function(d){
         var span=document.createElement('span');
-        span.innerHTML='<b>'+S.dose.groups[String(d.size)]+' · '+d.dose+'</b> '+d.mean.toFixed(3)+' ['+d.seeds.map(function(x){return x.toFixed(3);}).join(', ')+'] '+(d.pass?'✓':'✗');
+        var b=document.createElement('b'); b.textContent=S.dose.groups[String(d.size)]+' · '+d.dose;
+        var rest=' '+d.mean.toFixed(3)+' ['+d.seeds.map(function(x){return x.toFixed(3);}).join(', ')+'] '+(d.pass?'✓':'✗');
+        span.appendChild(b); span.appendChild(document.createTextNode(rest));
         stat.appendChild(span);
       });
     }

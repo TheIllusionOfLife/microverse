@@ -383,7 +383,7 @@
     <div class="shead"><span class="snum">06 / 10</span><span class="skick">The resolution</span><span class="bar"></span></div>
     <h2><span class="hicon"><svg class="ic" aria-hidden="true" focusable="false"><use href="#trend"/></svg></span>The failure wasn't the design — it was the dose</h2>
     <p class="lead">When a third resident joins, each agent gets the spotlight less often, so the same cost spread over more residents pushes each one less. The fix wasn't a cleverer design; it was simply <strong>matching the dose to the bigger village</strong> (raising the contribute cost from 30 to 42). Do that, and the three-resident village clears the line: divergence rises from <strong>0.21 to 0.31</strong>, passing on all three fresh seeds.<a class="cite" href="https://github.com/TheIllusionOfLife/microverse/blob/main/docs/adr/0018-action-economy-r3-levers2.md" target="_blank" rel="noopener">ADR&nbsp;0018</a></p>
-    <div class="callout win"><b>An honest bound:</b> this is <em>one rescued three-resident village</em>, not a proven law. It's good evidence for a simple "dilution" explanation — bigger village needs a bigger dose — and it cleared the differentiation bar on all three seeds and the stricter role-stability check on two of three. It is <em>not</em> yet shown to hold for much larger populations, other action menus, or other models.</p></div>
+    <div class="callout win"><b>An honest bound:</b> this is <em>one rescued three-resident village</em>, not a proven law. It's good evidence for a simple "dilution" explanation — bigger village needs a bigger dose — and it cleared the differentiation bar on all three seeds and the stricter role-stability check on two of three. It is <em>not</em> yet shown to hold for much larger populations, other action menus, or other models.</div>
   </div>
 </section>
 
@@ -533,12 +533,14 @@
     var total = VERBS.reduce(function(s,v){ return s + (shares[v]||0); }, 0) || 1;
     var bar = document.createElement('div'); bar.className='sbar';
     bar.setAttribute('role','img');
-    var summary = VERBS.filter(function(v){ return (shares[v]||0) > 0; })
-      .map(function(v){ return v + ' ' + pct((shares[v]||0)/total) + '%'; }).join(', ');
+    var visible = VERBS.filter(function(v){ return (shares[v]||0) > 0; });
+    var summary = visible.map(function(v){ return v + ' ' + pct((shares[v]||0)/total) + '%'; }).join(', ');
     bar.setAttribute('aria-label', (opts.label ? opts.label + ': ' : '') + summary);
-    VERBS.forEach(function(v){
-      var val = shares[v]||0; if(val<=0) return;
-      var w = val/total*100;
+    var acc = 0;  // rounding guard: last visible segment absorbs the remainder -> widths sum to 100%
+    visible.forEach(function(v, i){
+      var val = shares[v]||0;
+      var w = (i === visible.length - 1) ? (100 - acc) : (val/total*100);
+      acc += w;
       var seg = document.createElement('div'); seg.className='seg';
       seg.style.width = w.toFixed(3) + '%'; seg.style.background = VC[v];
       seg.title = v + ' ' + pct(val/total) + '%';
@@ -609,7 +611,9 @@
         var before = spec.before.agents[a][sp], after = spec.after.agents[a][sp];
         var d = document.createElement('span'); d.className='delta';
         var arrow = after>=before ? 'up' : 'dn';
-        d.innerHTML = '<span class="mono">'+sp+'</span> '+pct(before)+'% <span class="'+arrow+'">→ '+pct(after)+'%</span>';
+        var verb = document.createElement('span'); verb.className='mono'; verb.textContent = sp;
+        var to = document.createElement('span'); to.className = arrow; to.textContent = '→ '+pct(after)+'%';
+        d.appendChild(verb); d.appendChild(document.createTextNode(' '+pct(before)+'% ')); d.appendChild(to);
         head.appendChild(nm); head.appendChild(d); row.appendChild(head);
         row.appendChild(stackedBar(s.agents[a], {label: a}));
         p.appendChild(row);
@@ -625,7 +629,7 @@
     btns.forEach(function(btn){
       btn.addEventListener('click', function(){
         var st = btn.getAttribute('data-state');
-        host.className = 'panels show-' + st;
+        host.classList.remove('show-before','show-after'); host.classList.add('show-'+st);
         btns.forEach(function(b){ b.setAttribute('aria-pressed', b===btn ? 'true':'false'); });
       });
     });
@@ -687,7 +691,9 @@
     if(stat){
       bars.forEach(function(d){
         var span=document.createElement('span');
-        span.innerHTML='<b>'+S.dose.groups[String(d.size)]+' · '+d.dose+'</b> '+d.mean.toFixed(3)+' ['+d.seeds.map(function(x){return x.toFixed(3);}).join(', ')+'] '+(d.pass?'✓':'✗');
+        var b=document.createElement('b'); b.textContent=S.dose.groups[String(d.size)]+' · '+d.dose;
+        var rest=' '+d.mean.toFixed(3)+' ['+d.seeds.map(function(x){return x.toFixed(3);}).join(', ')+'] '+(d.pass?'✓':'✗');
+        span.appendChild(b); span.appendChild(document.createTextNode(rest));
         stat.appendChild(span);
       });
     }

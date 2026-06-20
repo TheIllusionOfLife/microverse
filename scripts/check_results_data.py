@@ -13,13 +13,16 @@ checker re-reads the canonical sources and asserts each embedded value matches:
 * the before / after per-agent verb shares are re-read from their run dirs;
 * the few doc-only values (the no-economy monoculture range, the persona-backfire travel
   collapse) are asserted to appear verbatim in their cited findings doc;
-* EN and JA pages must carry a byte-identical data block and the same section anchors, so
-  the two language versions cannot silently drift.
+* EN and JA pages must carry a semantically identical data block (same parsed values,
+  key-order-insensitive), the same localized-strings key structure, the same citation
+  links, and the same section anchors, so the two language versions cannot silently drift.
 
-``data/`` is untracked, so the source cross-check only runs where the local run dirs are
-present (mismatches and missing dirs are both reported); the pure parse/compare logic is
-covered offline by ``tests/test_check_results_data.py``. Run before opening or updating the
-writeup PR::
+``data/`` is untracked, so the gate-report cross-check needs the local run dirs. By default a
+missing run dir (or a missing JA page) is a **hard failure** — the checker refuses to report
+success when it verified nothing. Pass ``--allow-missing-data`` to run the structure/parity
+checks alone (e.g. a fresh clone) and demote absent run dirs to warnings. The pure
+parse/compare logic is covered offline by ``tests/test_check_results_data.py``. Run before
+opening or updating the writeup PR::
 
     uv run python scripts/check_results_data.py
 """
@@ -43,8 +46,12 @@ _STRINGS_RE = re.compile(
     r'<script id="microverse-strings" type="application/json">(.*?)</script>',
     re.DOTALL,
 )
+# Source-trail citations: both languages must point at the same docs/ADRs.
+_CITE_RE = re.compile(r'<a[^>]*class="cite"[^>]*href="([^"]+)"')
 # Section anchors the page JS and in-page nav depend on; both languages must carry them.
 _REQUIRED_ANCHORS = ("dose", "specialization")
+# Tag shared by read_seed_metric() and main() so skip-classification has one source of truth.
+_MISSING_DIR = "missing run dir"
 
 
 def extract_data(html: str) -> dict:
@@ -73,7 +80,7 @@ def _shape(obj: object) -> object:
 
 
 def _chosen(repo: Path, dir_name: str) -> dict:
-    report = json.loads((repo / dir_name / "gate-report.json").read_text())
+    report = json.loads((repo / dir_name / "gate-report.json").read_text(encoding="utf-8"))
     return report["gate_9_verb_diversity"]["chosen"]
 
 
@@ -83,12 +90,15 @@ def read_seed_metric(
     """Re-read one run dir's chosen-stream ``metric`` and compare to ``expected``.
 
     Returns ``(actual, None)`` on match, ``(actual, message)`` on mismatch, and
-    ``(None, message)`` when the run dir is absent (data/ is untracked).
+    ``(None, message)`` when the run dir is absent (the message carries ``_MISSING_DIR``)
+    or its gate-report.json is unreadable (a hard error, not a skip).
     """
     try:
         chosen = _chosen(repo, dir_name)
     except FileNotFoundError:
-        return None, f"  - {dir_name}: missing run dir (data/ untracked; cannot verify {expected})"
+        return None, f"  - {dir_name}: {_MISSING_DIR} (data/ untracked; cannot verify {expected})"
+    except (json.JSONDecodeError, KeyError) as exc:
+        return None, f"  - {dir_name}: unreadable gate-report.json ({exc!r})"
     actual = chosen.get(metric)
     if actual is None:
         return None, f"  - {dir_name}: chosen.{metric} absent in gate-report.json"
@@ -98,12 +108,12 @@ def read_seed_metric(
 
 
 def check_dose_mean(entry: dict) -> list[str]:
-    """Recompute a dose entry's mean from its per-seed values."""
+    """Recompute a dose entry's mean from its per-seed values (raw, not pre-rounded)."""
     seeds = entry["seeds"]
-    mean = round(sum(seeds) / len(seeds), 4)
+    mean = sum(seeds) / len(seeds)  # raw: TOL absorbs the page's 4-dp display rounding only
     if abs(mean - entry["mean"]) > TOL:
         label = entry.get("dose") or entry.get("key") or "?"
-        return [f"  - dose {label}: mean {entry['mean']} vs computed {mean}"]
+        return [f"  - dose {label}: mean {entry['mean']} vs computed {mean:.5f}"]
     return []
 
 
@@ -113,10 +123,10 @@ def _check_agent_shares(repo: Path, spec: dict, label: str) -> list[str]:
     if err:
         errs.append(f"{label} mpj:{err}")
         if val is None:
-            return errs  # missing dir: skip per-agent (already reported)
+            return errs  # missing/unreadable dir: skip per-agent (already reported)
     try:
         shares = _chosen(repo, spec["dir"])["per_agent_verb_share"]
-    except FileNotFoundError:
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
         return errs
     for agent, verbs in spec["agents"].items():
         for verb, page_val in verbs.items():
@@ -127,10 +137,11 @@ def _check_agent_shares(repo: Path, spec: dict, label: str) -> list[str]:
 
 
 def _doc_has(repo: Path, doc: str, value: float) -> bool:
-    text = (repo / doc).read_text()
-    # Match the value as written (e.g. 0.156, 0.88) ignoring trailing zeros.
+    text = (repo / doc).read_text(encoding="utf-8")
+    # Match the value as written (e.g. 0.156, 0.88) ignoring trailing zeros, with digit
+    # boundaries so 0.26 does not spuriously match 0.265 or 10.26.
     needle = f"{value:.4f}".rstrip("0").rstrip(".")
-    return needle in text
+    return re.search(r"(?<!\d)" + re.escape(needle) + r"(?!\d)", text) is not None
 
 
 def check_sources(data: dict, repo: Path) -> list[str]:
@@ -162,30 +173,38 @@ def check_sources(data: dict, repo: Path) -> list[str]:
             if err:
                 errs.append(f"lever {lever['key']}:\n{err}")
 
-    # Doc-only values: assert they appear verbatim in the cited findings doc.
+    # Doc-only values: assert they appear verbatim in the cited findings doc. A missing
+    # cited doc is itself an error (a broken source trail), not a silent skip.
     mono = data["monoculture"]
-    for value in (*mono["contribute_no_economy"], *mono["contribute_with_economy"]):
-        if (repo / mono["doc"]).exists() and not _doc_has(repo, mono["doc"], value):
-            errs.append(f"monoculture: {value} not found in {mono['doc']}")
+    if not (repo / mono["doc"]).exists():
+        errs.append(f"monoculture: cited doc not found: {mono['doc']}")
+    else:
+        for value in (*mono["contribute_no_economy"], *mono["contribute_with_economy"]):
+            if not _doc_has(repo, mono["doc"], value):
+                errs.append(f"monoculture: {value} not found in {mono['doc']}")
     persona = next((lv for lv in data["levers"] if lv.get("key") == "persona"), None)
-    if persona and (repo / persona["doc"]).exists():
-        for value in (persona["travel_before"], persona["travel_after"]):
-            if not _doc_has(repo, persona["doc"], value):
-                errs.append(f"persona travel {value} not found in {persona['doc']}")
+    if persona:
+        if not (repo / persona["doc"]).exists():
+            errs.append(f"persona: cited doc not found: {persona['doc']}")
+        else:
+            for value in (persona["travel_before"], persona["travel_after"]):
+                if not _doc_has(repo, persona["doc"], value):
+                    errs.append(f"persona travel {value} not found in {persona['doc']}")
 
     return errs
 
 
 def check_parity(en_html: str, ja_html: str) -> list[str]:
-    """Assert the EN and JA pages share identical data, string shape, and anchors.
+    """Assert the EN and JA pages share data, string shape, citations, and anchors.
 
-    Numbers (the data block) must be byte-for-byte identical; the localized strings
-    block may differ in text but must share the exact same key structure (so a missing
-    or renamed key can't break one language); section anchors must match.
+    The data block must be semantically identical (same parsed values; key order and
+    whitespace are irrelevant). The localized strings block may differ in text but must
+    share the exact same key structure (so a missing or renamed key can't break one
+    language). Both pages must cite the same source URLs and carry the required anchors.
     """
     errs: list[str] = []
     if extract_data(en_html) != extract_data(ja_html):
-        errs.append("EN/JA data block diverged (the embedded numbers must be identical)")
+        errs.append("EN/JA data block diverged (the embedded numbers must match)")
     try:
         if _shape(extract_strings(en_html)) != _shape(extract_strings(ja_html)):
             errs.append(
@@ -193,10 +212,17 @@ def check_parity(en_html: str, ja_html: str) -> list[str]:
             )
     except ValueError as exc:
         errs.append(f"strings block: {exc}")
+    if sorted(_CITE_RE.findall(en_html)) != sorted(_CITE_RE.findall(ja_html)):
+        errs.append("EN/JA citation hrefs diverged (both pages must cite the same sources)")
     for anchor in _REQUIRED_ANCHORS:
         token = f'id="{anchor}"'
-        if (token in en_html) != (token in ja_html):
-            errs.append(f"section anchor #{anchor} present in only one language")
+        en_has, ja_has = token in en_html, token in ja_html
+        if not en_has or not ja_has:
+            if not en_has and not ja_has:
+                where = "both pages"
+            else:
+                where = "results.ja.html" if en_has else "results.html"
+            errs.append(f"section anchor #{anchor} missing from {where}")
     return errs
 
 
@@ -207,33 +233,48 @@ def main(argv: list[str] | None = None) -> int:
         "--ja", default="results.ja.html", help="Japanese page (default: results.ja.html)"
     )
     parser.add_argument("--repo", default=str(REPO_ROOT), help="repo root for source dirs")
+    parser.add_argument(
+        "--allow-missing-data",
+        action="store_true",
+        help="demote absent run dirs / JA page to warnings (default: fail closed)",
+    )
     args = parser.parse_args(argv)
 
     repo = Path(args.repo)
     en_path, ja_path = repo / args.en, repo / args.ja
-    en_html = en_path.read_text()
+    en_html = en_path.read_text(encoding="utf-8")
     data = extract_data(en_html)
 
     errs = check_sources(data, repo)
-    if ja_path.exists():
-        errs.extend(check_parity(en_html, ja_path.read_text()))
-    else:
-        errs.append(f"{args.ja} not found (EN/JA parity not checked)")
+    ja_missing = not ja_path.exists()
+    if not ja_missing:
+        errs.extend(check_parity(en_html, ja_path.read_text(encoding="utf-8")))
 
-    # Separate hard mismatches from soft "missing untracked dir" skips.
-    skips = [e for e in errs if "missing run dir" in e]
-    hard = [e for e in errs if "missing run dir" not in e]
+    # Absent run dirs and an absent JA page are "could not verify", not "verified wrong".
+    # Fail closed by default so the checker never reports success having verified nothing;
+    # --allow-missing-data demotes them to warnings for structure-only runs (e.g. CI clone).
+    missing = [e for e in errs if _MISSING_DIR in e]
+    hard = [e for e in errs if _MISSING_DIR not in e]
+    if ja_missing:
+        missing.append(f"  - {args.ja} not found (EN/JA parity not checked)")
 
-    if skips:
-        print(f"SKIPPED {len(skips)} source dir(s) not present locally (data/ untracked):")
-        for s in skips:
-            print(s)
+    if missing and not args.allow_missing_data:
+        hard.extend(missing)
+        missing = []
+
+    if missing:
+        print(f"WARNING — {len(missing)} source(s) absent (not verified; --allow-missing-data):")
+        for m in missing:
+            print(m)
     if hard:
         print(f"\nFAIL — {len(hard)} integrity issue(s):")
         for e in hard:
             print(e)
         return 1
-    print("\nOK — every embedded number matches its committed source (EN/JA in parity).")
+    if args.allow_missing_data and missing:
+        print("\nOK — page structure + EN/JA parity valid (run dirs absent; not cross-checked).")
+    else:
+        print("\nOK — every embedded number matches its committed source (EN/JA in parity).")
     return 0
 
 

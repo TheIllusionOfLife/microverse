@@ -2,9 +2,10 @@
 
 The checker validates that every number embedded in results.html (the public writeup)
 matches its committed source: per-seed gate-report.json files for the dose/lever metrics,
-and findings-doc text for the few doc-only values. It also asserts EN/JA parity (the two
-pages must carry a byte-identical data block). These tests exercise the pure parse/compare
-logic against fixtures so they run offline in CI (the real data/ dirs are untracked).
+and findings-doc text for the few doc-only values. It also asserts EN/JA parity (same
+parsed data, same strings key-shape, same citations and anchors). These tests exercise the
+pure parse/compare logic against fixtures so they run offline in CI (the real data/ dirs
+are untracked).
 """
 
 import importlib.util
@@ -13,10 +14,14 @@ from pathlib import Path
 
 import pytest
 
+# Load the script directly (it lives under scripts/, not on sys.path); the asserts keep
+# type-checkers happy and surface a clear error if the spec can't be built.
 _SPEC = importlib.util.spec_from_file_location(
     "check_results_data",
     Path(__file__).resolve().parent.parent / "scripts" / "check_results_data.py",
 )
+assert _SPEC is not None
+assert _SPEC.loader is not None
 crd = importlib.util.module_from_spec(_SPEC)
 _SPEC.loader.exec_module(crd)
 
@@ -165,3 +170,83 @@ def test_parity_missing_anchor_flagged():
     errs = crd.check_parity(en, ja)
     assert errs
     assert any("anchor" in e.lower() for e in errs)
+
+
+def test_parity_anchor_missing_from_both_flagged():
+    data = {"meta": {}}
+    strings = {"cmp": {"before": "B"}}
+    body = (
+        "<!doctype html><html><body>"
+        f'<script id="microverse-data" type="application/json">{json.dumps(data)}</script>'
+        f'<script id="microverse-strings" type="application/json">{json.dumps(strings)}</script>'
+        '<section id="specialization"></section></body></html>'  # #dose absent in BOTH
+    )
+    errs = crd.check_parity(body, body)
+    assert any("#dose" in e and "both pages" in e for e in errs)
+
+
+def test_parity_cite_href_drift_flagged():
+    data = {"meta": {}}
+    strings = {"cmp": {"before": "B"}}
+
+    def page(href: str) -> str:
+        sblock = json.dumps(strings)
+        return (
+            "<!doctype html><html><body>"
+            f'<script id="microverse-data" type="application/json">{json.dumps(data)}</script>'
+            f'<script id="microverse-strings" type="application/json">{sblock}</script>'
+            f'<a class="cite" href="{href}">ADR 0016</a>'
+            '<section id="dose"></section><section id="specialization"></section></body></html>'
+        )
+
+    errs = crd.check_parity(page("/docs/adr/0016.md"), page("/docs/adr/0018.md"))
+    assert any("citation" in e.lower() for e in errs)
+    # same href on both -> no citation error
+    assert crd.check_parity(page("/docs/adr/0016.md"), page("/docs/adr/0016.md")) == []
+
+
+# ── doc-value matching ──────────────────────────────────────────────────────
+
+
+def test_doc_has_digit_boundary(tmp_path: Path):
+    (tmp_path / "d.md").write_text("the share was 0.265 in that run", encoding="utf-8")
+    assert crd._doc_has(tmp_path, "d.md", 0.265) is True
+    # 0.26 must NOT match inside 0.265
+    assert crd._doc_has(tmp_path, "d.md", 0.26) is False
+
+
+def test_doc_has_reads_utf8(tmp_path: Path):
+    (tmp_path / "d.md").write_text("日本語 0.156 の値", encoding="utf-8")
+    assert crd._doc_has(tmp_path, "d.md", 0.156) is True
+
+
+# ── robustness: corrupt source, missing cited doc ───────────────────────────
+
+
+def test_corrupt_gate_report_is_hard_error(tmp_path: Path):
+    d = tmp_path / "econ-x-s101"
+    d.mkdir()
+    (d / "gate-report.json").write_text("{not valid json", encoding="utf-8")
+    _, err = crd.read_seed_metric(tmp_path, "econ-x-s101", "mean_pairwise_jsd", 0.3053)
+    assert err is not None
+    assert "unreadable" in err.lower()
+    # corrupt != missing: must NOT be classified as a soft skip
+    assert crd._MISSING_DIR not in err
+
+
+def test_missing_cited_doc_is_error(tmp_path: Path):
+    data = {
+        "monoculture": {
+            "contribute_no_economy": [0.88, 0.92],
+            "contribute_with_economy": [0.26, 0.31],
+            "doc": "docs/does-not-exist.md",
+        },
+        "specialization": {
+            "before": {"dir": "data/x", "mpj": 0.2, "agents": {}},
+            "after": {"dir": "data/y", "mpj": 0.3, "agents": {}},
+        },
+        "dose": [],
+        "levers": [],
+    }
+    errs = crd.check_sources(data, tmp_path)
+    assert any("cited doc not found" in e for e in errs)
